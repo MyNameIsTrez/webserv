@@ -1,0 +1,9 @@
+*
+!*/
+
+!experiments/*.c
+
+!.gitignore
+!README.md
+!subject.pdf
+!TODO.md
