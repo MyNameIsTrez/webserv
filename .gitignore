@@ -4,6 +4,7 @@
 !experiments/*.c
 
 !.gitignore
+!fn_descriptions.c
 !README.md
 !subject.pdf
 !TODO.md

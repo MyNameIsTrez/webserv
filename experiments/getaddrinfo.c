@@ -2,7 +2,7 @@
 // #include <stdio.h>
 // #include <unistd.h>
 
-// gcc -Wall -Wextra -Werror -g getaddrinfo.c && ./a.out
+// gcc getaddrinfo.c -Wall -Wextra -Werror -g && ./a.out
 int main(void)
 {
 	// getaddrinfo();
