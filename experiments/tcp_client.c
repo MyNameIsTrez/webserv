@@ -35,6 +35,24 @@ void die(const char *fmt, ...)
 	exit(EXIT_FAILURE);
 }
 
+// Source: https://stackoverflow.com/q/41904221/13279557
+ssize_t write_fully(int fd, char *buf, size_t len)
+{
+	while (len > 0)
+	{
+		ssize_t bytes_written = write(fd, buf, len);
+		if (bytes_written < 0)
+		{
+			// Error
+			return bytes_written;
+		}
+		buf += bytes_written;
+		len -= bytes_written;
+	}
+	// Success
+	return 0;
+}
+
 // gcc tcp_client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 172.217.168.206
 // Code stolen from https://youtu.be/bdIiTxtMaKA
 int main(int argc, char *argv[])
@@ -72,21 +90,28 @@ int main(int argc, char *argv[])
 	// We're connected; prepare message
 	// Message asks to get / (root) homepage
 	char *message = "GET / HTTP/1.1\r\n\r\n";
-	int message_len = strlen(message);
+	size_t message_len = strlen(message);
 
-	// Send the request, making sure that every byte was sent
-	// TODO: This code is shit, since it bails if only some of the bytes are sent
-	// TODO: Instead, keep retrying, unless the return value was -1
-	if (write(socket_fd, message, message_len) != message_len)
+	// write() its behavior could be weird with a message_len of 0
+	// Source: https://stackoverflow.com/a/41970485/13279557
+	if (message_len == 0)
 	{
-		die("write() error");
+		die("message_len was 0");
 	}
 
-	// Read the server's response
+	// Send the request, making sure that every byte was sent
+	if (write_fully(socket_fd, message, message_len) < 0)
+	{
+		die("write_fully() error");
+	}
+
+	// NULL-terminate server response string
 	char response[MAX_LINE_LEN];
-	// NULL-terminate string
 	memset(response, 0, MAX_LINE_LEN);
-	int bytes_read;
+
+	// Keep attempting to read, until the end of the response is reached (0), or an error is returned (-1)
+	// read() will keep the program blocked, waiting for more stuff to read
+	ssize_t bytes_read;
 	while ((bytes_read = read(socket_fd, response, MAX_LINE_LEN - 1)) > 0)
 	{
 		printf("%s", response);
