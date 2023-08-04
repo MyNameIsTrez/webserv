@@ -21,21 +21,21 @@ void die(const char *fmt, ...)
 	va_start(ap, fmt);
 	vfprintf(stderr, fmt, ap);
 	va_end(ap);
+
 	fprintf(stderr, "\n");
 	fflush(stderr);
 
 	// Print out error message if errno was set
 	if (errno_copy != 0)
 	{
-		fprintf(stderr, "(errno = %d) : %s\n", errno_copy, strerror(errno_copy));
-		fprintf(stderr, "\n");
+		fprintf(stderr, "errno %d: %s\n", errno_copy, strerror(errno_copy));
 		fflush(stderr);
 	}
 
-	exit(1);
+	exit(EXIT_FAILURE);
 }
 
-// gcc tcp_client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out 172.217.168.206
+// gcc tcp_client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 172.217.168.206
 // Code stolen from https://youtu.be/bdIiTxtMaKA
 int main(int argc, char *argv[])
 {
