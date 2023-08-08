@@ -65,7 +65,7 @@ int main(int argc, char *argv[])
 	int socket_fd;
 	if ((socket_fd = socket(AF_INET, SOCK_STREAM, TCP)) < 0)
 	{
-		die("socket() error");
+		die("socket");
 	}
 
 	// Set up socket struct
@@ -79,12 +79,12 @@ int main(int argc, char *argv[])
 	char *ip_str = argv[1];
 	if (inet_pton(AF_INET, ip_str, &socket.sin_addr) <= 0)
 	{
-		die("inet_pton() error with IP '%s'", ip_str);
+		die("inet_pton with IP '%s'", ip_str);
 	}
 
 	if (connect(socket_fd, (struct sockaddr *)&socket, sizeof(socket)) < 0)
 	{
-		die("connect() error");
+		die("connect");
 	}
 
 	// We're connected; prepare message
@@ -102,7 +102,7 @@ int main(int argc, char *argv[])
 	// Send the request, making sure that every byte was sent
 	if (write_fully(socket_fd, message, message_len) < 0)
 	{
-		die("write_fully() error");
+		die("write_fully");
 	}
 
 	// NULL-terminate server response string
@@ -119,7 +119,7 @@ int main(int argc, char *argv[])
 	}
 	if (bytes_read < 0)
 	{
-		die("read() error");
+		die("read");
 	}
 
 	return EXIT_SUCCESS;
