@@ -5,8 +5,12 @@
 #include <unistd.h>
 
 
+// Watch this playlist for explanations of most of these functions:
+// https://www.youtube.com/playlist?list=PL9IEJIKnBJjH_zM5LnovnoaKlXML5qh17
+
+
 ////////////////////////////////////////////////////////////////////////////////
-// Compact list of allowed functions
+// List of all allowed functions
 
 // execve, dup, dup2, pipe, strerror, gai_strerror,
 // errno, fork, htons, htonl, ntohs, ntohl,
@@ -110,6 +114,7 @@ int accept(int socket, struct sockaddr *restrict address,
 // Address info functions
 
 // Takes a hostname like google.com and returns a list of its IPs
+// See experiments/getaddrinfo.c
 int getaddrinfo(const char *hostname, const char *servname,
                 const struct addrinfo *hints, struct addrinfo **res);
 
@@ -122,23 +127,50 @@ const char *gai_strerror(int ecode);
 ////////////////////////////////////////////////////////////////////////////////
 // Directory functions
 
+// These don't recursively walk directories, so you'd have to make your own recursive one
+// See the bottom of "man opendir" for a usage example
+
 DIR *opendir(const char *filename);
 struct dirent *readdir(DIR *dirp);
 int closedir(DIR *dirp);
 
+
 ////////////////////////////////////////////////////////////////////////////////
+// Socket options
 
+// Further explanations:
+// https://stackoverflow.com/a/4233770/13279557
+// https://linuxgazette.net/136/pfeiffer.html
 
+// For example, allows setting the maximum receive buffer size, or reusing addresses, etc
 int setsockopt(int socket, int level, int option_name,
                const void *option_value, socklen_t option_len);
 
+// For example, allows getting the maximum receive buffer size, or length of timeouts, etc
 int getsockname(int socket, struct sockaddr *restrict address,
                 socklen_t *restrict address_len);
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Get protocol number and aliases from name
+
+// See experiments/getprotobyname.c
 struct protoent *getprotobyname(const char *name);
 
+
+////////////////////////////////////////////////////////////////////////////////
+// File control
+
+// From the Posix standard: https://stackoverflow.com/a/42121676/13279557
+// "The dup() function provides an alternative interface to the service provided by fcntl() using the F_DUPFD command.
+// The call dup(fildes) shall be equivalent to: fcntl(fildes, F_DUPFD, 0);"
+// Where the 0 means that any file descriptor higher than 0 can be returned
+
+// See experiments/fcntl.c
 int fcntl(int fildes, int cmd, ...);
 
+
+////////////////////////////////////////////////////////////////////////////////
 
 int kill(pid_t pid, int sig);
 
