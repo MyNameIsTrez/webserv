@@ -7,9 +7,9 @@
 #include <errno.h>
 
 // Standard HTTP port
-#define SERVER_PORT 80
+#define SERVER_PORT 18000
 
-#define MAX_LINE_LEN 4096
+#define MAX_RECEIVED_LEN 4096
 #define TCP 0
 
 void die(const char *fmt, ...)
@@ -53,7 +53,7 @@ ssize_t write_fully(int fd, char *buf, size_t len)
 	return 0;
 }
 
-// gcc tcp_client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 172.217.168.206
+// gcc client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 172.217.168.206
 // Code stolen from https://youtu.be/bdIiTxtMaKA
 int main(int argc, char *argv[])
 {
@@ -105,17 +105,18 @@ int main(int argc, char *argv[])
 		die("write_fully");
 	}
 
-	// NULL-terminate server response string
-	char response[MAX_LINE_LEN];
-	memset(response, 0, MAX_LINE_LEN);
+	// NULL-terminate received string
+	char received[MAX_RECEIVED_LEN + 1];
+	bzero(received, MAX_RECEIVED_LEN + 1);
 
-	// Keep attempting to read, until the end of the response is reached (0), or an error is returned (-1)
-	// read() will keep the program blocked, waiting for more stuff to read
+	// Keep attempting to read, until there is no more data to receive (0),
+	// or an error is returned (-1)
+	// read() will block the program, waiting for more stuff to read
 	ssize_t bytes_read;
-	while ((bytes_read = read(socket_fd, response, MAX_LINE_LEN - 1)) > 0)
+	while ((bytes_read = read(socket_fd, received, MAX_RECEIVED_LEN)) > 0)
 	{
-		printf("%s", response);
-		memset(response, 0, MAX_LINE_LEN);
+		printf("%s", received);
+		bzero(received, MAX_RECEIVED_LEN + 1);
 	}
 	if (bytes_read < 0)
 	{
