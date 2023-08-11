@@ -7,7 +7,9 @@
 
 // Watch this playlist for explanations of most of these functions:
 // https://www.youtube.com/playlist?list=PL9IEJIKnBJjH_zM5LnovnoaKlXML5qh17
-
+//
+// This client.c and server.c example is similar to what we'll be writing:
+// https://gist.github.com/browny/5211329
 
 ////////////////////////////////////////////////////////////////////////////////
 // List of all allowed functions
@@ -96,16 +98,25 @@ int kevent(int kq, const struct kevent *changelist, int nchanges,
 // domain can be AF_INET
 // type can be SOCK_STREAM
 // protocol is 0 (TCP) with streams, and 0 (UDP) for datagrams
+// See tcp_client.c
 int socket(int domain, int type, int protocol);
 
+// Bind a sockaddr struct to a socket file descriptor
+// This is only called by the client
+// See tcp_client.c
+int connect(int socket, const struct sockaddr *address, socklen_t address_len);
+
 // Allows setting a port
+// This is only called by the server
 int bind(int socket, const struct sockaddr *address, socklen_t address_len);
 
 // Allows incoming connections
 // `backlog` is the max queue length of pending connections
+// This is only called by the server
 int listen(int socket, int backlog);
 
 // Waits until an incoming connection from the connection queue can be returned
+// This is only called by the server
 int accept(int socket, struct sockaddr *restrict address,
            socklen_t *restrict address_len);
 
@@ -171,16 +182,27 @@ int fcntl(int fildes, int cmd, ...);
 
 
 ////////////////////////////////////////////////////////////////////////////////
+// Sending signals
 
+// Sends a signal to pid, like SIGKILL
+// See experiments/kill.c
 int kill(pid_t pid, int sig);
 
+// Allows catching signals like Ctrl+C
+// See experiments/signal.c
 sig_t signal(int sig, sig_t func);
 
+
+////////////////////////////////////////////////////////////////////////////////
+// Get file statistics
+
+// See experiments/stat.c
 int stat(const char *restrict path, struct stat *restrict buf);
 
+
+////////////////////////////////////////////////////////////////////////////////
+// TODO: ?
 
 ssize_t send(int socket, const void *buffer, size_t length, int flags);
 
 ssize_t recv(int socket, void *buffer, size_t length, int flags);
-
-int connect(int socket, const struct sockaddr *address, socklen_t address_len);
