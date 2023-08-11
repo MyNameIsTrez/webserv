@@ -1,14 +1,13 @@
 #include <fcntl.h>
 #include <stdlib.h>
 #include <stdio.h>
-// #include <unistd.h>
 
 // gcc fcntl.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out 2 && ./a.out 3
 int main(int argc, char *argv[])
 {
 	if (argc != 2)
 	{
-		printf("Usage: %s <descriptor> \n", argv[0]);
+		printf("Usage: %s <descriptor>\n", argv[0]);
 		exit(1);
 	}
 

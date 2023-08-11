@@ -3,7 +3,6 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-// #include <unistd.h>
 
 // gcc getaddrinfo.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out google.com
 int main(int argc, char *argv[])
@@ -19,11 +18,12 @@ int main(int argc, char *argv[])
 	struct addrinfo hint;
 	struct addrinfo *result;
 
-	memset(&hint, 0, sizeof(hint));
+	bzero(&hint, sizeof(hint));
 
 	// AF stands for Address Family
-	// hint.ai_family = AF_INET; // IPV4 addresses
-	// hint.ai_family = AF_INET6; // IPV6 addresses
+	// hint.ai_family = AF_INET; // IPv4 addresses
+	// hint.ai_family = AF_INET6; // IPv6 addresses
+	// TODO: Why doesn't this print both IPv4 and IPv6?
 	hint.ai_family = AF_UNSPEC; // Unspecified: give all addresses
 
 	// Leaving this commented out means it'll give both streams (TCP) and datagrams (UDP)
