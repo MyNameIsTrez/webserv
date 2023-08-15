@@ -6,10 +6,10 @@
 #include <stdarg.h>
 #include <errno.h>
 
-// Standard HTTP port
 #define SERVER_PORT 18000
 
 #define MAX_RECEIVED_LEN 4096
+
 #define TCP 0
 
 void die(const char *fmt, ...)
@@ -53,7 +53,7 @@ ssize_t write_fully(int fd, char *buf, size_t len)
 	return 0;
 }
 
-// gcc client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 172.217.168.206
+// gcc client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 127.0.0.1
 // Code stolen from https://youtu.be/bdIiTxtMaKA
 int main(int argc, char *argv[])
 {
@@ -87,20 +87,20 @@ int main(int argc, char *argv[])
 		die("connect");
 	}
 
-	// We're connected; prepare message
+	// We're connected; prepare sent message
 	// Message asks to get / (root) homepage
-	char *message = "GET / HTTP/1.1\r\n\r\n";
-	size_t message_len = strlen(message);
+	char *sent = "GET / HTTP/1.1\r\n\r\n";
+	size_t sent_len = strlen(sent);
 
-	// write() its behavior could be weird with a message_len of 0
+	// write() its behavior could be weird with a sent_len of 0
 	// Source: https://stackoverflow.com/a/41970485/13279557
-	if (message_len == 0)
+	if (sent_len == 0)
 	{
-		die("message_len was 0");
+		die("sent_len was 0");
 	}
 
 	// Send the request, making sure that every byte was sent
-	if (write_fully(socket_fd, message, message_len) < 0)
+	if (write_fully(socket_fd, sent, sent_len) < 0)
 	{
 		die("write_fully");
 	}
