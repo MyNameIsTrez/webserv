@@ -201,7 +201,11 @@ int stat(const char *restrict path, struct stat *restrict buf);
 
 
 ////////////////////////////////////////////////////////////////////////////////
-// TODO: ?
+// write() and read() but with extra flags for sockets
+
+// read() is equivalent to recv() with a flags parameter of 0.
+// Other values for the flags parameter change the behaviour of recv().
+// Similarly, write() is equivalent to send() with flags == 0.
 
 ssize_t send(int socket, const void *buffer, size_t length, int flags);
 
