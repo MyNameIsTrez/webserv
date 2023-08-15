@@ -9,6 +9,7 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+// TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
 
 #define MAX_CONNECTION_QUEUE_LENGTH 10
@@ -168,6 +169,7 @@ int main(void)
 		}
 		if (bytes_read < 0)
 		{
+			// TODO: "Search for all read/recv/write/send on a socket and check that, if an error is returned, the client is removed." - eval sheet
 			die("read");
 		}
 

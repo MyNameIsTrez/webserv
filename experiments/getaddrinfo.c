@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// gcc getaddrinfo.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out google.com
+// gcc getaddrinfo.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
 int main(int argc, char *argv[])
 {
 	if (argc != 2)
@@ -47,8 +47,8 @@ int main(int argc, char *argv[])
 	while (tmp)
 	{
 		printf("Entry:\n");
-		printf("\tType: %i\n", tmp->ai_socktype);
-		printf("\tFamily: %i\n", tmp->ai_family);
+		printf("\tType: %d\n", tmp->ai_socktype);
+		printf("\tFamily: %d\n", tmp->ai_family);
 
 		// IPv4 will also fit with INET6_ADDRSTRLEN, since it is 46:
 		// https://stackoverflow.com/a/7477384/13279557
