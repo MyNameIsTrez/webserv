@@ -7,6 +7,9 @@
 - [RFC key word explanations clarification](https://www.rfc-editor.org/rfc/pdfrfc/rfc8174.txt.pdf)
 - [HTTP response status codes](https://developer.mozilla.org/en-US/docs/Web/HTTP/Status#client_error_responses)
 - [webserv eval sheet](https://rphlr.github.io/42-Evals/Rank05/webserv/)
+- [CGI programming is simple!](http://www.whizkidtech.redprince.net/cgi-bin/tutorial)
+- [CGI C examples](https://www.eskimo.com/~scs/cclass/handouts/cgi.html)
+- [NGINX configuration guide](https://www.plesk.com/blog/various/nginx-configuration-guide/)
 
 ## Setting up multiple servers with different hostnames
 
