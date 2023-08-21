@@ -1,15 +1,26 @@
-# Tasks
+# Remaining tasks
+
+- [ ] GET request method response
+- [ ] POST request method response
+- [ ] DELETE request method response
+- [ ] CGI script launching
+- [ ] Chunked requests
+- [ ] Our own tests?
+
+## Sander
 
 - [ ] Set up regular NGINX server
 - [ ] Run tester on NGINX server
-- [ ] Configuraton file parser of either JSON, or NGINX's configuration format
+
+## Victor
+
+- [ ] Incoming request parsing (using class that caches reading/writing progress?)
+
+## Milan
+
 - [ ] Main webserv while-loop that uses poll()
-- [ ] Multithreading?
-- [ ] Support chunked requests
-- [ ] CGI script launching
-- [ ] GET request method
-- [ ] POST request method
-- [ ] DELETE request method
+- [ ] NGINX's configuration format parser
+
 
 # PDF questions
 - How are the provided "tester" and "cgi_tester" executables supposed to be used?
