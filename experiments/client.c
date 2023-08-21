@@ -10,8 +10,6 @@
 
 #define MAX_RECEIVED_LEN 4096
 
-#define TCP 0
-
 void die(const char *fmt, ...)
 {
 	int errno_copy = errno;
@@ -62,8 +60,10 @@ int main(int argc, char *argv[])
 		die("Usage: %s <ip>", argv[0]);
 	}
 
+	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
+	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
 	int socket_fd;
-	if ((socket_fd = socket(AF_INET, SOCK_STREAM, TCP)) < 0)
+	if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
 		die("socket");
 	}

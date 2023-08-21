@@ -17,8 +17,6 @@
 #define MAX_RECEIVED_LEN 4096
 #define MAX_SENT_LEN 4096
 
-#define TCP 0
-
 void die(const char *fmt, ...)
 {
 	int errno_copy = errno;
@@ -73,8 +71,10 @@ char *bin2hex(char *input, size_t len)
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
 {
+	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
+	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
 	int socket_fd;
-	if ((socket_fd = socket(AF_INET, SOCK_STREAM, TCP)) < 0)
+	if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
 		die("socket");
 	}
