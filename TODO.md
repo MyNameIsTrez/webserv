@@ -1,8 +1,15 @@
 # Tasks
 
+- [ ] Set up regular NGINX server
+- [ ] Run tester on NGINX server
 - [ ] Configuraton file parser of either JSON, or NGINX's configuration format
+- [ ] Main webserv while-loop that uses poll()
+- [ ] Multithreading?
 - [ ] Support chunked requests
 - [ ] CGI script launching
+- [ ] GET request method
+- [ ] POST request method
+- [ ] DELETE request method
 
 # PDF questions
 - How are the provided "tester" and "cgi_tester" executables supposed to be used?
@@ -36,13 +43,6 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 - "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along?
 - "Check if there is no hanging connection." - Does Siege report this?
 
-# Eval sheet TODOs
-- "Search for all read/recv/write/send and check if the returned value is correctly checked (checking only -1 or 0 values is not enough, both should be checked)."
-
-# Before handing in
-- Consider editing .gitignore
-- Make sure we're not using the errno global directly: "If errno is checked after read/recv/write/send, the grade is 0 and the evaluation process ends now."
-
 # Decide whether these clients should be redirected to different pages
 {
 	port 9000
@@ -60,3 +60,8 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 	port 9000
 	host f1r3s6.codam.nl
 }
+
+# Before handing in
+- Consider editing .gitignore
+- "Search for all read/recv/write/send and check if the returned value is correctly checked (checking only -1 or 0 values is not enough, both should be checked)." - Eval sheet
+- Make sure we're not using the errno global directly: "If errno is checked after read/recv/write/send, the grade is 0 and the evaluation process ends now."

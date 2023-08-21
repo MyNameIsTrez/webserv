@@ -10,6 +10,7 @@
 - [CGI programming is simple!](http://www.whizkidtech.redprince.net/cgi-bin/tutorial)
 - [CGI C examples](https://www.eskimo.com/~scs/cclass/handouts/cgi.html)
 - [NGINX configuration guide](https://www.plesk.com/blog/various/nginx-configuration-guide/)
+- [Non-blocking I/O with regular files](https://www.remlab.net/op/nonblock.shtml)
 
 ## Setting up multiple servers with different hostnames
 
