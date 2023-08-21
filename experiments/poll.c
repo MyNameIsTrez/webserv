@@ -10,7 +10,7 @@ void errExit(char *msg) {
 }
 
 // TODO: This command does not reach the end of main() because POLLHUP is never received; why is that?
-// gcc poll.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && rm -f myfifo && mkfifo myfifo && echo aaaaabbbbbccccc > myfifo &; ./a.out myfifo
+// gcc poll.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && rm -f myfifo && mkfifo myfifo && echo aaaaabbbbbccccc > myfifo &; ./a.out myfifo && rm myfifo
 // Code stolen from man example: https://man7.org/linux/man-pages/man2/poll.2.html
 int main(int argc, char *argv[]) {
 	if (argc < 2) {
