@@ -43,7 +43,7 @@ pid_t waitpid(pid_t pid, int *stat_loc, int options);
 ////////////////////////////////////////////////////////////////////////////////
 // Byte order functions
 
-// Converts between host and network byte order, either a short (16 bit) or a long (32 bit) integer
+// Converts between host and network byte order, on either short (16 bit) or long (32 bit) integers
 uint16_t htons(uint16_t hostshort);
 uint32_t htonl(uint32_t hostlong);
 uint16_t ntohs(uint16_t netshort);
@@ -65,39 +65,13 @@ int select(int nfds, fd_set *restrict readfds, fd_set *restrict writefds,
 int poll(struct pollfd fds[], nfds_t nfds, int timeout);
 
 
-// Like poll(), but object-oriented
-// The returned file descriptor refers to the instance, and should be passed to epoll_ctl() and epoll_wait()
-int epoll_create(int size);
-
-// Registers interest in particular file descriptors
-// op is either EPOLL_CTL_ADD (add), EPOLL_CTL_MOD (modify), or EPOLL_CTL_DEL (delete)
-// fd needs to both be passed as an argument and inside the event, since the event's fd is a union, so it is optional
-int epoll_ctl(int epfd, int op, int fd, struct epoll_event *_Nullable event);
-
-// `events` is filled by this function, allowing us to only loop over the fds that had an event
-// `maxevents` allows us to limit the number of events that are returned at once
-int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
-
-
-// Marius recommended *not* using this, since it's macOS-specifc, which means it can't be valgrinded with Docker
-int kqueue(void);
-
-// Marius recommended *not* using this, since it's macOS-specifc, which means it can't be valgrinded with Docker
-// changelist are the events you want to monitor
-// nchanges is the size of changelist (0 if changelist is NULL)
-// eventlist are the triggered events, and is filled out by this function
-// nevents is the size of eventlist (0 if eventlist is NULL)
-int kevent(int kq, const struct kevent *changelist, int nchanges,
-           struct kevent *eventlist, int nevents, const struct timespec *timeout);
-
-
 ////////////////////////////////////////////////////////////////////////////////
 // Socket functions
 
 // Initializes a socket, and returns a file descriptor that references the socket
 // domain can be AF_INET
 // type can be SOCK_STREAM
-// protocol is 0 (TCP) with streams, and 0 (UDP) for datagrams
+// protocol is 0 (TCP) with streams, and TODO:?? (UDP) for datagrams
 // See tcp_client.c
 int socket(int domain, int type, int protocol);
 
@@ -210,3 +184,44 @@ int stat(const char *restrict path, struct stat *restrict buf);
 ssize_t send(int socket, const void *buffer, size_t length, int flags);
 
 ssize_t recv(int socket, void *buffer, size_t length, int flags);
+
+
+
+
+
+
+
+
+
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+// We're not using these ones
+
+// NOT ON MAC
+// Like poll(), but object-oriented
+// The returned file descriptor refers to the instance, and should be passed to epoll_ctl() and epoll_wait()
+int epoll_create(int size);
+
+// NOT ON MAC
+// Registers interest in particular file descriptors
+// op is either EPOLL_CTL_ADD (add), EPOLL_CTL_MOD (modify), or EPOLL_CTL_DEL (delete)
+// fd needs to both be passed as an argument and inside the event, since the event's fd is a union, so it is optional
+int epoll_ctl(int epfd, int op, int fd, struct epoll_event *_Nullable event);
+
+// NOT ON MAC
+// `events` is filled by this function, allowing us to only loop over the fds that had an event
+// `maxevents` allows us to limit the number of events that are returned at once
+int epoll_wait(int epfd, struct epoll_event *events, int maxevents, int timeout);
+
+// NOT ON LINUX
+int kqueue(void);
+
+// NOT ON LINUX
+// changelist are the events you want to monitor
+// nchanges is the size of changelist (0 if changelist is NULL)
+// eventlist are the triggered events, and is filled out by this function
+// nevents is the size of eventlist (0 if eventlist is NULL)
+int kevent(int kq, const struct kevent *changelist, int nchanges,
+           struct kevent *eventlist, int nevents, const struct timespec *timeout);
