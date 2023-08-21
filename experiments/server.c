@@ -102,7 +102,7 @@ int main(void)
 	}
 
 	char received[MAX_RECEIVED_LEN + 1];
-	char *sent = "HTTP/1.0 200 OK\r\n\r\n<H1>Hello";
+	char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
 
 	while (true)
 	{
