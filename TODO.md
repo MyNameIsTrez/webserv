@@ -9,7 +9,7 @@
 
 ## Sander
 
-- [ ] Set up regular NGINX server
+- [x] Set up regular NGINX server
 - [ ] Run tester on NGINX server
 
 ## Victor
@@ -26,7 +26,7 @@
 - How are the provided "tester" and "cgi_tester" executables supposed to be used?
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
 - "Your server must never block and the client can be bounced properly if necessary." - How do I make sure that reads and writes are non-blocking? What does bouncing of clients precisely mean?
-- "Because you have to use non-blocking file descriptors, it is possible to use read/recv or write/send functions with no poll() (or equivalent), and your server wouldn’t be blocking. But it would consume more system resources." - With "consuming more system resources", are they referring to something like "while (true) { poll(); }" ?
+- "Because you have to use non-blocking file descriptors, it is possible to use read/recv or write/send functions with no poll() (or equivalent), and your server wouldn’t be blocking. But it would consume more system resources." - What would exactly happen to the system resources?
 - "A request to your server should never hang forever." - How do we test this?
 - "Your server must have default error pages if none are provided." - What do they mean by "if none are provided"? Are they saying that some pages *have* to have different looking error pages?
 - "You must be able to serve a fully static website." - Is there anything we could accidentally do that would make it *not* static? Would adding a single 'X' character to a sent file count as dynamic, since it was not in the file? So does every URL path need to be fully static, or just at least one of them? And what exactly differentiates static from dynamic?
@@ -50,7 +50,7 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 - "You need to test with files containing errors to see if the error handling works properly." - This is under the CGI header in the eval sheet, but is this referring to either the server return()ing a proper error to the terminal, or is it referring to sending a proper error to the client? And does "with files" refer to CGI files?
 - "Use the reference browser of the team. Open the network part of it, and try to connect to the server using it." - What do they mean by "try to conncet to the server using it"? Do they just mean going to the URL with the browser's address bar?
 - "It should be compatible to serve a fully static website." - WTF do they mean with "compatible"?
-- "In the configuration file setup multiple ports and use different websites." - Do they want the webserver to edit /etc/hosts or /private/etc/hosts so the user is redirected to our 127.0.0.1 server when they go to for example foo.com? Or do they want the server to be running on different IPs than just 127.0.0.1?
+- "In the configuration file setup multiple ports and use different websites." - Do they want the web server to edit /etc/hosts or /private/etc/hosts so the user is redirected to our 127.0.0.1 server when they go to for example foo.com? Or do they want the server to be running on different IPs than just 127.0.0.1?
 - "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along?
 - "Check if there is no hanging connection." - Does Siege report this?
 
