@@ -3,18 +3,21 @@
 - [ ] GET request method response
 - [ ] POST request method response
 - [ ] DELETE request method response
-- [ ] CGI script launching
 - [ ] Chunked requests
 - [ ] Our own tests?
+
+- [ ] How to prevent CGI blocking when using waitpid()?
 
 ## Sander
 
 - [x] Set up regular NGINX server
-- [ ] Run tester on NGINX server
+- [?] Run tester on NGINX server (how should it be used?)
+- [ ] CGI script launching
 
 ## Victor
 
-- [ ] Incoming request parsing (using class that caches reading/writing progress?)
+- [ ] Incoming request header parsing (using class that caches reading/writing progress?)
+- [ ] Incoming request body parsing (using class that caches reading/writing progress?)
 
 ## Milan
 
@@ -25,7 +28,7 @@
 # PDF questions
 - How are the provided "tester" and "cgi_tester" executables supposed to be used?
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
-- "Your server must never block and the client can be bounced properly if necessary." - How do I make sure that reads and writes are non-blocking? What does bouncing of clients precisely mean?
+- "Your server must never block and the client can be bounced properly if necessary." - How do I make sure that reads and writes are non-blocking? What does bouncing of clients precisely mean? Isn't poll() technically going to block the program, or is this maybe not called blocking?
 - "Because you have to use non-blocking file descriptors, it is possible to use read/recv or write/send functions with no poll() (or equivalent), and your server wouldn’t be blocking. But it would consume more system resources." - What would exactly happen to the system resources?
 - "A request to your server should never hang forever." - How do we test this?
 - "Your server must have default error pages if none are provided." - What do they mean by "if none are provided"? Are they saying that some pages *have* to have different looking error pages?
@@ -55,22 +58,10 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 - "Check if there is no hanging connection." - Does Siege report this?
 
 # Decide whether these clients should be redirected to different pages
-{
-	port 9000
-	host localhost
-}
-{
-	port 9000
-	host f1r3s6
-}
-{
-	port 9000
-	host 127.0.0.1
-}
-{
-	port 9000
-	host f1r3s6.codam.nl
-}
+http://localhost:8080/
+http://f1r3s6:8080/
+http://127.0.0.1:8080/
+http://f1r3s6.codam.nl:8080/
 
 # Before handing in
 - Consider editing .gitignore
