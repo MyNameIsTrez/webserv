@@ -1,5 +1,6 @@
 #include <arpa/inet.h>
 #include <errno.h>
+#include <poll.h>
 #include <netinet/in.h>
 #include <stdarg.h>
 #include <stdbool.h>
@@ -14,31 +15,7 @@
 
 #define MAX_CONNECTION_QUEUE_LENGTH 10
 
-#define MAX_RECEIVED_LEN 4096
-#define MAX_SENT_LEN 4096
-
-void die(const char *fmt, ...)
-{
-	int errno_copy = errno;
-
-	// Print out the fmt + args to stderr
-	va_list ap;
-	va_start(ap, fmt);
-	vfprintf(stderr, fmt, ap);
-	va_end(ap);
-
-	fprintf(stderr, "\n");
-	fflush(stderr);
-
-	// Print out error message if errno was set
-	if (errno_copy != 0)
-	{
-		fprintf(stderr, "errno %d: %s\n", errno_copy, strerror(errno_copy));
-		fflush(stderr);
-	}
-
-	exit(EXIT_FAILURE);
-}
+#define MAX_RECEIVED_LEN 300
 
 char *bin2hex(char *input, size_t len)
 {
@@ -73,17 +50,18 @@ int main(void)
 {
 	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-	int socket_fd;
-	if ((socket_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	int server_fd;
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
 	{
-		die("socket");
+		perror("socket");
+		exit(EXIT_FAILURE);
 	}
 
-	// "the parameter should be non-zero to enable a boolean option"
-	int option = 1;
 	// Enables local address reuse
 	// This prevents socket() calls from possibly returning an error on server restart
-	setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+	// "the parameter should be non-zero to enable a boolean option"
+	int option = 1;
+	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
 	struct sockaddr_in servaddr;
 	bzero(&servaddr, sizeof(servaddr));
@@ -91,92 +69,97 @@ int main(void)
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
 
-	if ((bind(socket_fd, (struct sockaddr *)&servaddr, sizeof(servaddr))) < 0)
+	if ((bind(server_fd, (struct sockaddr *)&servaddr, sizeof(servaddr))) < 0)
 	{
-		die("bind");
+		perror("bind");
+		exit(EXIT_FAILURE);
 	}
 
-	if ((listen(socket_fd, MAX_CONNECTION_QUEUE_LENGTH)) < 0)
+	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LENGTH)) < 0)
 	{
-		die("listen");
+		perror("listen");
+		exit(EXIT_FAILURE);
 	}
+
+	nfds_t nfds = 2;
+
+	struct pollfd *poll_fds = calloc(nfds, sizeof(struct pollfd));
+	if (poll_fds == NULL) {
+		perror("calloc");
+		exit(EXIT_FAILURE);
+	}
+
+	poll_fds[0].fd = server_fd;
+	poll_fds[0].events = POLLIN;
+
+	poll_fds[1].fd = -1;
 
 	char received[MAX_RECEIVED_LEN + 1];
+	bzero(received, MAX_RECEIVED_LEN + 1);
+
 	char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
+
+	printf("Port is %d\n\n", SERVER_PORT);
 
 	while (true)
 	{
-		printf("Waiting for a connection on port %d\n", SERVER_PORT);
-		fflush(stdout);
+		printf("Waiting on an event...\n");
+		if (poll(poll_fds, nfds, -1) == -1) {
+			perror("poll");
+			exit(EXIT_FAILURE);
+		}
 
-		// TODO: Simplify this man-page explanation:
-		// The argument address is a result parameter that is filled in with the address of the
-		// connecting entity, as known to the communications layer.
-		// The exact format of the address parameter is determined by the
-		// domain in which the communication is occurring.
-		// The address_len is a value-result parameter;
-		// it should initially contain the amount of space pointed to by address;
-		// on return it will contain the actual length (in bytes) of the address returned.
-		// This call is used with connection-based socket types, currently with SOCK_STREAM.
-		struct sockaddr address;
-		socklen_t address_len = sizeof(address);
-		int client_fd = accept(socket_fd, &address, &address_len);
-		printf("Address length: %d\n", address_len);
+		for (nfds_t j = 0; j < nfds; j++) {
+			if (poll_fds[j].revents != 0) {
+				printf("  fd=%d; events: %s%s%s\n", poll_fds[j].fd,
+						(poll_fds[j].revents & POLLIN)  ? "POLLIN "  : "",
+						(poll_fds[j].revents & POLLHUP) ? "POLLHUP " : "",
+						(poll_fds[j].revents & POLLERR) ? "POLLERR " : "");
 
-		// // IPv4 will also fit with INET6_ADDRSTRLEN, since it is 46:
-		// // https://stackoverflow.com/a/7477384/13279557
-		// char address_string[INET6_ADDRSTRLEN];
-		// // TODO: Think of better name for cast_address
-		// void *cast_address;
+				if (poll_fds[j].revents & POLLIN) {
+					if (poll_fds[j].fd == server_fd) {
+						if (poll_fds[1].fd != -1) {
+							close(poll_fds[1].fd);
+						}
 
-		// // Not sure when/if I should be casting ot
-		// if (address.sa_family == AF_INET)
-		// {
-		// 	// IPv4
-		// 	cast_address = &((struct sockaddr_in *)address.sa_data)->sin_addr;
-		// }
-		// else
-		// {
-		// 	// IPv6
-		// 	cast_address = &((struct sockaddr_in6 *)address.sa_data)->sin6_addr;
-		// }
+						int client_fd = accept(server_fd, NULL, NULL);
+						printf("  Accepted client fd %d\n\n", client_fd);
 
-		// // Network representation to printable string
-		// inet_ntop(address.sa_family, cast_address, address_string, INET6_ADDRSTRLEN);
+						poll_fds[1].fd = client_fd;
+						poll_fds[1].events = POLLIN;
+					} else {
+						int client_fd = poll_fds[j].fd;
 
-		// printf("Address: %s\n", address_string);
+						ssize_t bytes_read = read(client_fd, received, MAX_RECEIVED_LEN);
+						if (bytes_read == -1) {
+							perror("read");
+							exit(EXIT_FAILURE);
+						}
 
-		// accept() blocks until an incoming connection arrives
-		// It returns a file descriptor to the connection
-		// int client_fd = accept(socket_fd, NULL, NULL);
+						printf("\nRead %zd bytes:\n'%s'\n\nIn hexit form:\n%s\n\n\n", bytes_read, received, bin2hex(received, bytes_read));
 
-		// Zero out the receive buffer to make sure it ends up null-terminated
-		bzero(received, MAX_RECEIVED_LEN + 1);
+						// TODO: This is an extremely buggy way to detect the end of the message
+						if (received[bytes_read - 1] == '\n')
+						{
+							printf("Sending this response:\n'%s'\nAnd closing the client fd %d\n\n", sent, client_fd);
+							// TODO: Don't ignore errors
+							write(client_fd, sent, strlen(sent));
+							close(client_fd);
+							poll_fds[j].fd = -1;
+						}
 
-		// Read the client's message
-		ssize_t bytes_read;
-		while ((bytes_read = read(client_fd, received, MAX_RECEIVED_LEN)) > 0)
-		{
-			printf("\nbin2hex:\n%s\n\nReceived:\n%s", bin2hex(received, bytes_read), received);
+						bzero(received, MAX_RECEIVED_LEN + 1);
+					}
+				} else { // POLLERR or POLLHUP
+					printf("    closing fd %d\n", poll_fds[j].fd);
 
-			// TODO: This is a hacky way to detect the end of the message
-			if (received[bytes_read - 1] == '\n')
-			{
-				break;
+					if (close(poll_fds[j].fd) == -1) {
+						perror("close");
+						exit(EXIT_FAILURE);
+					}
+				}
 			}
-
-			bzero(received, MAX_RECEIVED_LEN + 1);
 		}
-		if (bytes_read < 0)
-		{
-			// TODO: "Search for all read/recv/write/send on a socket and check that, if an error is returned, the client is removed." - eval sheet
-			die("read");
-		}
-
-		// Send the response
-		// TODO: Don't ignore errors
-		write(client_fd, sent, strlen(sent));
-		close(client_fd);
 	}
 
 	return EXIT_SUCCESS;
