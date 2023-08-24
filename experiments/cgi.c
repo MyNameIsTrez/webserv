@@ -2,6 +2,7 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <strings.h>
 #include <unistd.h>
 
 #define PIPE_READ_INDEX 0
@@ -9,91 +10,142 @@
 
 #define CHILD 0
 
-// gcc cgi.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out "kill.c" "out.txt"
-// gcc cgi.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g; echo 'foo\nbar' | ./a.out "kill.c" "out.txt"
-// Run this to get zombie counts: ps aux | grep a.out | wc -l
+#define MAX_RECEIVED_LEN 30
+#define MAX_SENT_LEN 40
+
+// gcc cgi.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out "server.c" "out.txt"
+// Run this to get zombie counts: ps aux | wc -l
 int main(int argc, char *argv[], char *envp[])
 {
 	(void)argc;
-	int pipe_fds_client_to_cgi[2];
-	int pipe_fds_cgi_to_client[2];
+
+	int tube_client_to_cgi[2];
+	int tube_cgi_to_client[2];
 
 	while (true)
 	{
-		if (pipe(pipe_fds_client_to_cgi) == -1)
+		fprintf(stderr, "Starting loop\n");
+
+		if (pipe(tube_client_to_cgi) == -1)
 		{
 			perror("pipe");
-			exit(EXIT_FAILURE);
+			return EXIT_FAILURE;
 		}
-		if (pipe(pipe_fds_cgi_to_client) == -1)
+		if (pipe(tube_cgi_to_client) == -1)
 		{
 			perror("pipe");
-			exit(EXIT_FAILURE);
+			return EXIT_FAILURE;
 		}
 
 		pid_t forked_pid = fork();
 		if (forked_pid == -1)
 		{
 			perror("fork");
-			exit(EXIT_FAILURE);
+			return EXIT_FAILURE;
 		}
 		else if (forked_pid == CHILD)
 		{
-			close(pipe_fds_client_to_cgi[PIPE_WRITE_INDEX]);
-			close(pipe_fds_cgi_to_client[PIPE_READ_INDEX]);
+			close(tube_client_to_cgi[PIPE_WRITE_INDEX]);
+			close(tube_cgi_to_client[PIPE_READ_INDEX]);
 
-			if (dup2(pipe_fds_client_to_cgi[PIPE_READ_INDEX], STDIN_FILENO) == -1)
+			if (dup2(tube_client_to_cgi[PIPE_READ_INDEX], STDIN_FILENO) == -1)
 			{
 				perror("dup2");
-				exit(EXIT_FAILURE);
+				return EXIT_FAILURE;
 			}
+			close(tube_client_to_cgi[PIPE_READ_INDEX]);
 
-			if (dup2(pipe_fds_cgi_to_client[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
+			if (dup2(tube_cgi_to_client[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
 			{
 				perror("dup2");
-				exit(EXIT_FAILURE);
+				return EXIT_FAILURE;
 			}
+			close(tube_cgi_to_client[PIPE_WRITE_INDEX]);
 
+			fprintf(stderr, "Child is going to exec Python\n");
 			// TODO: Define Python path in configuration file?
 			const char *path = "/usr/local/bin/python3";
 			char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
 			execve(path, argv, envp);
 
-			return EXIT_SUCCESS;
+			perror("execve");
+			return EXIT_FAILURE;
 		}
-		close(pipe_fds_client_to_cgi[PIPE_READ_INDEX]);
-		close(pipe_fds_cgi_to_client[PIPE_WRITE_INDEX]);
 
-		// Client fd
+		close(tube_client_to_cgi[PIPE_READ_INDEX]);
+		close(tube_cgi_to_client[PIPE_WRITE_INDEX]);
+
+		// In server.c this is just client_fd
 		int in_file_fd = open(argv[1], O_RDONLY);
 		if (in_file_fd == -1)
 		{
 			perror("open");
-			exit(EXIT_FAILURE);
+			return EXIT_FAILURE;
 		}
-		// Client fd
+		// In server.c this is just client_fd
 		int out_file_fd = open(argv[2], O_CREAT | O_WRONLY | O_TRUNC, 0644);
 		if (out_file_fd == -1)
 		{
 			perror("open");
-			exit(EXIT_FAILURE);
+			return EXIT_FAILURE;
 		}
 
-		// TODO: These calls all need to happen separately in the event loop
+		// TODO: These read() and write() calls all need to happen separately in the event loop
 		{
-			// Read some bytes from the client into buffer
-			read(in_file_fd, buffer, 12);
-			// Send buffer to Python script
-			write(pipe_fds_client_to_cgi[PIPE_WRITE_INDEX], buffer, 12);
+			char received[MAX_RECEIVED_LEN + 1];
+			bzero(received, MAX_RECEIVED_LEN + 1);
 
-			// Read Python script stdout into buffer
-			read(pipe_fds_cgi_to_client[PIPE_READ_INDEX], buffer, 12);
-			// Send buffer to client
-			write(out_file_fd, buffer, 12);
+			// Read from the client into 'received'
+			fprintf(stderr, "Parent is going to read from client\n");
+			if (read(in_file_fd, received, MAX_RECEIVED_LEN) == -1)
+			{
+				perror("read");
+				return EXIT_FAILURE;
+			}
+
+			// Send 'received' to Python script stdin
+			fprintf(stderr, "Parent is going to write '%s' to Python\n", received);
+			if (write(tube_client_to_cgi[PIPE_WRITE_INDEX], received, MAX_RECEIVED_LEN) == -1)
+			{
+				perror("write");
+				return EXIT_FAILURE;
+			}
+			close(tube_client_to_cgi[PIPE_WRITE_INDEX]);
 		}
+
+		{
+			char sent[MAX_SENT_LEN + 1];
+			bzero(sent, MAX_SENT_LEN + 1);
+
+			// Read Python script stdout into 'sent'
+			fprintf(stderr, "Parent is going to read from Python\n");
+			if (read(tube_cgi_to_client[PIPE_READ_INDEX], sent, MAX_SENT_LEN) == -1)
+			{
+				perror("read");
+				return EXIT_FAILURE;
+			}
+			close(tube_cgi_to_client[PIPE_READ_INDEX]);
+
+			fprintf(stderr, "Parent is going to send '%s' to client\n", sent);
+			// TODO: Don't use strlen
+			if (write(out_file_fd, sent, strlen(sent)) == -1)
+			{
+				perror("write");
+				return EXIT_FAILURE;
+			}
+		}
+
+		// TODO: Don't waitpid(), but do something else
+		int child_exit_status;
+		waitpid(forked_pid, &child_exit_status, 0);
+		// TODO: Why is the child_exit_status seemingly shifted left by 8 bits?
+		fprintf(stderr, "Child PID exit status was %d\n\n", child_exit_status);
+
+		close(in_file_fd);
+		close(out_file_fd);
 
 		sleep(1);
 	}
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
