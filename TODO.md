@@ -3,16 +3,16 @@
 - [ ] GET request method response
 - [ ] POST request method response
 - [ ] DELETE request method response
-- [ ] Chunked requests
+- [ ] Chunked requests (use pipes, for chunked requests need to write only specific bytes, need pipe between Python output and client)
 - [ ] Our own tests?
-
-- [ ] How to prevent CGI blocking when using waitpid()?
 
 ## Sander
 
 - [x] Set up regular NGINX server
-- [?] Run tester on NGINX server (how should it be used?)
-- [ ] CGI script launching
+- [x] Run Siege on NGINX server
+- [?] Run Codam tester on NGINX server (how should it be used during evals?)
+- [ ] CGI without creating child zombie processes
+- [ ] Set up clang format
 
 ## Victor
 
@@ -21,7 +21,7 @@
 
 ## Milan
 
-- [ ] Main webserv while-loop that uses poll()
+- [x] Main webserv while-loop that uses poll()
 - [ ] NGINX's configuration format parser
 
 
