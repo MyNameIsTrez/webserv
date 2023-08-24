@@ -13,7 +13,7 @@
 // TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
 
-#define MAX_CONNECTION_QUEUE_LENGTH 10
+#define MAX_CONNECTION_QUEUE_LENGTH 1
 
 #define MAX_RECEIVED_LEN 300
 
@@ -84,7 +84,8 @@ int main(void)
 	nfds_t nfds = 2;
 
 	struct pollfd *poll_fds = calloc(nfds, sizeof(struct pollfd));
-	if (poll_fds == NULL) {
+	if (poll_fds == NULL)
+	{
 		perror("calloc");
 		exit(EXIT_FAILURE);
 	}
@@ -104,21 +105,27 @@ int main(void)
 	while (true)
 	{
 		printf("Waiting on an event...\n");
-		if (poll(poll_fds, nfds, -1) == -1) {
+		if (poll(poll_fds, nfds, -1) == -1)
+		{
 			perror("poll");
 			exit(EXIT_FAILURE);
 		}
 
-		for (nfds_t j = 0; j < nfds; j++) {
-			if (poll_fds[j].revents != 0) {
+		for (nfds_t j = 0; j < nfds; j++)
+		{
+			if (poll_fds[j].revents != 0)
+			{
 				printf("  fd=%d; events: %s%s%s\n", poll_fds[j].fd,
-						(poll_fds[j].revents & POLLIN)  ? "POLLIN "  : "",
-						(poll_fds[j].revents & POLLHUP) ? "POLLHUP " : "",
-						(poll_fds[j].revents & POLLERR) ? "POLLERR " : "");
+					   (poll_fds[j].revents & POLLIN) ? "POLLIN " : "",
+					   (poll_fds[j].revents & POLLHUP) ? "POLLHUP " : "",
+					   (poll_fds[j].revents & POLLERR) ? "POLLERR " : "");
 
-				if (poll_fds[j].revents & POLLIN) {
-					if (poll_fds[j].fd == server_fd) {
-						if (poll_fds[1].fd != -1) {
+				if (poll_fds[j].revents & POLLIN)
+				{
+					if (poll_fds[j].fd == server_fd)
+					{
+						if (poll_fds[1].fd != -1)
+						{
 							close(poll_fds[1].fd);
 						}
 
@@ -127,11 +134,14 @@ int main(void)
 
 						poll_fds[1].fd = client_fd;
 						poll_fds[1].events = POLLIN;
-					} else {
+					}
+					else
+					{
 						int client_fd = poll_fds[j].fd;
 
 						ssize_t bytes_read = read(client_fd, received, MAX_RECEIVED_LEN);
-						if (bytes_read == -1) {
+						if (bytes_read == -1)
+						{
 							perror("read");
 							exit(EXIT_FAILURE);
 						}
@@ -150,10 +160,13 @@ int main(void)
 
 						bzero(received, MAX_RECEIVED_LEN + 1);
 					}
-				} else { // POLLERR or POLLHUP
+				}
+				else
+				{ // POLLERR or POLLHUP
 					printf("    closing fd %d\n", poll_fds[j].fd);
 
-					if (close(poll_fds[j].fd) == -1) {
+					if (close(poll_fds[j].fd) == -1)
+					{
 						perror("close");
 						exit(EXIT_FAILURE);
 					}
