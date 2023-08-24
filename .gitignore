@@ -1,7 +1,9 @@
 *
 !*/
 
-!experiments/*.c
+!.vscode/settings.json
+!experiments/*.[ch]
+!experiments/*.[ch]pp
 
 !.gitignore
 !fn_descriptions.c
