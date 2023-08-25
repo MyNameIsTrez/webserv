@@ -34,7 +34,7 @@ void die(const char *fmt, ...)
 }
 
 // Source: https://stackoverflow.com/q/41904221/13279557
-ssize_t write_fully(int fd, char *buf, size_t len)
+ssize_t write_fully(int fd, const char *buf, size_t len)
 {
 	while (len > 0)
 	{
@@ -51,7 +51,7 @@ ssize_t write_fully(int fd, char *buf, size_t len)
 	return 0;
 }
 
-// gcc client.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 127.0.0.1
+// c++ client.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 127.0.0.1
 // Code stolen from https://youtu.be/bdIiTxtMaKA
 int main(int argc, char *argv[])
 {
@@ -89,7 +89,7 @@ int main(int argc, char *argv[])
 
 	// We're connected; prepare sent message
 	// Message asks to get / (root) homepage
-	char *sent = "GET / HTTP/1.1\r\n\r\n";
+	const char *sent = "GET / HTTP/1.1\r\n\r\n";
 	size_t sent_len = strlen(sent);
 
 	// write() its behavior could be weird with a sent_len of 0

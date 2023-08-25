@@ -2,18 +2,29 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// gcc getprotobyname.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
+// c++ getprotobyname.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
 int main(void)
 {
-    char protocol[][42] = {
-		"xd", "icmp", "ggp", "tcp",
-		"egp", "pup", "udp", "hmp",
-		"xns-idp", "rdp", "rvd",
-		"ip", "Ip", "iP", "IP",
+	char protocol[][42] = {
+		"xd",
+		"icmp",
+		"ggp",
+		"tcp",
+		"egp",
+		"pup",
+		"udp",
+		"hmp",
+		"xns-idp",
+		"rdp",
+		"rvd",
+		"ip",
+		"Ip",
+		"iP",
+		"IP",
 	};
 
 	size_t length = sizeof(protocol) / sizeof(*protocol);
-	for(size_t i = 0; i < length; i++)
+	for (size_t i = 0; i < length; i++)
 	{
 		if (i > 0)
 		{
@@ -24,7 +35,7 @@ int main(void)
 
 		if (servptr == NULL)
 		{
-			printf ("getprotobyname(\"%s\") is ERR\n", protocol[i]);
+			printf("getprotobyname(\"%s\") is ERR\n", protocol[i]);
 		}
 		else
 		{
@@ -40,5 +51,5 @@ int main(void)
 		}
 	}
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }

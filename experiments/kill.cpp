@@ -5,7 +5,7 @@
 #include <stdio.h>
 #include <unistd.h>
 
-// gcc kill.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
+// c++ kill.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
 int main(void)
 {
 	pid_t pid = getpid();
@@ -14,5 +14,5 @@ int main(void)
 
 	printf("This is never reached!\n");
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }
