@@ -5,6 +5,9 @@
 !experiments/*.[ch]
 !experiments/*.[ch]pp
 
+!*.[ch]
+!*.[ch]pp
+
 !.gitignore
 !fn_descriptions.c
 !README.md
