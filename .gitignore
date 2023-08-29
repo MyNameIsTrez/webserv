@@ -4,6 +4,10 @@
 !experiments/*.[ch]
 !experiments/*.[ch]pp
 !experiments/print.py
+
+!*.[ch]
+!*.[ch]pp
+
 !.gitignore
 !fn_descriptions.c
 !README.md

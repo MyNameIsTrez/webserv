@@ -24,6 +24,8 @@
 - [x] Main webserv while-loop that uses poll()
 - [ ] NGINX's configuration format parser
 
+# General code TODOs
+- Decide whether we want to do stuff like fd closing whenever a stdlib function fails.
 
 # PDF questions
 - How are the provided "tester" and "cgi_tester" executables supposed to be used?
