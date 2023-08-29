@@ -31,7 +31,7 @@ public:
 		BODY,
 		DONE
 	} state;
-	enum RequestMethod
+	enum RequestMethod // TODO: Think of how to handle bullshit RequestMethod in header
 	{
 		UNKOWN = 0,
 		GET,

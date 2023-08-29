@@ -23,6 +23,8 @@
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
 {
+	// TODO: Parse config
+
 	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
 	int server_fd;
@@ -63,12 +65,19 @@ int main(void)
 	pfd.fd = server_fd;
 	pfd.events = POLLIN;
 
+	// // Turn off POLLIN bit
+	// pfd.events &= ~POLLIN;
+
+	// // Turn on POLLOUT bit
+	// pfd.events |= POLLOUT;
+
 	poll_fds.push_back(pfd);
 
 	// const char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
 
 	printf("Port is %d\n", SERVER_PORT);
 
+	// TODO: Rename 'map'
 	std::map<int, ClientData> map;
 
 	while (true)
@@ -81,7 +90,6 @@ int main(void)
 			exit(EXIT_FAILURE);
 		}
 
-		// for (nfds_t j = poll_fds.size() - 1; j >= 0; j--)
 		for (nfds_t j = poll_fds.size(); j > 0;)
 		{
 			j--;
@@ -147,6 +155,8 @@ int main(void)
 				// Hopefully unreachable
 				if (poll_fds[j].revents & POLLNVAL)
 				{
+					// TODO: Remove when handing in
+					assert(false);
 				}
 			}
 		}

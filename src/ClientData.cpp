@@ -1,7 +1,7 @@
 #include "ClientData.hpp"
 #include <unistd.h>
 
-#define MAX_RECEIVED_LEN 300
+#define MAX_RECEIVED_LEN 5
 
 /*	Orthodox Canonical Form */
 
@@ -56,11 +56,65 @@ void ClientData::readSocket(void)
 {
 	char received[MAX_RECEIVED_LEN + 1];
 	bzero(received, MAX_RECEIVED_LEN + 1);
+
 	ssize_t bytes_read = read(this->_fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
 	{
 		perror("read");
 		exit(EXIT_FAILURE);
+	}
+	// TODO:
+	// if (bytes_read == 0)
+	// {
+	// }
+
+	if (this->state == HEADER)
+	{
+		// TODO: Handle MAX_RECEIVED_LEN < 4
+		// TODO: MAYBE BETTER FORMATTING BT PROBABLY KEEP THE LOGIC
+		// TODO: Handle to copy to _header
+		if (this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
+		{
+			// _header += received_partial;
+
+			// if (...)
+			// {
+			// 	this->state = BODY;
+			// }
+		}
+		if (this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
+		{
+			// _header += received_partial;
+
+			// if (...)
+			// {
+			// 	this->state = BODY;
+			// }
+		}
+		if (this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
+		{
+			// _header += received_partial;
+
+			// if (...)
+			// {
+			// 	this->state = BODY;
+			// }
+		}
+		if (received[0] == '\r' && received[1] == '\n' && received[2] == '\r' && received[3] == '\n')
+		{
+			// _header.append(received, 0, rnrn_index + 2) // TODO: use this function
+			// _header += received_partial;
+
+			// if (...)
+			// {
+			// 	this->state = BODY;
+			//	body.append(received, rnrn_index + 4, received.npos);
+			// }
+		}
+	}
+	else
+	{
+		body += received;
 	}
 
 	// printf("\nRead %zd bytes:\n-------------------------\n%s\n-------------------------\n",
