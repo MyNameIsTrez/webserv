@@ -8,5 +8,6 @@
 !fn_descriptions.c
 !README.md
 !subject.pdf
-!experiments/parsing/Struct.hpp
+!experiments/parsing/Parse.hpp
+!experiments/parsing/Parse.cpp
 !TODO.md

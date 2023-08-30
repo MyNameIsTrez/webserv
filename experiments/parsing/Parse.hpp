@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/28 17:04:16 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/08/29 15:23:44 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/08/30 17:50:37 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -30,6 +30,7 @@ private:
 	std::string _index_file;
 
 public:
+	typedef int (*t_jump_function)(std::string line);
 	Parse(std::string file);
 	virtual ~Parse(void);
 	void save_config(std::string file);
@@ -39,6 +40,12 @@ public:
 	int get_port(size_t index);
 	std::string get_root(void);
 	std::string get_index_file(void);
+	int call_conversion(std::string type, std::string line);
+	void save_server_name(std::string line);
+	void save_port(std::string line);
+	void save_wc(std::string line);
+	void save_root_path(std::string line);
+	void save_index_file(std::string line);
 };
 
 #endif
