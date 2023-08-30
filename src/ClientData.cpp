@@ -1,13 +1,13 @@
 #include "ClientData.hpp"
 #include <unistd.h>
-
+#include <vector>
+#include <assert.h> // TODO: DELETE
 #define MAX_RECEIVED_LEN 5
 
 /*	Orthodox Canonical Form */
 
 ClientData::ClientData(void)
-	: state(HEADER),
-	  request_method(UNKOWN),
+	: read_state(HEADER),
 	  respond_index(0),
 	  _content_length(0),
 	  _fd(0)
@@ -15,9 +15,9 @@ ClientData::ClientData(void)
 }
 
 ClientData::ClientData(ClientData const &src)
-	: state(src.state),
+	: read_state(src.read_state),
 	  request_method(src.request_method),
-	  uri(src.uri),
+	  path(src.path),
 	  body(src.body),
 	  respond_index(0),
 	  _content_length(0),
@@ -33,9 +33,9 @@ ClientData &ClientData::operator=(ClientData const &src)
 {
 	if (this == &src)
 		return (*this);
-	this->state = src.state;
+	this->read_state = src.read_state;
 	this->request_method = src.request_method;
-	this->uri = src.uri;
+	this->path = src.path;
 	this->body = src.body;
 	this->respond_index = src.respond_index;
 	this->_header = src._header;
@@ -46,16 +46,55 @@ ClientData &ClientData::operator=(ClientData const &src)
 
 /*	Other constructors */
 
-ClientData::ClientData(int client_fd) : state(HEADER), request_method(UNKOWN), respond_index(0), _content_length(0), _fd(client_fd)
+ClientData::ClientData(int client_fd) : read_state(HEADER), respond_index(0), _content_length(0), _fd(client_fd)
 {
 }
 
 /*	Member functions */
 
+bool ClientData::parseStartLine(std::string line)
+{
+	// Find and set the request method
+	size_t request_method_end_pos = line.find(" ");
+	if (request_method_end_pos == std::string::npos)
+		return (false);
+	this->request_method = line.substr(0, request_method_end_pos);
+	request_method_end_pos++;
+
+	// Find and set the path
+	size_t path_end_pos = line.find_last_of(" ", request_method_end_pos, line.size() - request_method_end_pos);
+	if (path_end_pos == std::string::npos)
+		return (false);
+	this->path = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
+	path_end_pos++;
+
+	// Set and validate the protocol
+	// TODO: Check if format of protocol is correct
+	this->protocol = line.substr(path_end_pos);
+	return (true);
+}
+
+void ClientData::parseHeaders(void)
+{
+	std::vector<std::string> split;
+	size_t pos;
+	size_t start = 0;
+
+	while ((pos = this->_header.find("\r\n", start)) != std::string::npos)
+	{
+		split.push_back(this->_header.substr(start, pos - start));
+		start = pos + 2;
+	}
+
+	this->parseStartLine(split[0]); // TODO: Use return value
+
+	// TODO: Make parser for headers to unordered_map
+}
+
 void ClientData::readSocket(void)
 {
-	char received[MAX_RECEIVED_LEN + 1];
-	bzero(received, MAX_RECEIVED_LEN + 1);
+	char received[MAX_RECEIVED_LEN];   // NOTE: Deleted + 1
+	bzero(received, MAX_RECEIVED_LEN); // NOTE: Deleted + 1
 
 	ssize_t bytes_read = read(this->_fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
@@ -63,58 +102,65 @@ void ClientData::readSocket(void)
 		perror("read");
 		exit(EXIT_FAILURE);
 	}
-	// TODO:
+	// TODO: Handle this
 	// if (bytes_read == 0)
 	// {
 	// }
 
-	if (this->state == HEADER)
+	if (this->read_state == HEADER)
 	{
-		// TODO: Handle MAX_RECEIVED_LEN < 4
-		// TODO: MAYBE BETTER FORMATTING BT PROBABLY KEEP THE LOGIC
-		// TODO: Handle to copy to _header
-		if (this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
+		// "\r\n\r" + "\n"
+		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
 		{
-			// _header += received_partial;
-
-			// if (...)
-			// {
-			// 	this->state = BODY;
-			// }
+			this->_header.append(received, 0, 1);
+			this->body.append(received, 1, bytes_read - 1);
+			this->read_state = BODY;
+			parseHeaders();
 		}
-		if (this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
+		// "\r\n" + "\r\n"
+		else if (this->_header.size() >= 2 && bytes_read >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
 		{
-			// _header += received_partial;
-
-			// if (...)
-			// {
-			// 	this->state = BODY;
-			// }
+			this->_header.append(received, 0, 2);
+			this->body.append(received, 2, bytes_read - 2);
+			this->read_state = BODY;
+			parseHeaders();
 		}
-		if (this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
+		// "\r" + "\n\r\n"
+		else if (this->_header.size() >= 1 && bytes_read >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
 		{
-			// _header += received_partial;
-
-			// if (...)
-			// {
-			// 	this->state = BODY;
-			// }
+			this->_header.append(received, 0, 3);
+			this->body.append(received, 3, bytes_read - 3);
+			this->read_state = BODY;
+			parseHeaders();
 		}
-		if (received[0] == '\r' && received[1] == '\n' && received[2] == '\r' && received[3] == '\n')
+		else
 		{
-			// _header.append(received, 0, rnrn_index + 2) // TODO: use this function
-			// _header += received_partial;
+			char const rnrn[] = "\r\n\r\n";
+			char *ptr = std::search(received, received + bytes_read, rnrn, rnrn + sizeof(rnrn) - 1);
 
-			// if (...)
-			// {
-			// 	this->state = BODY;
-			//	body.append(received, rnrn_index + 4, received.npos);
-			// }
+			// If no \r\n\r\n found
+			if (ptr == received + bytes_read)
+			{
+				this->_header += received;
+			}
+			// If \r\n\r\n found
+			else
+			{
+				this->_header.append(received, ptr + 2);					   // Include "\r\n"
+				this->body.append(ptr + 4, bytes_read - (ptr + 4 - received)); // Skip "\r\n\r\n"
+				this->read_state = BODY;
+				parseHeaders();
+			}
 		}
+	}
+	else if (this->read_state == BODY)
+	{
+		body += received;
 	}
 	else
 	{
-		body += received;
+		// Should be unreachable
+		assert(false); // TODO: REMOVE
 	}
 
 	// printf("\nRead %zd bytes:\n-------------------------\n%s\n-------------------------\n",

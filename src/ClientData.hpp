@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <unordered_map>
 
 /*
 // whole socket input
@@ -30,19 +31,18 @@ public:
 		HEADER = 0,
 		BODY,
 		DONE
-	} state;
-	enum RequestMethod // TODO: Think of how to handle bullshit RequestMethod in header
-	{
-		UNKOWN = 0,
-		GET,
-		POST,
-		DELETE
-	} request_method;
-	std::string uri;
+	} read_state;
+	std::string request_method;
+	std::string path;
+	std::string protocol;
+	std::unordered_map<std::string, std::string> header_map;
 	std::string body;
 	size_t respond_index;
 
 private:
+	void parseHeaders(void);
+	bool parseStartLine(std::string line);
+
 	std::string _header;
 	size_t _content_length; // TODO: See if needed
 	int _fd;
