@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// gcc getaddrinfo.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
+// c++ getaddrinfo.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
 int main(int argc, char *argv[])
 {
 	if (argc != 2)
@@ -76,5 +76,5 @@ int main(int argc, char *argv[])
 
 	freeaddrinfo(result);
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }

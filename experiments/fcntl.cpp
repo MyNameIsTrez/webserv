@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// gcc fcntl.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out 2 && ./a.out 3
+// c++ fcntl.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out 2 && ./a.out 3
 int main(int argc, char *argv[])
 {
 	if (argc != 2)
@@ -16,17 +16,17 @@ int main(int argc, char *argv[])
 
 	switch (val & O_ACCMODE)
 	{
-		case O_RDONLY:
-			printf("Read-only");
-			break;
-		case O_WRONLY:
-			printf("Write-only");
-			break;
-		case O_RDWR:
-			printf("Read/Write");
-			break;
-		default:
-			printf("Unknown access mode");
+	case O_RDONLY:
+		printf("Read-only");
+		break;
+	case O_WRONLY:
+		printf("Write-only");
+		break;
+	case O_RDWR:
+		printf("Read/Write");
+		break;
+	default:
+		printf("Unknown access mode");
 	}
 
 	if (val & O_APPEND)
@@ -44,5 +44,5 @@ int main(int argc, char *argv[])
 
 	printf("\n");
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }

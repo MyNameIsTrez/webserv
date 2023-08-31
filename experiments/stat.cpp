@@ -6,10 +6,10 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-// gcc stat.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
+// c++ stat.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
 int main(void)
 {
-	char *path = "stat.c";
+	const char *path = "stat.cpp";
 	struct stat buf;
 
 	if (stat(path, &buf))
@@ -20,5 +20,5 @@ int main(void)
 
 	printf("This file is %lld bytes\n", buf.st_size);
 
-    return EXIT_SUCCESS;
+	return EXIT_SUCCESS;
 }

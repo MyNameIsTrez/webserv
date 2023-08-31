@@ -13,7 +13,7 @@
 #define MAX_RECEIVED_LEN 30
 #define MAX_SENT_LEN 40
 
-// gcc cgi.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out "server.c" "out.txt"
+// c++ cgi.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out "server.cpp" "out.txt"
 // Run this to get zombie counts: ps aux | wc -l
 int main(int argc, char *argv[], char *envp[])
 {

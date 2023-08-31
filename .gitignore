@@ -3,10 +3,18 @@
 !.vscode/settings.json
 !experiments/*.[ch]
 !experiments/*.[ch]pp
+<<<<<<< HEAD
 !rfcs/*.pdf
 !src/*.[ch]
 !src/*.[ch]pp
 !YoupiBanane/**
+=======
+!experiments/print.py
+
+!*.[ch]
+!*.[ch]pp
+
+>>>>>>> main
 !.gitignore
 !fn_descriptions.c
 !README.md

@@ -20,7 +20,7 @@
 char *bin2hex(char *input, size_t len)
 {
 	// A hexit is a hexadecimal digit
-	char *hexits = "0123456789ABCDEF";
+	const char *hexits = "0123456789ABCDEF";
 
 	if (input == NULL || len <= 0)
 	{
@@ -30,7 +30,8 @@ char *bin2hex(char *input, size_t len)
 	// (2 hexits + space) per char from input: "AA BB "
 	int result_length = len * 3;
 
-	char *result = malloc(result_length + 1);
+	// TODO: Don't use these forbidden fns malloc() and bzero()
+	char *result = (char *)malloc(result_length + 1);
 	bzero(result, result_length + 1);
 
 	for (size_t i = 0; i < len; i++)
@@ -44,7 +45,7 @@ char *bin2hex(char *input, size_t len)
 	return result;
 }
 
-// gcc server.c -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
+// c++ server.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
 {
@@ -82,7 +83,8 @@ int main(void)
 
 	nfds_t nfds = 2;
 
-	struct pollfd *poll_fds = calloc(nfds, sizeof(struct pollfd));
+	// TODO: Don't use the forbidden fn calloc()
+	struct pollfd *poll_fds = (struct pollfd *)calloc(nfds, sizeof(struct pollfd));
 	if (poll_fds == NULL)
 	{
 		perror("calloc");
@@ -97,7 +99,7 @@ int main(void)
 	char received[MAX_RECEIVED_LEN + 1];
 	bzero(received, MAX_RECEIVED_LEN + 1);
 
-	char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
+	const char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
 
 	printf("Port is %d\n\n", SERVER_PORT);
 
