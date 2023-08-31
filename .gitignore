@@ -4,8 +4,8 @@
 !experiments/*.[ch]
 !experiments/*.[ch]pp
 !rfcs/*.pdf
-!*.[ch]
-!*.[ch]pp
+!src/*.[ch]
+!src/*.[ch]pp
 !YoupiBanane/**
 !.gitignore
 !fn_descriptions.c
