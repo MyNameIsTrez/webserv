@@ -24,7 +24,7 @@ public:
 	virtual ~ClientData(void);
 	ClientData &operator=(ClientData const &src);
 
-	void readSocket(void);
+	bool readSocket(void);
 
 	enum State
 	{
@@ -40,7 +40,7 @@ public:
 	size_t respond_index;
 
 private:
-	void parseHeaders(void);
+	bool parseHeaders(void);
 	bool parseStartLine(std::string line);
 
 	std::string _header;

@@ -145,7 +145,7 @@ int main(void)
 					else
 					{
 						int client_fd = poll_fds[j].fd;
-						map[client_fd].readSocket();
+						map[client_fd].readSocket(); // TODO: Use the return value of readSocket() (false = error, true = OK)
 					}
 				}
 				// Can write
