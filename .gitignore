@@ -1,10 +1,9 @@
 *
 !*/
-
 !.vscode/settings.json
 !experiments/*.[ch]
 !experiments/*.[ch]pp
-
+!rfcs/*.pdf
 !*.[ch]
 !*.[ch]pp
 
