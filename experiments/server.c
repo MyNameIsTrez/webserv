@@ -59,8 +59,7 @@ int main(void)
 
 	// Enables local address reuse
 	// This prevents socket() calls from possibly returning an error on server restart
-	// "the parameter should be non-zero to enable a boolean option"
-	int option = 1;
+	int option = 1; // "the parameter should be non-zero to enable a boolean option"
 	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
 	struct sockaddr_in servaddr;
