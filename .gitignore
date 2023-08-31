@@ -6,7 +6,7 @@
 !rfcs/*.pdf
 !*.[ch]
 !*.[ch]pp
-
+!YoupiBanane/**
 !.gitignore
 !fn_descriptions.c
 !README.md
