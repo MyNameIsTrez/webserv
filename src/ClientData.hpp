@@ -19,10 +19,11 @@ class ClientData
 {
 public:
 	ClientData(void);
-	ClientData(int client_fd);
 	ClientData(ClientData const &src);
 	virtual ~ClientData(void);
 	ClientData &operator=(ClientData const &src);
+
+	ClientData(int client_fd);
 
 	bool readSocket(void);
 
@@ -37,7 +38,7 @@ public:
 	std::string protocol;
 	std::unordered_map<std::string, std::string> header_map;
 	std::string body;
-	size_t respond_index;
+	size_t response_index;
 
 private:
 	bool parseHeaders(void);

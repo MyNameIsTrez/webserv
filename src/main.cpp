@@ -18,7 +18,8 @@
 
 // TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
-#define MAX_CONNECTION_QUEUE_LENGTH 10
+#define MAX_CONNECTION_QUEUE_LEN 10
+#define MAX_RESPONSE_LEN 2
 
 // TODO: Use this on every function that can fail
 void die()
@@ -51,31 +52,30 @@ int main(void)
 	int option = 1;
 	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
-	struct sockaddr_in servaddr;
+	sockaddr_in servaddr;
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
 
-	if ((bind(server_fd, (struct sockaddr *)&servaddr, sizeof(servaddr))) < 0)
+	if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) < 0)
 	{
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
 
-	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LENGTH)) < 0)
+	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) < 0)
 	{
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 
-	std::vector<struct pollfd> poll_fds;
+	std::vector<pollfd> pfds;
 
-	// Create server struct
-	struct pollfd pfd;
-	pfd.fd = server_fd;
-	pfd.events = POLLIN;
-	poll_fds.push_back(pfd);
+	pollfd server_pfd;
+	server_pfd.fd = server_fd;
+	server_pfd.events = POLLIN;
+	pfds.push_back(server_pfd);
 
 	// const char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
 
@@ -88,91 +88,143 @@ int main(void)
 		std::cerr << "Waiting on an event..." << std::endl;
 		fflush(stdout);
 
-		if (poll(poll_fds.data(), poll_fds.size(), -1) == -1)
+		if (poll(pfds.data(), pfds.size(), -1) == -1)
 		{
 			perror("poll");
 			exit(EXIT_FAILURE);
 		}
 
-		for (nfds_t j = poll_fds.size(); j > 0;)
+		for (nfds_t j = pfds.size(); j > 0;)
 		{
 			j--;
 
-			if (poll_fds[j].revents != 0)
+			if (pfds[j].revents != 0)
 			{
-				std::cerr << "  fd=" << poll_fds[j].fd << "; "
-						  << "events: "
-						  << ((poll_fds[j].revents & POLLIN) ? "POLLIN " : "")
-						  << ((poll_fds[j].revents & POLLOUT) ? "POLLOUT " : "")
-						  << ((poll_fds[j].revents & POLLHUP) ? "POLLHUP " : "")
-						  << ((poll_fds[j].revents & POLLNVAL) ? "POLLNVAL " : "")
-						  << ((poll_fds[j].revents & POLLPRI) ? "POLLPRI " : "")
-						  << ((poll_fds[j].revents & POLLRDBAND) ? "POLLRDBAND " : "")
-						  << ((poll_fds[j].revents & POLLRDNORM) ? "POLLRDNORM " : "")
-						  << ((poll_fds[j].revents & POLLWRBAND) ? "POLLWRBAND " : "")
-						  << ((poll_fds[j].revents & POLLWRNORM) ? "POLLWRNORM " : "")
-						  << ((poll_fds[j].revents & POLLERR) ? "POLLERR " : "")
-						  << "(" << std::hex << poll_fds[j].revents << ")" << std::endl;
+				std::cerr << "  fd=" << pfds[j].fd << "; "
+						  << "Events: "
+						  << ((pfds[j].revents & POLLIN) ? "POLLIN " : "")
+						  << ((pfds[j].revents & POLLOUT) ? "POLLOUT " : "")
+						  << ((pfds[j].revents & POLLHUP) ? "POLLHUP " : "")
+						  << ((pfds[j].revents & POLLNVAL) ? "POLLNVAL " : "")
+						  << ((pfds[j].revents & POLLPRI) ? "POLLPRI " : "")
+						  << ((pfds[j].revents & POLLRDBAND) ? "POLLRDBAND " : "")
+						  << ((pfds[j].revents & POLLRDNORM) ? "POLLRDNORM " : "")
+						  << ((pfds[j].revents & POLLWRBAND) ? "POLLWRBAND " : "")
+						  << ((pfds[j].revents & POLLWRNORM) ? "POLLWRNORM " : "")
+						  << ((pfds[j].revents & POLLERR) ? "POLLERR " : "")
+						  << "(" << std::hex << pfds[j].revents << ")" << std::endl;
 
 				// TODO: Split these events
-				if (poll_fds[j].revents & POLLHUP || poll_fds[j].revents & POLLERR)
+				if (pfds[j].revents & POLLHUP || pfds[j].revents & POLLERR)
 				{
-					std::cerr << "    closing fd " << poll_fds[j].fd << std::endl;
+					int client_fd = pfds[j].fd;
 
-					client_data.erase(poll_fds[j].fd);
-					if (close(poll_fds[j].fd) == -1)
+					std::cerr << "    Closing fd " << client_fd << std::endl;
+
+					client_data.erase(client_fd);
+					if (close(client_fd) == -1)
 					{
 						perror("close");
 						exit(EXIT_FAILURE);
 					}
 
-					poll_fds[j] = poll_fds.back();
-					poll_fds.pop_back();
+					// Swap-remove explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
+					// pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].
+					// This is fine however, since the for-loop's j > 0 condition will be false, meaning pfd[1] won't be processed twice.
+					//
+					// In this visualization, the processed pfd is put in <>:
+					// [ POLLHUP_A, POLLHUP_B, <POLLIN> ] -> [ POLLHUP_A, <POLLHUP_B>, POLLIN ] -> [ <POLLHUP_A>, POLLIN ] -> [ POLLIN ]
+					pfds[j] = pfds.back();
+					pfds.pop_back();
 
 					continue;
 				}
+
 				// Can read
-				if (poll_fds[j].revents & POLLIN || poll_fds[j].revents & POLLRDBAND || poll_fds[j].revents & POLLRDNORM || poll_fds[j].revents & POLLPRI)
+				if (pfds[j].revents & POLLIN || pfds[j].revents & POLLRDBAND || pfds[j].revents & POLLRDNORM || pfds[j].revents & POLLPRI)
 				{
-					if (poll_fds[j].fd == server_fd)
+					if (pfds[j].fd == server_fd)
 					{
 						int client_fd = accept(server_fd, NULL, NULL);
 						std::cerr << "  Accepted client fd " << client_fd << std::endl
 								  << std::endl;
 
-						struct pollfd pfd;
-						pfd.fd = client_fd;
-						pfd.events = POLLIN;
-						poll_fds.push_back(pfd);
+						pollfd client_pfd;
+						client_pfd.fd = client_fd;
+						client_pfd.events = POLLIN;
+						pfds.push_back(client_pfd);
 
-						client_data.insert(std::pair<int, ClientData>(client_fd, ClientData(client_fd)));
+						client_data.insert(std::make_pair(client_fd, ClientData(client_fd)));
 					}
 					else
 					{
-						int client_fd = poll_fds[j].fd;
-						client_data[client_fd].readSocket();
+						int client_fd = pfds[j].fd;
+						ClientData &client = client_data[client_fd];
 
-						if (client_data[client_fd].state == ClientData::BODY)
+						bool previous_read_state = client.read_state;
+
+						if (!client.readSocket())
 						{
-							// Turn on POLLOUT bit
-							// TODO: Find a way to only do this once
-							poll_fds[j].events |= POLLOUT;
+							// TODO: Print error
+							exit(EXIT_FAILURE);
 						}
-						// else if (client_data[client_fd].state == ClientData::DONE)
-						// {
-						// 	// Turn off POLLIN bit
-						// 	poll_fds[j].events &= ~POLLIN;
-						// }
+
+						// If we've just started reading this client's body
+						if (previous_read_state != ClientData::BODY && client.read_state == ClientData::BODY)
+						{
+							// std::cerr << "foo" << std::endl;
+
+							// Turn on the POLLOUT bit
+							pfds[j].events |= POLLOUT;
+						}
+						else if (client.read_state == ClientData::DONE)
+						{
+							// Turn off the POLLIN bit
+							// Not strictly necessary, since POLLIN can't be raised after read() returned 0 anyways
+							pfds[j].events &= ~POLLIN;
+						}
 					}
 				}
+
 				// Can write
-				if (poll_fds[j].revents & POLLOUT || poll_fds[j].revents & POLLWRBAND || poll_fds[j].revents & POLLWRNORM)
+				if (pfds[j].revents & POLLOUT || pfds[j].revents & POLLWRBAND || pfds[j].revents & POLLWRNORM)
 				{
+					const char *response = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
+
+					int client_fd = pfds[j].fd;
+
+					std::cerr << "    Sending this response:" << std::endl
+							  << "'" << response << "'" << std::endl;
+
+					// TODO: Don't *always* close right after a single write
+					// TODO: Don't ignore errors
+					write(client_fd, response, strlen(response));
+
+					std::cerr << "    Closing fd " << client_fd << std::endl;
+
+					client_data.erase(client_fd);
+					if (close(client_fd) == -1)
+					{
+						perror("close");
+						exit(EXIT_FAILURE);
+					}
+
+					// Swap-remove explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
+					// pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].
+					// This is fine however, since the for-loop's j > 0 condition will be false, meaning pfd[1] won't be processed twice.
+					//
+					// In this visualization, the processed pfd is put in <>:
+					// [ POLLHUP_A, POLLHUP_B, <POLLIN> ] -> [ POLLHUP_A, <POLLHUP_B>, POLLIN ] -> [ <POLLHUP_A>, POLLIN ] -> [ POLLIN ]
+					pfds[j] = pfds.back();
+					pfds.pop_back();
+
+					continue;
 				}
-				// This can be reached by commenting out the line that removes an fd from poll_fds above
-				if (poll_fds[j].revents & POLLNVAL)
+
+				// This can be reached by commenting out the line that removes an fd from pfds above
+				if (pfds[j].revents & POLLNVAL)
 				{
-					// TODO: Maybe print something?
+					// TODO: Print error
 					exit(EXIT_FAILURE);
 				}
 			}
