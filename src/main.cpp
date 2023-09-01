@@ -12,12 +12,23 @@
 #include <map>
 #include <string>
 #include <vector>
+#include <iostream>
 
 #include "ClientData.hpp"
 
 // TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
 #define MAX_CONNECTION_QUEUE_LENGTH 10
+
+// TODO: Use this on every function that can fail
+void die()
+{
+	// TODO: Loop over all fds and close them
+
+	// TODO: We are not allowed to use perror(), but we can use strerror()
+
+	exit(EXIT_FAILURE);
+}
 
 // c++ main.cpp ClientData.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
@@ -33,7 +44,6 @@ int main(void)
 		perror("socket");
 		exit(EXIT_FAILURE);
 	}
-	// printf("server_fd: %d\n", server_fd);
 
 	// Enables local address reuse
 	// This prevents socket() calls from possibly returning an error on server restart
@@ -60,30 +70,24 @@ int main(void)
 	}
 
 	std::vector<struct pollfd> poll_fds;
-	struct pollfd pfd;
 
+	// Create server struct
+	struct pollfd pfd;
 	pfd.fd = server_fd;
 	pfd.events = POLLIN;
-
-	// // Turn off POLLIN bit
-	// pfd.events &= ~POLLIN;
-
-	// // Turn on POLLOUT bit
-	// pfd.events |= POLLOUT;
-
 	poll_fds.push_back(pfd);
 
 	// const char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
 
-	printf("Port is %d\n", SERVER_PORT);
+	std::cerr << "Port is " << SERVER_PORT << std::endl;
 
-	// TODO: Rename 'map'
-	std::map<int, ClientData> map;
+	std::map<int, ClientData> client_data;
 
 	while (true)
 	{
-		printf("Waiting on an event...\n");
+		std::cerr << "Waiting on an event..." << std::endl;
 		fflush(stdout);
+
 		if (poll(poll_fds.data(), poll_fds.size(), -1) == -1)
 		{
 			perror("poll");
@@ -96,26 +100,26 @@ int main(void)
 
 			if (poll_fds[j].revents != 0)
 			{
-				printf("  fd=%d; events: %s%s%s%s%s%s%s%s%s%s(%x)\n",
-					   poll_fds[j].fd,
-					   (poll_fds[j].revents & POLLIN) ? "POLLIN " : "",
-					   (poll_fds[j].revents & POLLOUT) ? "POLLOUT " : "",
-					   (poll_fds[j].revents & POLLHUP) ? "POLLHUP " : "",
-					   (poll_fds[j].revents & POLLNVAL) ? "POLLNVAL " : "",
-					   (poll_fds[j].revents & POLLPRI) ? "POLLPRI " : "",
-					   (poll_fds[j].revents & POLLRDBAND) ? "POLLRDBAND " : "",
-					   (poll_fds[j].revents & POLLRDNORM) ? "POLLRDNORM " : "",
-					   (poll_fds[j].revents & POLLWRBAND) ? "POLLWRBAND " : "",
-					   (poll_fds[j].revents & POLLWRNORM) ? "POLLWRNORM " : "",
-					   (poll_fds[j].revents & POLLERR) ? "POLLERR " : "",
-					   poll_fds[j].revents);
+				std::cerr << "  fd=" << poll_fds[j].fd << "; "
+						  << "events: "
+						  << ((poll_fds[j].revents & POLLIN) ? "POLLIN " : "")
+						  << ((poll_fds[j].revents & POLLOUT) ? "POLLOUT " : "")
+						  << ((poll_fds[j].revents & POLLHUP) ? "POLLHUP " : "")
+						  << ((poll_fds[j].revents & POLLNVAL) ? "POLLNVAL " : "")
+						  << ((poll_fds[j].revents & POLLPRI) ? "POLLPRI " : "")
+						  << ((poll_fds[j].revents & POLLRDBAND) ? "POLLRDBAND " : "")
+						  << ((poll_fds[j].revents & POLLRDNORM) ? "POLLRDNORM " : "")
+						  << ((poll_fds[j].revents & POLLWRBAND) ? "POLLWRBAND " : "")
+						  << ((poll_fds[j].revents & POLLWRNORM) ? "POLLWRNORM " : "")
+						  << ((poll_fds[j].revents & POLLERR) ? "POLLERR " : "")
+						  << "(" << std::hex << poll_fds[j].revents << ")" << std::endl;
 
 				// TODO: Split these events
 				if (poll_fds[j].revents & POLLHUP || poll_fds[j].revents & POLLERR)
 				{
-					printf("    closing fd %d\n", poll_fds[j].fd);
+					std::cerr << "    closing fd " << poll_fds[j].fd << std::endl;
 
-					map.erase(poll_fds[j].fd);
+					client_data.erase(poll_fds[j].fd);
 					if (close(poll_fds[j].fd) == -1)
 					{
 						perror("close");
@@ -133,30 +137,43 @@ int main(void)
 					if (poll_fds[j].fd == server_fd)
 					{
 						int client_fd = accept(server_fd, NULL, NULL);
-						printf("  Accepted client fd %d\n\n", client_fd);
+						std::cerr << "  Accepted client fd " << client_fd << std::endl
+								  << std::endl;
 
 						struct pollfd pfd;
 						pfd.fd = client_fd;
 						pfd.events = POLLIN;
 						poll_fds.push_back(pfd);
 
-						map.insert(std::pair<int, ClientData>(client_fd, ClientData(client_fd)));
+						client_data.insert(std::pair<int, ClientData>(client_fd, ClientData(client_fd)));
 					}
 					else
 					{
 						int client_fd = poll_fds[j].fd;
-						map[client_fd].readSocket(); // TODO: Use the return value of readSocket() (false = error, true = OK)
+						client_data[client_fd].readSocket();
+
+						if (client_data[client_fd].state == ClientData::BODY)
+						{
+							// Turn on POLLOUT bit
+							// TODO: Find a way to only do this once
+							poll_fds[j].events |= POLLOUT;
+						}
+						// else if (client_data[client_fd].state == ClientData::DONE)
+						// {
+						// 	// Turn off POLLIN bit
+						// 	poll_fds[j].events &= ~POLLIN;
+						// }
 					}
 				}
 				// Can write
 				if (poll_fds[j].revents & POLLOUT || poll_fds[j].revents & POLLWRBAND || poll_fds[j].revents & POLLWRNORM)
 				{
 				}
-				// Hopefully unreachable
+				// This can be reached by commenting out the line that removes an fd from poll_fds above
 				if (poll_fds[j].revents & POLLNVAL)
 				{
-					// TODO: Remove when handing in
-					assert(false);
+					// TODO: Maybe print something?
+					exit(EXIT_FAILURE);
 				}
 			}
 		}

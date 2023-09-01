@@ -4,10 +4,10 @@
 !experiments/*.[ch]
 !experiments/*.[ch]pp
 !experiments/print.py
-
-!*.[ch]
-!*.[ch]pp
-
+!rfcs/*.pdf
+!src/*.[ch]
+!src/*.[ch]pp
+!YoupiBanane/**
 !.gitignore
 !fn_descriptions.c
 !README.md
