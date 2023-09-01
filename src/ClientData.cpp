@@ -9,7 +9,8 @@
 /*	Orthodox Canonical Form */
 
 ClientData::ClientData(void)
-	: read_state(HEADER),
+	: read_state(ReadState::HEADER),
+	  write_state(WriteState::NOT_WRITING),
 	  request_method(),
 	  path(),
 	  protocol(),
@@ -24,6 +25,7 @@ ClientData::ClientData(void)
 
 ClientData::ClientData(ClientData const &src)
 	: read_state(src.read_state),
+	  write_state(src.write_state),
 	  request_method(src.request_method),
 	  path(src.path),
 	  protocol(src.protocol),
@@ -45,6 +47,7 @@ ClientData &ClientData::operator=(ClientData const &src)
 	if (this == &src)
 		return *this;
 	this->read_state = src.read_state;
+	this->write_state = src.write_state;
 	this->request_method = src.request_method;
 	this->path = src.path;
 	this->protocol = src.protocol;
@@ -60,7 +63,8 @@ ClientData &ClientData::operator=(ClientData const &src)
 /*	Other constructors */
 
 ClientData::ClientData(int client_fd)
-	: read_state(HEADER),
+	: read_state(ReadState::HEADER),
+	  write_state(WriteState::NOT_WRITING),
 	  request_method(),
 	  path(),
 	  protocol(),
@@ -206,7 +210,9 @@ bool ClientData::parseHeaders(void)
 
 bool ClientData::readSocket(void)
 {
-	assert(this->read_state != DONE);
+	// TODO: Remove this before the evaluation
+	assert(this->read_state != ReadState::DONE);
+	assert(this->write_state != WriteState::DONE);
 
 	// Null-termination is necessary for later .append() calls, since they call strlen() internally
 	char received[MAX_RECEIVED_LEN + 1];
@@ -221,18 +227,18 @@ bool ClientData::readSocket(void)
 	if (bytes_read == 0)
 	{
 		// TODO: Should anything else be done?
-		this->read_state = DONE;
+		this->read_state = ReadState::DONE;
 		return true;
 	}
 
-	if (this->read_state == HEADER)
+	if (this->read_state == ReadState::HEADER)
 	{
 		// "\r\n\r" + "\n"
 		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
 		{
 			this->_header.append(received, 0, 1);
 			this->body.append(received, 1, bytes_read - 1);
-			this->read_state = BODY;
+			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
 				return false;
 		}
@@ -241,7 +247,7 @@ bool ClientData::readSocket(void)
 		{
 			this->_header.append(received, 0, 2);
 			this->body.append(received, 2, bytes_read - 2);
-			this->read_state = BODY;
+			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
 				return false;
 		}
@@ -250,7 +256,7 @@ bool ClientData::readSocket(void)
 		{
 			this->_header.append(received, 0, 3);
 			this->body.append(received, 3, bytes_read - 3);
-			this->read_state = BODY;
+			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
 				return false;
 		}
@@ -269,13 +275,13 @@ bool ClientData::readSocket(void)
 			{
 				this->_header.append(received, ptr + 4);					   // Include "\r\n\r\n"
 				this->body.append(ptr + 4, bytes_read - (ptr + 4 - received)); // Skip "\r\n\r\n"
-				this->read_state = BODY;
+				this->read_state = ReadState::BODY;
 				if (!parseHeaders())
 					return false;
 			}
 		}
 	}
-	else if (this->read_state == BODY)
+	else if (this->read_state == ReadState::BODY)
 	{
 		body += std::string(received, bytes_read);
 	}

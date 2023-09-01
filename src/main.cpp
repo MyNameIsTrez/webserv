@@ -161,7 +161,7 @@ int main(void)
 						int client_fd = pfds[j].fd;
 						ClientData &client = client_data[client_fd];
 
-						bool previous_read_state = client.read_state;
+						ReadState::ReadState previous_read_state = client.read_state;
 
 						if (!client.readSocket())
 						{
@@ -170,14 +170,14 @@ int main(void)
 						}
 
 						// If we've just started reading this client's body
-						if (previous_read_state != ClientData::BODY && client.read_state == ClientData::BODY)
+						if (previous_read_state != ReadState::BODY && client.read_state == ReadState::BODY)
 						{
 							// std::cerr << "foo" << std::endl;
 
 							// Turn on the POLLOUT bit
 							pfds[j].events |= POLLOUT;
 						}
-						else if (client.read_state == ClientData::DONE)
+						else if (client.read_state == ReadState::DONE)
 						{
 							// Turn off the POLLIN bit
 							// Not strictly necessary, since POLLIN can't be raised after read() returned 0 anyways

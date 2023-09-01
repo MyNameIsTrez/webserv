@@ -15,6 +15,28 @@ size_t for sent characters (i)
 // Ignore chunked request doody for now (will be my part probably)
 */
 
+namespace ReadState
+{
+	enum ReadState
+	{
+		HEADER,
+		BODY,
+		READING_FROM_CGI,
+		DONE
+	};
+}
+
+namespace WriteState
+{
+	enum WriteState
+	{
+		NOT_WRITING,
+		WRITING_TO_CGI,
+		WRITING_TO_CLIENT,
+		DONE
+	};
+}
+
 class ClientData
 {
 public:
@@ -27,12 +49,25 @@ public:
 
 	bool readSocket(void);
 
-	enum State
-	{
-		HEADER = 0,
-		BODY,
-		DONE
-	} read_state;
+	// enum ReadState
+	// {
+	// 	HEADER,
+	// 	BODY,
+	// 	READING_FROM_CGI,
+	// 	READING_DONE
+	// } read_state;
+
+	// enum WriteState
+	// {
+	// 	NOT_WRITING,
+	// 	WRITING_TO_CGI,
+	// 	WRITING_TO_CLIENT,
+	// 	WRITING_DONE
+	// } write_state;
+
+	ReadState::ReadState read_state;
+	WriteState::WriteState write_state;
+
 	std::string request_method;
 	std::string path;
 	std::string protocol;
