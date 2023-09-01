@@ -49,22 +49,6 @@ public:
 
 	bool readSocket(void);
 
-	// enum ReadState
-	// {
-	// 	HEADER,
-	// 	BODY,
-	// 	READING_FROM_CGI,
-	// 	READING_DONE
-	// } read_state;
-
-	// enum WriteState
-	// {
-	// 	NOT_WRITING,
-	// 	WRITING_TO_CGI,
-	// 	WRITING_TO_CLIENT,
-	// 	WRITING_DONE
-	// } write_state;
-
 	ReadState::ReadState read_state;
 	WriteState::WriteState write_state;
 

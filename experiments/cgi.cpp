@@ -103,7 +103,7 @@ int main(int argc, char *argv[], char *envp[])
 				return EXIT_FAILURE;
 			}
 
-			// Send 'received' to Python script stdin
+			// Write 'received' to Python script stdin
 			fprintf(stderr, "Parent is going to write '%s' to Python\n", received);
 			if (write(tube_client_to_cgi[PIPE_WRITE_INDEX], received, MAX_RECEIVED_LEN) == -1)
 			{
