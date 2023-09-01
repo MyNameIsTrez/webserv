@@ -27,11 +27,12 @@
 # General code TODOs
 - Decide whether we want to do stuff like fd closing whenever a stdlib function fails.
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
+- Rename ClientData to Client?
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
 - "Your server must never block and the client can be bounced properly if necessary." - What does bouncing of clients precisely mean? Isn't poll() technically going to block the program, or is this maybe not called blocking?
-- "poll() (or equivalent) must check read and write at the same time." - Is this saying that modifying the "events" field of a pollfd struct on the fly to switch between POLLIN and POLLOUT is forbidden?
+- "poll() (or equivalent) must check read and write at the same time." - Is this saying that modifying the "events" field of a pollfd struct on the fly to switch between POLLIN and POLLOUT is forbidden? Or is it just saying that a single poll() call should be used, rather than one for POLLIN, and one for POLLOUT?
 - "Because you have to use non-blocking file descriptors, it is possible to use read/recv or write/send functions with no poll() (or equivalent), and your server wouldn’t be blocking. But it would consume more system resources." - What would exactly happen to the system resources?
 - "A request to your server should never hang forever." - How do we test this?
 - "Your server must have default error pages if none are provided." - What do they mean by "if none are provided"? Are they saying that some pages *have* to have different looking error pages?
@@ -71,3 +72,5 @@ http://f1r3s6.codam.nl:8080/
 - Test read and write sizes 1, 2, 3, 4, 5
 - "Search for all read/recv/write/send and check if the returned value is correctly checked (checking only -1 or 0 values is not enough, both should be checked)." - Eval sheet
 - Make sure we're not using the errno global directly: "If errno is checked after read/recv/write/send, the grade is 0 and the evaluation process ends now."
+- Decide whether all of ClientData's copied member variables in the copy constructor and copy assignment operator make sense to be copied, or whether they should be initialized to the starting state
+- Double-check that the C++ classes' initializer lists aren't forgetting to initialize a member variable
