@@ -13,7 +13,7 @@
 // TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
 
-#define MAX_CONNECTION_QUEUE_LENGTH 1
+#define MAX_CONNECTION_QUEUE_LEN 1
 
 #define MAX_RECEIVED_LEN 300
 
@@ -63,19 +63,19 @@ int main(void)
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
 	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
-	struct sockaddr_in servaddr;
+	sockaddr_in servaddr;
 	bzero(&servaddr, sizeof(servaddr));
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
 
-	if ((bind(server_fd, (struct sockaddr *)&servaddr, sizeof(servaddr))) < 0)
+	if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) < 0)
 	{
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
 
-	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LENGTH)) < 0)
+	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) < 0)
 	{
 		perror("listen");
 		exit(EXIT_FAILURE);
@@ -84,7 +84,7 @@ int main(void)
 	nfds_t nfds = 2;
 
 	// TODO: Don't use the forbidden fn calloc()
-	struct pollfd *poll_fds = (struct pollfd *)calloc(nfds, sizeof(struct pollfd));
+	pollfd *poll_fds = (pollfd *)calloc(nfds, sizeof(pollfd));
 	if (poll_fds == NULL)
 	{
 		perror("calloc");

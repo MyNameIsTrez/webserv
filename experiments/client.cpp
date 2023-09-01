@@ -69,7 +69,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Set up socket struct
-	struct sockaddr_in socket;
+	sockaddr_in socket;
 	bzero(&socket, sizeof(socket));
 	socket.sin_family = AF_INET;
 	// Convert host (our) byte order to the network byte order as short (uint16_t)
@@ -82,7 +82,7 @@ int main(int argc, char *argv[])
 		die("inet_pton with IP '%s'", ip_str);
 	}
 
-	if (connect(socket_fd, (struct sockaddr *)&socket, sizeof(socket)) < 0)
+	if (connect(socket_fd, (sockaddr *)&socket, sizeof(socket)) < 0)
 	{
 		die("connect");
 	}

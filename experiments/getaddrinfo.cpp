@@ -15,8 +15,8 @@ int main(int argc, char *argv[])
 
 	const char *hostname = argv[1];
 
-	struct addrinfo hint;
-	struct addrinfo *result;
+	addrinfo hint;
+	addrinfo *result;
 
 	bzero(&hint, sizeof(hint));
 
@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	struct addrinfo *tmp = result;
+	addrinfo *tmp = result;
 	while (tmp)
 	{
 		printf("Entry:\n");
@@ -58,12 +58,12 @@ int main(int argc, char *argv[])
 		if (tmp->ai_family == AF_INET)
 		{
 			// IPv4
-			address = &((struct sockaddr_in *)tmp->ai_addr)->sin_addr;
+			address = &((sockaddr_in *)tmp->ai_addr)->sin_addr;
 		}
 		else
 		{
 			// IPv6
-			address = &((struct sockaddr_in6 *)tmp->ai_addr)->sin6_addr;
+			address = &((sockaddr_in6 *)tmp->ai_addr)->sin6_addr;
 		}
 
 		// Network representation to printable string

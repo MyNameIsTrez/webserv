@@ -10,7 +10,7 @@
 int main(void)
 {
 	const char *path = "stat.cpp";
-	struct stat buf;
+	stat buf;
 
 	if (stat(path, &buf))
 	{
