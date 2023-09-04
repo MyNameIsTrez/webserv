@@ -13,21 +13,29 @@
 - [x] Set up clang format
 - [ ] Run Codam tester on NGINX server
 - [ ] CGI without creating child zombie processes
+- [ ] Set up Docker that has Valgrind
+- [ ] Verify that Valgrind detects uninitialized member variables
+- [ ] Fuzz the config
+- [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
 
 ## Victor
 
 - [ ] Incoming request header parsing (using class that caches reading/writing progress?)
 - [ ] Incoming request body parsing (using class that caches reading/writing progress?)
+- [ ] Parse content_length from header
+- [ ] Parse request methods GET/POST/DELETE from header into a string/enum
 
 ## Milan
 
 - [x] Main webserv while-loop that uses poll()
 - [ ] NGINX's configuration format parser
+- [ ] Sanitize the config fields, like the port not being -1, for example
 
 # General code TODOs
 - Decide whether we want to do stuff like fd closing whenever a stdlib function fails.
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
 - Rename ClientData to Client?
+- Move all defines to the config
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
