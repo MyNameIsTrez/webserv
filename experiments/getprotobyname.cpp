@@ -31,7 +31,7 @@ int main(void)
 			printf("\n");
 		}
 
-		struct protoent *servptr = getprotobyname(protocol[i]);
+		protoent *servptr = getprotobyname(protocol[i]);
 
 		if (servptr == NULL)
 		{

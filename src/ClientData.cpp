@@ -2,14 +2,22 @@
 #include <unistd.h>
 #include <vector>
 #include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
+#include <iostream>
 
-#define MAX_RECEIVED_LEN 5
+#define MAX_RECEIVED_LEN 4
 
 /*	Orthodox Canonical Form */
 
 ClientData::ClientData(void)
-	: read_state(HEADER),
-	  respond_index(0),
+	: read_state(ReadState::HEADER),
+	  write_state(WriteState::NOT_WRITING),
+	  request_method(),
+	  path(),
+	  protocol(),
+	  header_map(),
+	  body(),
+	  response_index(0),
+	  _header(),
 	  _content_length(0),
 	  _fd(0)
 {
@@ -17,11 +25,15 @@ ClientData::ClientData(void)
 
 ClientData::ClientData(ClientData const &src)
 	: read_state(src.read_state),
+	  write_state(src.write_state),
 	  request_method(src.request_method),
 	  path(src.path),
+	  protocol(src.protocol),
+	  header_map(src.header_map), // TODO: Check whether this correctly copies
 	  body(src.body),
-	  respond_index(0),
-	  _content_length(0),
+	  response_index(0), // TODO: This differs from what is done in copy assignment overload
+	  _header(src._header),
+	  _content_length(0), // TODO: This differs from what is done in copy assignment overload
 	  _fd(src._fd)
 {
 }
@@ -33,21 +45,35 @@ ClientData::~ClientData(void)
 ClientData &ClientData::operator=(ClientData const &src)
 {
 	if (this == &src)
-		return (*this);
+		return *this;
 	this->read_state = src.read_state;
+	this->write_state = src.write_state;
 	this->request_method = src.request_method;
 	this->path = src.path;
+	this->protocol = src.protocol;
+	this->header_map = src.header_map; // TODO: Check whether this correctly copies
 	this->body = src.body;
-	this->respond_index = src.respond_index;
+	this->response_index = src.response_index; // TODO: This differs from what is done in the copy constructor
 	this->_header = src._header;
-	this->_content_length = src._content_length;
+	this->_content_length = src._content_length; // TODO: This differs from what is done in the copy constructor
 	this->_fd = src._fd;
-	return (*this);
+	return *this;
 }
 
 /*	Other constructors */
 
-ClientData::ClientData(int client_fd) : read_state(HEADER), respond_index(0), _content_length(0), _fd(client_fd)
+ClientData::ClientData(int client_fd)
+	: read_state(ReadState::HEADER),
+	  write_state(WriteState::NOT_WRITING),
+	  request_method(),
+	  path(),
+	  protocol(),
+	  header_map(),
+	  body(),
+	  response_index(0),
+	  _header(),
+	  _content_length(0),
+	  _fd(client_fd)
 {
 }
 
@@ -58,14 +84,14 @@ bool ClientData::parseStartLine(std::string line)
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
 	if (request_method_end_pos == std::string::npos)
-		return (false);
+		return false;
 	this->request_method = line.substr(0, request_method_end_pos);
 	request_method_end_pos++;
 
 	// Find and set the path
 	size_t path_end_pos = line.find_last_of(" ");
 	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1)
-		return (false);
+		return false;
 	this->path = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	path_end_pos++;
 
@@ -73,7 +99,7 @@ bool ClientData::parseStartLine(std::string line)
 	// // Validate "HTTP/"
 	this->protocol = line.substr(path_end_pos);
 	if (this->protocol.find("HTTP/", 0, 5) == std::string::npos)
-		return (false);
+		return false;
 
 	// // Validate major version
 	size_t i;
@@ -85,7 +111,7 @@ bool ClientData::parseStartLine(std::string line)
 
 	// // Validate version seperator
 	if (i == 5 || i == this->protocol.size() || this->protocol[i] != '.')
-		return (false);
+		return false;
 
 	// // Validate minor version
 	i++;
@@ -96,8 +122,8 @@ bool ClientData::parseStartLine(std::string line)
 			break;
 	}
 	if (j == i || i != this->protocol.size())
-		return (false);
-	return (true);
+		return false;
+	return true;
 }
 
 // // TODO: Put in debug.cpp or smth
@@ -120,7 +146,7 @@ bool ClientData::parseHeaders(void)
 	size_t pos;
 	size_t start = 0;
 
-	// Delete the trailing "\r\n"
+	// Delete the trailing "\r\n" that separates the headers from the body
 	this->_header.erase(this->_header.size() - 2);
 
 	// std::cerr << "\"" << ToHex(this->_header) << "\"" << std::endl;
@@ -132,7 +158,7 @@ bool ClientData::parseHeaders(void)
 	}
 
 	if (!this->parseStartLine(split[0]))
-		return (false);
+		return false;
 
 	// TODO: Look what to do with HTTP_ thingy (See page 11 & 19 in cgi rfc)
 	// Loop for every header
@@ -143,14 +169,14 @@ bool ClientData::parseHeaders(void)
 		// Assign key to everything before the ':' seperator
 		size_t pos = line.find(":");
 		if (pos == std::string::npos)
-			return (false);
+			return false;
 		std::string key = line.substr(0, pos);
 
 		// Check if key is a duplicate
 		if (this->header_map.find(key) != this->header_map.end())
-			return (false);
+			return false;
 
-		// Capitalizing letters and replace '-' with '_'
+		// Capitalize letters and replace '-' with '_'
 		for (size_t i = 0; i < key.size(); i++)
 		{
 			key[i] = toupper(key[i]);
@@ -158,7 +184,7 @@ bool ClientData::parseHeaders(void)
 				key[i] = '_';
 		}
 
-		// Skip all whitespaces (' ' and '\t') before value
+		// Skip all leading spaces and tabs before value
 		pos++;
 		while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t'))
 			pos++;
@@ -166,7 +192,7 @@ bool ClientData::parseHeaders(void)
 		// Assign value to everything after the whitespaces
 		std::string value = line.substr(pos);
 
-		// Delete all tailing whitespaces from value
+		// Erase all trailing spaces and tabs after value
 		for (size_t i = 0; i < value.size(); i++)
 		{
 			if (value[i] == ' ' || value[i] == '\t')
@@ -177,13 +203,17 @@ bool ClientData::parseHeaders(void)
 		}
 
 		// Add key and value to the map
-		this->header_map.insert(std::pair<std::string, std::string>(key, value));
+		this->header_map.insert(std::make_pair(key, value));
 	}
-	return (true);
+	return true;
 }
 
 bool ClientData::readSocket(void)
 {
+	// TODO: Remove this before the evaluation
+	assert(this->read_state != ReadState::DONE);
+	assert(this->write_state != WriteState::DONE);
+
 	char received[MAX_RECEIVED_LEN];
 	bzero(received, MAX_RECEIVED_LEN);
 
@@ -193,62 +223,64 @@ bool ClientData::readSocket(void)
 		perror("read");
 		exit(EXIT_FAILURE);
 	}
-	// TODO: Handle this (probably also something with setting state to DONE)
-	// if (bytes_read == 0)
-	// {
-	// }
+	if (bytes_read == 0)
+	{
+		// TODO: Should anything else be done?
+		this->read_state = ReadState::DONE;
+		return true;
+	}
 
-	if (this->read_state == HEADER)
+	if (this->read_state == ReadState::HEADER)
 	{
 		// "\r\n\r" + "\n"
 		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
 		{
-			this->_header.append(received, 0, 1);
-			this->body.append(received, 1, bytes_read - 1);
-			this->read_state = BODY;
+			this->_header.append(received, received + 1);
+			this->body.append(received + 1, received + bytes_read);
+			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
-				return (false);
+				return false;
 		}
 		// "\r\n" + "\r\n"
-		else if (this->_header.size() >= 2 && bytes_read >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
+		else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
 		{
-			this->_header.append(received, 0, 2);
-			this->body.append(received, 2, bytes_read - 2);
-			this->read_state = BODY;
+			this->_header.append(received, received + 2);
+			this->body.append(received + 2, received + bytes_read);
+			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
-				return (false);
+				return false;
 		}
 		// "\r" + "\n\r\n"
-		else if (this->_header.size() >= 1 && bytes_read >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
+		else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
 		{
-			this->_header.append(received, 0, 3);
-			this->body.append(received, 3, bytes_read - 3);
-			this->read_state = BODY;
+			this->_header.append(received, received + 3);
+			this->body.append(received + 3, received + bytes_read);
+			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
-				return (false);
+				return false;
 		}
 		else
 		{
 			char const rnrn[] = "\r\n\r\n";
 			char *ptr = std::search(received, received + bytes_read, rnrn, rnrn + sizeof(rnrn) - 1);
 
-			// If no \r\n\r\n found
+			// If "\r\n\r\n" isn't found in received
 			if (ptr == received + bytes_read)
 			{
 				this->_header += std::string(received, bytes_read);
 			}
-			// If \r\n\r\n found
+			// If "\r\n\r\n" is found in received
 			else
 			{
 				this->_header.append(received, ptr + 4);					   // Include "\r\n\r\n"
 				this->body.append(ptr + 4, bytes_read - (ptr + 4 - received)); // Skip "\r\n\r\n"
-				this->read_state = BODY;
+				this->read_state = ReadState::BODY;
 				if (!parseHeaders())
-					return (false);
+					return false;
 			}
 		}
 	}
-	else if (this->read_state == BODY)
+	else if (this->read_state == ReadState::BODY)
 	{
 		body += std::string(received, bytes_read);
 	}
@@ -257,5 +289,5 @@ bool ClientData::readSocket(void)
 		// Should be unreachable
 		assert(false); // TODO: REMOVE BEFORE HANDING IN
 	}
-	return (true);
+	return true;
 }
