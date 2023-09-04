@@ -20,6 +20,9 @@
 #define SERVER_PORT 18000
 #define MAX_CONNECTION_QUEUE_LEN 10
 #define MAX_RESPONSE_LEN 2
+#define CHILD 0
+#define PIPE_READ_INDEX 0
+#define PIPE_WRITE_INDEX 1
 
 // TODO: Use this on every function that can fail
 void die()
@@ -81,6 +84,7 @@ int main(void)
 
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
 
+	// TODO: Should the server be pushed into here as well?
 	std::map<int, ClientData> client_data;
 
 	while (true)
@@ -146,8 +150,7 @@ int main(void)
 					if (pfds[j].fd == server_fd)
 					{
 						int client_fd = accept(server_fd, NULL, NULL);
-						std::cerr << "  Accepted client fd " << client_fd << std::endl
-								  << std::endl;
+						std::cerr << "  Accepted client fd " << client_fd << std::endl;
 
 						pollfd client_pfd;
 						client_pfd.fd = client_fd;
@@ -159,6 +162,7 @@ int main(void)
 					else
 					{
 						int client_fd = pfds[j].fd;
+						// TODO: "client" can dangle if the map decides to rearrange its data (growing, for example)
 						ClientData &client = client_data[client_fd];
 
 						ReadState::ReadState previous_read_state = client.read_state;
@@ -175,7 +179,96 @@ int main(void)
 							// std::cerr << "foo" << std::endl;
 
 							// Turn on the POLLOUT bit
-							pfds[j].events |= POLLOUT;
+							// pfds[j].events |= POLLOUT;
+							pfds[j].events = 0;
+
+							// TODO: Only run the below code if the request says it wants to start the CGI
+
+							int server_to_cgi_tube[2];
+							int cgi_to_server_tube[2];
+
+							if (pipe(server_to_cgi_tube) == -1)
+							{
+								perror("pipe");
+								return EXIT_FAILURE;
+							}
+							if (pipe(cgi_to_server_tube) == -1)
+							{
+								perror("pipe");
+								return EXIT_FAILURE;
+							}
+
+							pid_t forked_pid = fork();
+							if (forked_pid == -1)
+							{
+								perror("fork");
+								return EXIT_FAILURE;
+							}
+							else if (forked_pid == CHILD)
+							{
+								close(server_to_cgi_tube[PIPE_WRITE_INDEX]);
+								close(cgi_to_server_tube[PIPE_READ_INDEX]);
+
+								if (dup2(server_to_cgi_tube[PIPE_READ_INDEX], STDIN_FILENO) == -1)
+								{
+									perror("dup2");
+									return EXIT_FAILURE;
+								}
+								close(server_to_cgi_tube[PIPE_READ_INDEX]);
+
+								if (dup2(cgi_to_server_tube[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
+								{
+									perror("dup2");
+									return EXIT_FAILURE;
+								}
+								close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+
+								fprintf(stderr, "Child is going to exec Python\n");
+								// TODO: Define Python path in configuration file?
+								const char *path = "/usr/local/bin/python3";
+								char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
+
+								// TODO: Construct cgi_env using header_map
+								char *cgi_env[] = {NULL};
+								execve(path, argv, cgi_env);
+
+								perror("execve");
+								return EXIT_FAILURE;
+							}
+
+							close(server_to_cgi_tube[PIPE_READ_INDEX]);
+							std::cerr << "  Server closed server_to_cgi_tube[PIPE_READ_INDEX] fd " << server_to_cgi_tube[PIPE_READ_INDEX] << std::endl;
+							close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+							std::cerr << "  Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
+
+							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
+
+							pollfd server_to_cgi_pfd;
+							server_to_cgi_pfd.fd = server_to_cgi_fd;
+							// server_to_cgi_pfd.events = POLLOUT;
+							server_to_cgi_pfd.events = 0;
+							pfds.push_back(server_to_cgi_pfd);
+
+							ClientData server_to_cgi_data(server_to_cgi_fd);
+							server_to_cgi_data.read_state = ReadState::NOT_READING;
+							server_to_cgi_data.write_state = WriteState::WRITING_TO_CGI;
+							client_data.insert(std::make_pair(server_to_cgi_fd, server_to_cgi_data));
+
+							std::cerr << "  Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+
+							int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
+
+							pollfd cgi_to_server_pfd;
+							cgi_to_server_pfd.fd = cgi_to_server_fd;
+							cgi_to_server_pfd.events = POLLIN;
+							pfds.push_back(cgi_to_server_pfd);
+
+							ClientData cgi_to_server_data(cgi_to_server_fd);
+							cgi_to_server_data.read_state = ReadState::READING_FROM_CGI;
+							cgi_to_server_data.write_state = WriteState::NOT_WRITING;
+							client_data.insert(std::make_pair(cgi_to_server_fd, cgi_to_server_data));
+
+							std::cerr << "  Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
 						}
 						else if (client.read_state == ReadState::DONE)
 						{
@@ -189,16 +282,29 @@ int main(void)
 				// Can write
 				if (pfds[j].revents & POLLOUT || pfds[j].revents & POLLWRBAND || pfds[j].revents & POLLWRNORM)
 				{
-					const char *response = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
-
 					int client_fd = pfds[j].fd;
+					// TODO: "client" can dangle if the map decides to rearrange its data (growing, for example)
+					ClientData &client = client_data[client_fd];
 
-					std::cerr << "    Sending this response:" << std::endl
-							  << "'" << response << "'" << std::endl;
+					size_t max_response_len = MAX_RESPONSE_LEN; // TODO: Read from config
+					size_t response_substr_len = std::min(client.response.length() - client.response_index, max_response_len);
+
+					// if (response_substr_len == 0)
+					// {
+					// 	continue;
+					// }
+
+					// TODO: Remove this before the evaluation
+					assert(response_substr_len > 0);
+
+					std::string response_substr = client.response.substr(client.response_index, response_substr_len);
+
+					std::cerr << "    Sending this response substr that has a len of " << response_substr.length() << ":" << std::endl
+							  << "'" << response_substr << "'" << std::endl;
 
 					// TODO: Don't *always* close right after a single write
 					// TODO: Don't ignore errors
-					write(client_fd, response, strlen(response));
+					write(client_fd, response_substr.c_str(), response_substr_len);
 
 					std::cerr << "    Closing fd " << client_fd << std::endl;
 

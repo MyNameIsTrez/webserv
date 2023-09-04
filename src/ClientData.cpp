@@ -16,6 +16,7 @@ ClientData::ClientData(void)
 	  protocol(),
 	  header_map(),
 	  body(),
+	  response(),
 	  response_index(0),
 	  _header(),
 	  _content_length(0),
@@ -31,9 +32,10 @@ ClientData::ClientData(ClientData const &src)
 	  protocol(src.protocol),
 	  header_map(src.header_map), // TODO: Check whether this correctly copies
 	  body(src.body),
-	  response_index(0), // TODO: This differs from what is done in copy assignment overload
+	  response(src.body),
+	  response_index(0), // TODO: Why does this differ from what is done in the copy assignment overload?
 	  _header(src._header),
-	  _content_length(0), // TODO: This differs from what is done in copy assignment overload
+	  _content_length(0), // TODO: Why does this differ from what is done in the copy assignment overload?
 	  _fd(src._fd)
 {
 }
@@ -53,9 +55,10 @@ ClientData &ClientData::operator=(ClientData const &src)
 	this->protocol = src.protocol;
 	this->header_map = src.header_map; // TODO: Check whether this correctly copies
 	this->body = src.body;
-	this->response_index = src.response_index; // TODO: This differs from what is done in the copy constructor
+	this->response = src.response;
+	this->response_index = src.response_index; // TODO: Why does this differ from what is done in the copy constructor?
 	this->_header = src._header;
-	this->_content_length = src._content_length; // TODO: This differs from what is done in the copy constructor
+	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
 	this->_fd = src._fd;
 	return *this;
 }
@@ -70,6 +73,7 @@ ClientData::ClientData(int client_fd)
 	  protocol(),
 	  header_map(),
 	  body(),
+	  response(),
 	  response_index(0),
 	  _header(),
 	  _content_length(0),
@@ -217,6 +221,7 @@ bool ClientData::readSocket(void)
 	char received[MAX_RECEIVED_LEN];
 	bzero(received, MAX_RECEIVED_LEN);
 
+	// TODO: Never read past the content_length of the BODY
 	ssize_t bytes_read = read(this->_fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
 	{
@@ -284,10 +289,15 @@ bool ClientData::readSocket(void)
 	{
 		body += std::string(received, bytes_read);
 	}
+	else if (this->read_state == ReadState::READING_FROM_CGI)
+	{
+		response += std::string(received, bytes_read);
+	}
 	else
 	{
 		// Should be unreachable
-		assert(false); // TODO: REMOVE BEFORE HANDING IN
+		// TODO: Remove this before the evaluation
+		assert(false);
 	}
 	return true;
 }

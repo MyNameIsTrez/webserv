@@ -19,6 +19,7 @@ namespace ReadState
 {
 	enum ReadState
 	{
+		NOT_READING,
 		HEADER,
 		BODY,
 		READING_FROM_CGI,
@@ -57,13 +58,15 @@ public:
 	std::string protocol;
 	std::unordered_map<std::string, std::string> header_map;
 	std::string body;
+	std::string response;
 	size_t response_index;
+	// &server_to_cgi_pfd;
 
 private:
 	bool parseHeaders(void);
 	bool parseStartLine(std::string line);
 
 	std::string _header;
-	size_t _content_length; // TODO: See if needed
+	size_t _content_length;
 	int _fd;
 };
