@@ -4,7 +4,7 @@
 #include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
 #include <iostream>
 
-#define MAX_RECEIVED_LEN 5
+#define MAX_RECEIVED_LEN 4
 
 /*	Orthodox Canonical Form */
 
@@ -214,9 +214,8 @@ bool ClientData::readSocket(void)
 	assert(this->read_state != ReadState::DONE);
 	assert(this->write_state != WriteState::DONE);
 
-	// Null-termination is necessary for later .append() calls, since they call strlen() internally
-	char received[MAX_RECEIVED_LEN + 1];
-	bzero(received, MAX_RECEIVED_LEN + 1);
+	char received[MAX_RECEIVED_LEN];
+	bzero(received, MAX_RECEIVED_LEN);
 
 	ssize_t bytes_read = read(this->_fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
@@ -236,8 +235,8 @@ bool ClientData::readSocket(void)
 		// "\r\n\r" + "\n"
 		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
 		{
-			this->_header.append(received, 0, 1);
-			this->body.append(received, 1, bytes_read - 1);
+			this->_header.append(received, received + 1);
+			this->body.append(received + 1, received + bytes_read);
 			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
 				return false;
@@ -245,8 +244,8 @@ bool ClientData::readSocket(void)
 		// "\r\n" + "\r\n"
 		else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
 		{
-			this->_header.append(received, 0, 2);
-			this->body.append(received, 2, bytes_read - 2);
+			this->_header.append(received, received + 2);
+			this->body.append(received + 2, received + bytes_read);
 			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
 				return false;
@@ -254,8 +253,8 @@ bool ClientData::readSocket(void)
 		// "\r" + "\n\r\n"
 		else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
 		{
-			this->_header.append(received, 0, 3);
-			this->body.append(received, 3, bytes_read - 3);
+			this->_header.append(received, received + 3);
+			this->body.append(received + 3, received + bytes_read);
 			this->read_state = ReadState::BODY;
 			if (!parseHeaders())
 				return false;
