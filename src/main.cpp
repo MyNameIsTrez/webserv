@@ -1,20 +1,19 @@
+#include "ClientData.hpp"
+
 #include <arpa/inet.h>
 #include <errno.h>
-#include <poll.h>
+#include <iostream>
+#include <map>
 #include <netinet/in.h>
+#include <poll.h>
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
-#include <string.h>
+#include <string>
 #include <sys/socket.h>
 #include <unistd.h>
-#include <map>
-#include <string>
 #include <vector>
-#include <iostream>
-
-#include "ClientData.hpp"
 
 // TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
@@ -75,17 +74,19 @@ int main(void)
 
 	std::vector<pollfd> pfds;
 
+	std::unordered_map<int, size_t> fd_to_pfds_index;
+
+	fd_to_pfds_index.insert(std::make_pair(server_fd, pfds.size()));
+
 	pollfd server_pfd;
 	server_pfd.fd = server_fd;
 	server_pfd.events = POLLIN;
 	pfds.push_back(server_pfd);
 
-	// const char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
-
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
 
 	// TODO: Should the server be pushed into here as well?
-	std::map<int, ClientData> client_data;
+	std::unordered_map<int, ClientData> client_data;
 
 	while (true)
 	{
@@ -132,6 +133,8 @@ int main(void)
 						exit(EXIT_FAILURE);
 					}
 
+					fd_to_pfds_index[pfds.back().fd] = j;
+
 					// Swap-remove explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
 					// pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].
 					// This is fine however, since the for-loop's j > 0 condition will be false, meaning pfd[1] won't be processed twice.
@@ -152,6 +155,8 @@ int main(void)
 						int client_fd = accept(server_fd, NULL, NULL);
 						std::cerr << "  Accepted client fd " << client_fd << std::endl;
 
+						fd_to_pfds_index.insert(std::make_pair(client_fd, pfds.size()));
+
 						pollfd client_pfd;
 						client_pfd.fd = client_fd;
 						client_pfd.events = POLLIN;
@@ -167,7 +172,7 @@ int main(void)
 
 						ReadState::ReadState previous_read_state = client.read_state;
 
-						if (!client.readSocket())
+						if (!client.readSocket(pfds, fd_to_pfds_index))
 						{
 							// TODO: Print error
 							exit(EXIT_FAILURE);
@@ -243,10 +248,11 @@ int main(void)
 
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
+							fd_to_pfds_index.insert(std::make_pair(server_to_cgi_fd, pfds.size()));
+
 							pollfd server_to_cgi_pfd;
 							server_to_cgi_pfd.fd = server_to_cgi_fd;
-							// server_to_cgi_pfd.events = POLLOUT;
-							server_to_cgi_pfd.events = 0;
+							server_to_cgi_pfd.events = client.have_read_body ? POLLOUT : 0;
 							pfds.push_back(server_to_cgi_pfd);
 
 							ClientData server_to_cgi_data(server_to_cgi_fd);
@@ -257,6 +263,8 @@ int main(void)
 							std::cerr << "  Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
 
 							int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
+
+							fd_to_pfds_index.insert(std::make_pair(cgi_to_server_fd, pfds.size()));
 
 							pollfd cgi_to_server_pfd;
 							cgi_to_server_pfd.fd = cgi_to_server_fd;
@@ -314,6 +322,8 @@ int main(void)
 						perror("close");
 						exit(EXIT_FAILURE);
 					}
+
+					fd_to_pfds_index[pfds.back().fd] = j;
 
 					// Swap-remove explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
 					// pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].

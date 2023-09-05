@@ -48,7 +48,7 @@ public:
 
 	ClientData(int client_fd);
 
-	bool readSocket(void);
+	bool readSocket(const std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index);
 
 	ReadState::ReadState read_state;
 	WriteState::WriteState write_state;
@@ -60,7 +60,8 @@ public:
 	std::string body;
 	std::string response;
 	size_t response_index;
-	// &server_to_cgi_pfd;
+	int server_to_cgi_fd;
+	bool have_read_body;
 
 private:
 	bool parseHeaders(void);

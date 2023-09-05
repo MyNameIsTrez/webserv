@@ -1,8 +1,10 @@
 #include "ClientData.hpp"
-#include <unistd.h>
-#include <vector>
+
 #include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
 #include <iostream>
+#include <poll.h>
+#include <unistd.h>
+#include <vector>
 
 #define MAX_RECEIVED_LEN 4
 
@@ -18,6 +20,8 @@ ClientData::ClientData(void)
 	  body(),
 	  response(),
 	  response_index(0),
+	  server_to_cgi_fd(-1),
+	  have_read_body(false),
 	  _header(),
 	  _content_length(0),
 	  _fd(0)
@@ -34,6 +38,8 @@ ClientData::ClientData(ClientData const &src)
 	  body(src.body),
 	  response(src.body),
 	  response_index(0), // TODO: Why does this differ from what is done in the copy assignment overload?
+	  server_to_cgi_fd(src.server_to_cgi_fd),
+	  have_read_body(src.have_read_body),
 	  _header(src._header),
 	  _content_length(0), // TODO: Why does this differ from what is done in the copy assignment overload?
 	  _fd(src._fd)
@@ -57,6 +63,8 @@ ClientData &ClientData::operator=(ClientData const &src)
 	this->body = src.body;
 	this->response = src.response;
 	this->response_index = src.response_index; // TODO: Why does this differ from what is done in the copy constructor?
+	this->server_to_cgi_fd = src.server_to_cgi_fd;
+	this->have_read_body = src.have_read_body;
 	this->_header = src._header;
 	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
 	this->_fd = src._fd;
@@ -75,6 +83,8 @@ ClientData::ClientData(int client_fd)
 	  body(),
 	  response(),
 	  response_index(0),
+	  server_to_cgi_fd(-1),
+	  have_read_body(false),
 	  _header(),
 	  _content_length(0),
 	  _fd(client_fd)
@@ -212,7 +222,7 @@ bool ClientData::parseHeaders(void)
 	return true;
 }
 
-bool ClientData::readSocket(void)
+bool ClientData::readSocket(const std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index)
 {
 	// TODO: Remove this before the evaluation
 	assert(this->read_state != ReadState::DONE);
@@ -243,6 +253,10 @@ bool ClientData::readSocket(void)
 			this->_header.append(received, received + 1);
 			this->body.append(received + 1, received + bytes_read);
 			this->read_state = ReadState::BODY;
+			if (bytes_read > 1)
+			{
+				this->have_read_body = true;
+			}
 			if (!parseHeaders())
 				return false;
 		}
@@ -252,6 +266,10 @@ bool ClientData::readSocket(void)
 			this->_header.append(received, received + 2);
 			this->body.append(received + 2, received + bytes_read);
 			this->read_state = ReadState::BODY;
+			if (bytes_read > 2)
+			{
+				this->have_read_body = true;
+			}
 			if (!parseHeaders())
 				return false;
 		}
@@ -261,6 +279,10 @@ bool ClientData::readSocket(void)
 			this->_header.append(received, received + 3);
 			this->body.append(received + 3, received + bytes_read);
 			this->read_state = ReadState::BODY;
+			if (bytes_read > 3)
+			{
+				this->have_read_body = true;
+			}
 			if (!parseHeaders())
 				return false;
 		}
@@ -280,6 +302,10 @@ bool ClientData::readSocket(void)
 				this->_header.append(received, ptr + 4);					   // Include "\r\n\r\n"
 				this->body.append(ptr + 4, bytes_read - (ptr + 4 - received)); // Skip "\r\n\r\n"
 				this->read_state = ReadState::BODY;
+				if (bytes_read > 4)
+				{
+					this->have_read_body = true;
+				}
 				if (!parseHeaders())
 					return false;
 			}
@@ -288,6 +314,13 @@ bool ClientData::readSocket(void)
 	else if (this->read_state == ReadState::BODY)
 	{
 		body += std::string(received, bytes_read);
+
+		if (!this->have_read_body && this->server_to_cgi_fd != -1)
+		{
+			this->have_read_body = true;
+			size_t server_to_cgi_pfds_index = fd_to_pfds_index[this->server_to_cgi_fd];
+			pfds[server_to_cgi_pfds_index].events = POLLOUT;
+		}
 	}
 	else if (this->read_state == ReadState::READING_FROM_CGI)
 	{
