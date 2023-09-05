@@ -1,6 +1,9 @@
 #include "ClientData.hpp"
 
+#include <algorithm>
 #include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
+#include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <poll.h>
 #include <unistd.h>
@@ -222,14 +225,13 @@ bool ClientData::parseHeaders(void)
 	return true;
 }
 
-bool ClientData::readSocket(const std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index)
+bool ClientData::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index)
 {
 	// TODO: Remove this before the evaluation
 	assert(this->read_state != ReadState::DONE);
 	assert(this->write_state != WriteState::DONE);
 
-	char received[MAX_RECEIVED_LEN];
-	bzero(received, MAX_RECEIVED_LEN);
+	char received[MAX_RECEIVED_LEN] = {};
 
 	// TODO: Never read past the content_length of the BODY
 	ssize_t bytes_read = read(this->_fd, received, MAX_RECEIVED_LEN);
@@ -318,7 +320,8 @@ bool ClientData::readSocket(const std::vector<pollfd> &pfds, const std::unordere
 		if (!this->have_read_body && this->server_to_cgi_fd != -1)
 		{
 			this->have_read_body = true;
-			size_t server_to_cgi_pfds_index = fd_to_pfds_index[this->server_to_cgi_fd];
+
+			size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
 			pfds[server_to_cgi_pfds_index].events = POLLOUT;
 		}
 	}

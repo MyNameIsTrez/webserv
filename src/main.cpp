@@ -1,6 +1,7 @@
 #include "ClientData.hpp"
 
 #include <arpa/inet.h>
+#include <cassert>
 #include <errno.h>
 #include <iostream>
 #include <map>
@@ -54,8 +55,7 @@ int main(void)
 	int option = 1;
 	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
-	sockaddr_in servaddr;
-	bzero(&servaddr, sizeof(servaddr));
+	sockaddr_in servaddr{};
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
@@ -230,7 +230,7 @@ int main(void)
 
 								fprintf(stderr, "Child is going to exec Python\n");
 								// TODO: Define Python path in configuration file?
-								const char *path = "/usr/local/bin/python3";
+								const char *path = "/usr/bin/python3";
 								char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
 
 								// TODO: Construct cgi_env using header_map

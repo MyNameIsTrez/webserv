@@ -1,7 +1,9 @@
 #pragma once
 
+#include <poll.h>
 #include <string>
 #include <unordered_map>
+#include <vector>
 
 /*
 // whole socket input
@@ -48,7 +50,7 @@ public:
 
 	ClientData(int client_fd);
 
-	bool readSocket(const std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index);
+	bool readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index);
 
 	ReadState::ReadState read_state;
 	WriteState::WriteState write_state;
