@@ -2,6 +2,8 @@ import json, os, sys
 
 
 def main():
+    print("This is printed to stderr by print.py", file=sys.stderr)
+
     print(f"argv: {sys.argv}")
 
     print(f"stdin: {sys.stdin.readlines()}")
