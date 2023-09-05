@@ -5,6 +5,7 @@
 !rfcs/*.pdf
 !src/*.[ch]pp
 !src/*.py
+!tests/posted.txt
 !YoupiBanane/**
 !.gitignore
 !fn_descriptions.c

@@ -51,4 +51,4 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Using curl for POST request
 
-- `curl -XPOST localhost:18000 --data-binary "@we"`
+- `curl -XPOST localhost:18000 --data-binary "@tests/posted.txt"`
