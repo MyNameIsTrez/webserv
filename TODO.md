@@ -17,6 +17,9 @@
 - [ ] Verify that Valgrind detects uninitialized member variables
 - [ ] Fuzz the config
 - [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
+- [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
+- [ ] Can GET and DELETE ever launch the CGI?
+- [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte.
 
 ## Victor
 
@@ -82,3 +85,5 @@ http://f1r3s6.codam.nl:8080/
 - Make sure we're not using the errno global directly: "If errno is checked after read/recv/write/send, the grade is 0 and the evaluation process ends now."
 - Decide whether all of ClientData's copied member variables in the copy constructor and copy assignment operator make sense to be copied, or whether they should be initialized to the starting state
 - Double-check that the C++ classes' initializer lists aren't forgetting to initialize a member variable
+- Double-check that all the OCF methods we added work correctly in a test
+- Replace as many "#include <foo.h>" with "#include <foo>" or "#include <cfoo>"
