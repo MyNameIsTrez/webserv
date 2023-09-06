@@ -109,13 +109,11 @@ int main(void)
 		{
 			pfd_index--;
 
-			int fd = pfds[pfd_index].fd;
-			// std::cerr << "A" << std::endl;
-			FdType::FdType fd_type = fd_to_fd_type.at(fd);
-			// std::cerr << "B" << std::endl;
-
 			if (pfds[pfd_index].revents != 0)
 			{
+				int fd = pfds[pfd_index].fd;
+				FdType::FdType fd_type = fd_to_fd_type.at(fd);
+
 				std::cerr << "  fd=" << pfds[pfd_index].fd << "; "
 						  << "Events: "
 						  << ((pfds[pfd_index].revents & POLLIN) ? "POLLIN " : "")
@@ -133,16 +131,14 @@ int main(void)
 				// TODO: Split these events
 				if (pfds[pfd_index].revents & POLLHUP || pfds[pfd_index].revents & POLLERR)
 				{
-					int client_fd = pfds[pfd_index].fd;
-
-					size_t client_index = fd_to_client_index.at(client_fd);
+					size_t client_index = fd_to_client_index.at(fd);
 					Client &client = clients[client_index];
 
-					// std::cerr << "    Closing fd " << client_fd << std::endl;
+					// std::cerr << "    Closing fd " << fd << std::endl;
 
-					fd_to_pfds_index.erase(client_fd);
-					fd_to_client_index.erase(client_fd);
-					if (close(client_fd) == -1)
+					fd_to_pfds_index.erase(fd);
+					fd_to_client_index.erase(fd);
+					if (close(fd) == -1)
 					{
 						perror("close");
 						exit(EXIT_FAILURE);
@@ -221,9 +217,7 @@ int main(void)
 					{
 						assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
 
-						int client_fd = pfds[pfd_index].fd;
-
-						size_t client_index = fd_to_client_index.at(client_fd);
+						size_t client_index = fd_to_client_index.at(fd);
 						Client &client = clients[client_index];
 
 						ClientReadState::ClientReadState previous_read_state = client.client_read_state;
@@ -333,9 +327,7 @@ int main(void)
 				// Can write
 				if (pfds[pfd_index].revents & POLLOUT || pfds[pfd_index].revents & POLLWRBAND || pfds[pfd_index].revents & POLLWRNORM)
 				{
-					int client_fd = pfds[pfd_index].fd;
-
-					size_t client_index = fd_to_client_index.at(client_fd);
+					size_t client_index = fd_to_client_index.at(fd);
 					Client &client = clients[client_index];
 
 					if (fd_type == FdType::SERVER_TO_CGI)
@@ -400,17 +392,17 @@ int main(void)
 								<< "'" << response_substr << "'" << std::endl;
 
 						// TODO: Don't ignore errors
-						write(client_fd, response_substr.c_str(), response_substr.length());
+						write(fd, response_substr.c_str(), response_substr.length());
 
 
 						// TODO: Close
-						// std::cerr << "    Closing client fd " << client_fd << std::endl;
+						// std::cerr << "    Closing client fd " << fd << std::endl;
 						// TODO: Don't *always* close right after a single write
 
 
-						// fd_to_pfds_index.erase(client_fd);
-						// fd_to_client_index.erase(client_fd);
-						// if (close(client_fd) == -1)
+						// fd_to_pfds_index.erase(fd);
+						// fd_to_client_index.erase(fd);
+						// if (close(fd) == -1)
 						// {
 						// 	perror("close");
 						// 	exit(EXIT_FAILURE);
