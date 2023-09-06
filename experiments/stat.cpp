@@ -6,7 +6,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 
-// c++ stat.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
+// c++ stat.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 int main(void)
 {
 	const char *path = "stat.cpp";

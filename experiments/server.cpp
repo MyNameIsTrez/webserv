@@ -45,7 +45,7 @@ char *bin2hex(char *input, size_t len)
 	return result;
 }
 
-// c++ server.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
+// c++ server.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
 {

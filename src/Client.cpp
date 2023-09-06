@@ -196,7 +196,7 @@ bool Client::parseHeaders(void)
 		std::string line = split[i];
 
 		// Assign key to everything before the ':' seperator
-		size_t pos = line.find(":");
+		pos = line.find(":");
 		if (pos == std::string::npos)
 			return false;
 		std::string key = line.substr(0, pos);
@@ -206,11 +206,11 @@ bool Client::parseHeaders(void)
 			return false;
 
 		// Capitalize letters and replace '-' with '_'
-		for (size_t i = 0; i < key.size(); i++)
+		for (size_t j = 0; j < key.size(); j++)
 		{
-			key[i] = toupper(key[i]);
-			if (key[i] == '-')
-				key[i] = '_';
+			key[j] = toupper(key[j]);
+			if (key[j] == '-')
+				key[j] = '_';
 		}
 
 		// Skip all leading spaces and tabs before value
@@ -222,11 +222,11 @@ bool Client::parseHeaders(void)
 		std::string value = line.substr(pos);
 
 		// Erase all trailing spaces and tabs after value
-		for (size_t i = 0; i < value.size(); i++)
+		for (size_t j = 0; j < value.size(); j++)
 		{
-			if (value[i] == ' ' || value[i] == '\t')
+			if (value[j] == ' ' || value[j] == '\t')
 			{
-				value.erase(i);
+				value.erase(j);
 				break;
 			}
 		}

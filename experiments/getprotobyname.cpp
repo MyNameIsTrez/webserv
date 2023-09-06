@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// c++ getprotobyname.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
+// c++ getprotobyname.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 int main(void)
 {
 	char protocol[][42] = {

@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-// c++ getaddrinfo.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
+// c++ getaddrinfo.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
 int main(int argc, char *argv[])
 {
 	if (argc != 2)

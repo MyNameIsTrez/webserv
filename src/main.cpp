@@ -35,7 +35,7 @@ void die()
 	exit(EXIT_FAILURE);
 }
 
-// c++ main.cpp Client.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
+// c++ main.cpp Client.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
 {
@@ -296,8 +296,6 @@ int main(void)
 							close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
 							// std::cerr << "  Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
 
-							size_t client_index = fd_to_client_index.at(client.fd);
-
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
 							fd_to_pfds_index.insert(std::make_pair(server_to_cgi_fd, pfds.size()));
@@ -364,10 +362,9 @@ int main(void)
 						// TODO: Don't ignore errors
 						write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length());
 
-						std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
-
 
 						// TODO: Close
+						// std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
 						// TODO: Don't *always* close right after a single write
 
 
@@ -405,10 +402,9 @@ int main(void)
 						// TODO: Don't ignore errors
 						write(client_fd, response_substr.c_str(), response_substr.length());
 
-						std::cerr << "    Closing client fd " << client_fd << std::endl;
-
 
 						// TODO: Close
+						// std::cerr << "    Closing client fd " << client_fd << std::endl;
 						// TODO: Don't *always* close right after a single write
 
 

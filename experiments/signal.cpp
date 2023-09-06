@@ -14,7 +14,7 @@ void sig_handler(int sig)
 // Do Ctrl+C to print "Inside sig_handler"
 // Do Ctrl+\ to quit the program
 // NOTE: USE THE MAC TERMINAL IF THESE KEYS DON'T WORK!
-// c++ signal.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out
+// c++ signal.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 int main(void)
 {
 	int sig = SIGINT;
