@@ -14,38 +14,44 @@
 /*	Orthodox Canonical Form */
 
 ClientData::ClientData(void)
-	: read_state(ReadState::HEADER),
-	  write_state(WriteState::NOT_WRITING),
+	: client_read_state(ClientReadState::HEADER),
+	  cgi_write_state(CGIWriteState::NOT_WRITING),
+	  cgi_read_state(CGIReadState::NOT_READING),
+	  client_write_state(ClientWriteState::NOT_WRITING),
 	  request_method(),
 	  path(),
 	  protocol(),
 	  header_map(),
 	  body(),
+	  body_index(0),
 	  response(),
 	  response_index(0),
+	  fd(0),
 	  server_to_cgi_fd(-1),
-	  have_read_body(false),
+	  cgi_to_server_fd(-1),
 	  _header(),
-	  _content_length(0),
-	  _fd(0)
+	  _content_length(0)
 {
 }
 
 ClientData::ClientData(ClientData const &src)
-	: read_state(src.read_state),
-	  write_state(src.write_state),
+	: client_read_state(src.client_read_state),
+	  cgi_write_state(src.cgi_write_state),
+	  cgi_read_state(src.cgi_read_state),
+	  client_write_state(src.client_write_state),
 	  request_method(src.request_method),
 	  path(src.path),
 	  protocol(src.protocol),
 	  header_map(src.header_map), // TODO: Check whether this correctly copies
 	  body(src.body),
+	  body_index(src.body_index),
 	  response(src.body),
 	  response_index(0), // TODO: Why does this differ from what is done in the copy assignment overload?
+	  fd(src.fd),
 	  server_to_cgi_fd(src.server_to_cgi_fd),
-	  have_read_body(src.have_read_body),
+	  cgi_to_server_fd(src.cgi_to_server_fd),
 	  _header(src._header),
-	  _content_length(0), // TODO: Why does this differ from what is done in the copy assignment overload?
-	  _fd(src._fd)
+	  _content_length(0) // TODO: Why does this differ from what is done in the copy assignment overload?
 {
 }
 
@@ -57,40 +63,46 @@ ClientData &ClientData::operator=(ClientData const &src)
 {
 	if (this == &src)
 		return *this;
-	this->read_state = src.read_state;
-	this->write_state = src.write_state;
+	this->client_read_state = src.client_read_state;
+	this->cgi_write_state = src.cgi_write_state;
+	this->cgi_read_state = src.cgi_read_state;
+	this->client_write_state = src.client_write_state;
 	this->request_method = src.request_method;
 	this->path = src.path;
 	this->protocol = src.protocol;
 	this->header_map = src.header_map; // TODO: Check whether this correctly copies
 	this->body = src.body;
+	this->body_index = src.body_index;
 	this->response = src.response;
 	this->response_index = src.response_index; // TODO: Why does this differ from what is done in the copy constructor?
+	this->fd = src.fd;
 	this->server_to_cgi_fd = src.server_to_cgi_fd;
-	this->have_read_body = src.have_read_body;
+	this->cgi_to_server_fd = src.cgi_to_server_fd;
 	this->_header = src._header;
 	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
-	this->_fd = src._fd;
 	return *this;
 }
 
 /*	Other constructors */
 
 ClientData::ClientData(int client_fd)
-	: read_state(ReadState::HEADER),
-	  write_state(WriteState::NOT_WRITING),
+	: client_read_state(ClientReadState::HEADER),
+	  cgi_write_state(CGIWriteState::NOT_WRITING),
+	  cgi_read_state(CGIReadState::NOT_READING),
+	  client_write_state(ClientWriteState::NOT_WRITING),
 	  request_method(),
 	  path(),
 	  protocol(),
 	  header_map(),
 	  body(),
+	  body_index(0),
 	  response(),
 	  response_index(0),
+	  fd(client_fd),
 	  server_to_cgi_fd(-1),
-	  have_read_body(false),
+	  cgi_to_server_fd(-1),
 	  _header(),
-	  _content_length(0),
-	  _fd(client_fd)
+	  _content_length(0)
 {
 }
 
@@ -225,16 +237,16 @@ bool ClientData::parseHeaders(void)
 	return true;
 }
 
-bool ClientData::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index)
+bool ClientData::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
 {
 	// TODO: Remove this before the evaluation
-	assert(this->read_state != ReadState::DONE);
-	assert(this->write_state != WriteState::DONE);
+	assert(this->cgi_read_state != CGIReadState::DONE);
+	assert(this->client_write_state != ClientWriteState::DONE);
 
 	char received[MAX_RECEIVED_LEN] = {};
 
 	// TODO: Never read past the content_length of the BODY
-	ssize_t bytes_read = read(this->_fd, received, MAX_RECEIVED_LEN);
+	ssize_t bytes_read = read(this->fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
 	{
 		perror("read");
@@ -242,92 +254,109 @@ bool ClientData::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<
 	}
 	if (bytes_read == 0)
 	{
-		// TODO: Should anything else be done?
-		this->read_state = ReadState::DONE;
+		// TODO: Check that we reached content_length
+
+		if (fd_type == FdType::CLIENT)
+		{
+			this->client_read_state = ClientReadState::DONE;
+
+			size_t client_pfds_index = fd_to_pfds_index.at(this->fd);
+			pfds[client_pfds_index].events &= ~POLLIN;
+		}
+		else if (fd_type == FdType::CGI_TO_SERVER)
+		{
+			this->cgi_read_state = CGIReadState::DONE;
+
+			size_t cgi_to_server_pfds_index = fd_to_pfds_index.at(this->cgi_to_server_fd);
+			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
+		}
+
 		return true;
 	}
 
-	if (this->read_state == ReadState::HEADER)
+	if (fd_type == FdType::CLIENT)
 	{
-		// "\r\n\r" + "\n"
-		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
+		if (this->client_read_state == ClientReadState::HEADER)
 		{
-			this->_header.append(received, received + 1);
-			this->body.append(received + 1, received + bytes_read);
-			this->read_state = ReadState::BODY;
-			if (bytes_read > 1)
-			{
-				this->have_read_body = true;
-			}
-			if (!parseHeaders())
-				return false;
-		}
-		// "\r\n" + "\r\n"
-		else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
-		{
-			this->_header.append(received, received + 2);
-			this->body.append(received + 2, received + bytes_read);
-			this->read_state = ReadState::BODY;
-			if (bytes_read > 2)
-			{
-				this->have_read_body = true;
-			}
-			if (!parseHeaders())
-				return false;
-		}
-		// "\r" + "\n\r\n"
-		else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
-		{
-			this->_header.append(received, received + 3);
-			this->body.append(received + 3, received + bytes_read);
-			this->read_state = ReadState::BODY;
-			if (bytes_read > 3)
-			{
-				this->have_read_body = true;
-			}
-			if (!parseHeaders())
-				return false;
-		}
-		else
-		{
-			char const rnrn[] = "\r\n\r\n";
-			char *ptr = std::search(received, received + bytes_read, rnrn, rnrn + sizeof(rnrn) - 1);
+			char *received_end = received + bytes_read;
 
-			// If "\r\n\r\n" isn't found in received
-			if (ptr == received + bytes_read)
+			// "\r\n\r" + "\n"
+			if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
 			{
-				this->_header += std::string(received, bytes_read);
-			}
-			// If "\r\n\r\n" is found in received
-			else
-			{
-				this->_header.append(received, ptr + 4);					   // Include "\r\n\r\n"
-				this->body.append(ptr + 4, bytes_read - (ptr + 4 - received)); // Skip "\r\n\r\n"
-				this->read_state = ReadState::BODY;
-				if (bytes_read > 4)
-				{
-					this->have_read_body = true;
-				}
+				this->_header.append(received, received + 1);
+				this->body.append(received + 1, received_end);
+				this->client_read_state = ClientReadState::BODY;
 				if (!parseHeaders())
 					return false;
 			}
-		}
-	}
-	else if (this->read_state == ReadState::BODY)
-	{
-		body += std::string(received, bytes_read);
+			// "\r\n" + "\r\n"
+			else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
+			{
+				this->_header.append(received, received + 2);
+				this->body.append(received + 2, received_end);
+				this->client_read_state = ClientReadState::BODY;
+				if (!parseHeaders())
+					return false;
+			}
+			// "\r" + "\n\r\n"
+			else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
+			{
+				this->_header.append(received, received + 3);
+				this->body.append(received + 3, received_end);
+				this->client_read_state = ClientReadState::BODY;
+				if (!parseHeaders())
+					return false;
+			}
+			else
+			{
+				char const rnrn[] = "\r\n\r\n";
+				char *ptr = std::search(received, received_end, rnrn, rnrn + sizeof(rnrn) - 1);
 
-		if (!this->have_read_body && this->server_to_cgi_fd != -1)
+				// If "\r\n\r\n" isn't found in received
+				if (ptr == received_end)
+				{
+					this->_header += std::string(received, bytes_read);
+				}
+				// If "\r\n\r\n" is found in received
+				else
+				{
+					this->_header.append(received, ptr + 4);  // Include "\r\n\r\n"
+					this->body.append(ptr + 4, received_end); // Skip "\r\n\r\n"
+					this->client_read_state = ClientReadState::BODY;
+					if (!parseHeaders())
+						return false;
+				}
+			}
+		}
+		else if (this->client_read_state == ClientReadState::BODY)
 		{
-			this->have_read_body = true;
+			if (this->body.empty() && this->server_to_cgi_fd != -1)
+			{
+				size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
+				pfds[server_to_cgi_pfds_index].events |= POLLOUT;
+			}
 
-			size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
-			pfds[server_to_cgi_pfds_index].events = POLLOUT;
+			body += std::string(received, bytes_read);
+		}
+		else
+		{
+			// Should be unreachable
+			// TODO: Remove this before the evaluation
+			assert(false);
 		}
 	}
-	else if (this->read_state == ReadState::READING_FROM_CGI)
+	else if (fd_type == FdType::CGI_TO_SERVER)
 	{
-		response += std::string(received, bytes_read);
+		if (this->cgi_read_state == CGIReadState::READING_FROM_CGI)
+		{
+			response += std::string(received, bytes_read);
+		}
+		else
+		{
+			// Should be unreachable
+			// TODO: Remove this before the evaluation
+			assert(false);
+		}
 	}
 	else
 	{

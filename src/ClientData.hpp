@@ -17,26 +17,54 @@ size_t for sent characters (i)
 // Ignore chunked request doody for now (will be my part probably)
 */
 
-namespace ReadState
+namespace ClientReadState
 {
-	enum ReadState
+	enum ClientReadState
 	{
-		NOT_READING,
 		HEADER,
 		BODY,
+		DONE
+	};
+}
+
+namespace CGIWriteState
+{
+	enum CGIWriteState
+	{
+		NOT_WRITING,
+		WRITING_TO_CGI,
+		DONE
+	};
+}
+
+namespace CGIReadState
+{
+	enum CGIReadState
+	{
+		NOT_READING,
 		READING_FROM_CGI,
 		DONE
 	};
 }
 
-namespace WriteState
+namespace ClientWriteState
 {
-	enum WriteState
+	enum ClientWriteState
 	{
 		NOT_WRITING,
-		WRITING_TO_CGI,
 		WRITING_TO_CLIENT,
 		DONE
+	};
+}
+
+namespace FdType
+{
+	enum FdType
+	{
+		SERVER,
+		CLIENT,
+		SERVER_TO_CGI,
+		CGI_TO_SERVER
 	};
 }
 
@@ -50,20 +78,24 @@ public:
 
 	ClientData(int client_fd);
 
-	bool readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index);
+	bool readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type);
 
-	ReadState::ReadState read_state;
-	WriteState::WriteState write_state;
+	ClientReadState::ClientReadState client_read_state;
+	CGIWriteState::CGIWriteState cgi_write_state;
+	CGIReadState::CGIReadState cgi_read_state;
+	ClientWriteState::ClientWriteState client_write_state;
 
 	std::string request_method;
 	std::string path;
 	std::string protocol;
 	std::unordered_map<std::string, std::string> header_map;
 	std::string body;
+	size_t body_index;
 	std::string response;
 	size_t response_index;
+	int fd;
 	int server_to_cgi_fd;
-	bool have_read_body;
+	int cgi_to_server_fd;
 
 private:
 	bool parseHeaders(void);
@@ -71,5 +103,4 @@ private:
 
 	std::string _header;
 	size_t _content_length;
-	int _fd;
 };
