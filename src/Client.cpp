@@ -1,4 +1,4 @@
-#include "ClientData.hpp"
+#include "Client.hpp"
 
 #include <algorithm>
 #include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
@@ -13,7 +13,7 @@
 
 /*	Orthodox Canonical Form */
 
-ClientData::ClientData(void)
+Client::Client(void)
 	: client_read_state(ClientReadState::HEADER),
 	  cgi_write_state(CGIWriteState::NOT_WRITING),
 	  cgi_read_state(CGIReadState::NOT_READING),
@@ -34,7 +34,7 @@ ClientData::ClientData(void)
 {
 }
 
-ClientData::ClientData(ClientData const &src)
+Client::Client(Client const &src)
 	: client_read_state(src.client_read_state),
 	  cgi_write_state(src.cgi_write_state),
 	  cgi_read_state(src.cgi_read_state),
@@ -55,11 +55,11 @@ ClientData::ClientData(ClientData const &src)
 {
 }
 
-ClientData::~ClientData(void)
+Client::~Client(void)
 {
 }
 
-ClientData &ClientData::operator=(ClientData const &src)
+Client &Client::operator=(Client const &src)
 {
 	if (this == &src)
 		return *this;
@@ -85,7 +85,7 @@ ClientData &ClientData::operator=(ClientData const &src)
 
 /*	Other constructors */
 
-ClientData::ClientData(int client_fd)
+Client::Client(int client_fd)
 	: client_read_state(ClientReadState::HEADER),
 	  cgi_write_state(CGIWriteState::NOT_WRITING),
 	  cgi_read_state(CGIReadState::NOT_READING),
@@ -108,7 +108,7 @@ ClientData::ClientData(int client_fd)
 
 /*	Member functions */
 
-bool ClientData::parseStartLine(std::string line)
+bool Client::parseStartLine(std::string line)
 {
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
@@ -169,7 +169,7 @@ bool ClientData::parseStartLine(std::string line)
 // 	return ret.str();
 // }
 
-bool ClientData::parseHeaders(void)
+bool Client::parseHeaders(void)
 {
 	std::vector<std::string> split;
 	size_t pos;
@@ -237,7 +237,7 @@ bool ClientData::parseHeaders(void)
 	return true;
 }
 
-bool ClientData::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
+bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
 {
 	// TODO: Remove this before the evaluation
 	assert(this->cgi_read_state != CGIReadState::DONE);

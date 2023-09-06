@@ -1,4 +1,4 @@
-#include "ClientData.hpp"
+#include "Client.hpp"
 
 #include <arpa/inet.h>
 #include <cassert>
@@ -35,7 +35,7 @@ void die()
 	exit(EXIT_FAILURE);
 }
 
-// c++ main.cpp ClientData.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
+// c++ main.cpp Client.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
 {
@@ -86,9 +86,9 @@ int main(void)
 
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
 
-	std::unordered_map<int, size_t> fd_to_client_data_index;
+	std::unordered_map<int, size_t> fd_to_client_index;
 
-	std::vector<ClientData> client_data;
+	std::vector<Client> clients;
 
 	std::unordered_map<int, FdType::FdType> fd_to_fd_type;
 
@@ -135,13 +135,13 @@ int main(void)
 				{
 					int client_fd = pfds[pfd_index].fd;
 
-					size_t client_data_index = fd_to_client_data_index.at(client_fd);
-					ClientData &client = client_data[client_data_index];
+					size_t client_index = fd_to_client_index.at(client_fd);
+					Client &client = clients[client_index];
 
 					// std::cerr << "    Closing fd " << client_fd << std::endl;
 
 					fd_to_pfds_index.erase(client_fd);
-					fd_to_client_data_index.erase(client_fd);
+					fd_to_client_index.erase(client_fd);
 					if (close(client_fd) == -1)
 					{
 						perror("close");
@@ -152,7 +152,7 @@ int main(void)
 					if (client.server_to_cgi_fd != -1)
 					{
 						fd_to_pfds_index.erase(client.server_to_cgi_fd);
-						fd_to_client_data_index.erase(client.server_to_cgi_fd);
+						fd_to_client_index.erase(client.server_to_cgi_fd);
 						if (close(client.server_to_cgi_fd) == -1)
 						{
 							perror("close");
@@ -164,7 +164,7 @@ int main(void)
 					if (client.cgi_to_server_fd != -1)
 					{
 						fd_to_pfds_index.erase(client.cgi_to_server_fd);
-						fd_to_client_data_index.erase(client.cgi_to_server_fd);
+						fd_to_client_index.erase(client.cgi_to_server_fd);
 						if (close(client.cgi_to_server_fd) == -1)
 						{
 							perror("close");
@@ -187,11 +187,11 @@ int main(void)
 					pfds.pop_back();
 
 					// Swap-remove
-					fd_to_client_data_index[client_data.back().fd] = client_data_index;
+					fd_to_client_index[clients.back().fd] = client_index;
 
 					// Swap-remove
-					client_data[client_data_index] = client_data.back();
-					client_data.pop_back();
+					clients[client_index] = clients.back();
+					clients.pop_back();
 
 					continue;
 				}
@@ -206,14 +206,14 @@ int main(void)
 
 						fd_to_pfds_index.insert(std::make_pair(client_fd, pfds.size()));
 
-						fd_to_client_data_index.insert(std::make_pair(client_fd, client_data.size()));
+						fd_to_client_index.insert(std::make_pair(client_fd, clients.size()));
 
 						pollfd client_pfd;
 						client_pfd.fd = client_fd;
 						client_pfd.events = POLLIN;
 						pfds.push_back(client_pfd);
 
-						client_data.push_back(ClientData(client_fd));
+						clients.push_back(Client(client_fd));
 
 						fd_to_fd_type.insert(std::make_pair(client_fd, FdType::CLIENT));
 					}
@@ -223,8 +223,8 @@ int main(void)
 
 						int client_fd = pfds[pfd_index].fd;
 
-						size_t client_data_index = fd_to_client_data_index.at(client_fd);
-						ClientData &client = client_data[client_data_index];
+						size_t client_index = fd_to_client_index.at(client_fd);
+						Client &client = clients[client_index];
 
 						ClientReadState::ClientReadState previous_read_state = client.client_read_state;
 
@@ -296,7 +296,7 @@ int main(void)
 							close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
 							// std::cerr << "  Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
 
-							size_t client_data_index = fd_to_client_data_index.at(client.fd);
+							size_t client_index = fd_to_client_index.at(client.fd);
 
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
@@ -309,7 +309,7 @@ int main(void)
 
 							client.server_to_cgi_fd = server_to_cgi_fd;
 
-							fd_to_client_data_index.insert(std::make_pair(server_to_cgi_fd, client_data_index));
+							fd_to_client_index.insert(std::make_pair(server_to_cgi_fd, client_index));
 							client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 							fd_to_fd_type.insert(std::make_pair(server_to_cgi_fd, FdType::SERVER_TO_CGI));
 
@@ -323,7 +323,7 @@ int main(void)
 							cgi_to_server_pfd.events = POLLIN;
 							pfds.push_back(cgi_to_server_pfd);
 
-							fd_to_client_data_index.insert(std::make_pair(cgi_to_server_fd, client_data_index));
+							fd_to_client_index.insert(std::make_pair(cgi_to_server_fd, client_index));
 							client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 							fd_to_fd_type.insert(std::make_pair(cgi_to_server_fd, FdType::CGI_TO_SERVER));
 
@@ -337,8 +337,8 @@ int main(void)
 				{
 					int client_fd = pfds[pfd_index].fd;
 
-					size_t client_data_index = fd_to_client_data_index.at(client_fd);
-					ClientData &client = client_data[client_data_index];
+					size_t client_index = fd_to_client_index.at(client_fd);
+					Client &client = clients[client_index];
 
 					if (fd_type == FdType::SERVER_TO_CGI)
 					{
@@ -413,7 +413,7 @@ int main(void)
 
 
 						// fd_to_pfds_index.erase(client_fd);
-						// fd_to_client_data_index.erase(client_fd);
+						// fd_to_client_index.erase(client_fd);
 						// if (close(client_fd) == -1)
 						// {
 						// 	perror("close");

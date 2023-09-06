@@ -68,15 +68,15 @@ namespace FdType
 	};
 }
 
-class ClientData
+class Client
 {
 public:
-	ClientData(void);
-	ClientData(ClientData const &src);
-	virtual ~ClientData(void);
-	ClientData &operator=(ClientData const &src);
+	Client(void);
+	Client(Client const &src);
+	virtual ~Client(void);
+	Client &operator=(Client const &src);
 
-	ClientData(int client_fd);
+	Client(int client_fd);
 
 	bool readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type);
 

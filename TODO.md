@@ -20,7 +20,7 @@
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
 - [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
-- [ ] Let ClientData hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
+- [ ] Let Client hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
 
 ## Victor
@@ -39,11 +39,11 @@
 # General code TODOs
 - Decide whether we want to do stuff like fd closing whenever a stdlib function fails.
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
-- Rename ClientData to Client?
 - Move all defines to the config
 - Do we want to be fully C++98 compliant just cause?
 - Do we want to EXIT_FAILURE when read() returns -1, or do we want to try and keep going?
 - Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
+- Consider replacing all instances of unordered_map and vector [i] indexing with .at(i)
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -88,7 +88,7 @@ http://f1r3s6.codam.nl:8080/
 - Test read and write sizes 1, 2, 3, 4, 5
 - "Search for all read/recv/write/send and check if the returned value is correctly checked (checking only -1 or 0 values is not enough, both should be checked)." - Eval sheet
 - Make sure we're not using the errno global directly: "If errno is checked after read/recv/write/send, the grade is 0 and the evaluation process ends now."
-- Decide whether all of ClientData's copied member variables in the copy constructor and copy assignment operator make sense to be copied, or whether they should be initialized to the starting state
+- Decide whether all of Client's copied member variables in the copy constructor and copy assignment operator make sense to be copied, or whether they should be initialized to the starting state
 - Double-check that the C++ classes' initializer lists aren't forgetting to initialize a member variable
 - Double-check that all the OCF methods we added work correctly in a test
 - Replace as many "#include <foo.h>" with "#include <foo>" or "#include <cfoo>"
