@@ -4,14 +4,14 @@
 // c++ append_empty.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 int main(void)
 {
-	std::string body("a");
+	std::string body("");
 	char received[] = "b";
 
-	body.append(received, received + 1);
-	assert(body == "ab");
+	// body.append(received, received + 1);
+	// assert(body == "ab");
 
 	body.append(received + 1, received + 1);
-	assert(body == "ab");
+	assert(body.empty());
 
 	return EXIT_SUCCESS;
 }
