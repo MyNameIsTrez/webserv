@@ -93,4 +93,5 @@ http://f1r3s6.codam.nl:8080/
 - Double-check that all the OCF methods we added work correctly in a test
 - Replace as many "#include <foo.h>" with "#include <foo>" or "#include <cfoo>"
 - Make sure the server socket is closed at the end of the program, along with its fds
+- Make sure that maps don't grow in memory usage over time; in other words, make sure stuff is always erased
 - Check for ***EVERY*** function call that its returned error value is handled properly

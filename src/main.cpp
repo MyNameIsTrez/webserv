@@ -75,9 +75,9 @@ int main(void)
 
 	std::vector<pollfd> pfds;
 
-	std::unordered_map<int, size_t> fd_to_pfds_index;
+	std::unordered_map<int, size_t> fd_to_pfd_index;
 
-	// fd_to_pfds_index.insert(std::make_pair(server_fd, pfds.size()));
+	// fd_to_pfd_index.insert(std::make_pair(server_fd, pfds.size()));
 
 	pollfd server_pfd;
 	server_pfd.fd = server_fd;
@@ -136,8 +136,9 @@ int main(void)
 
 					// std::cerr << "    Closing fd " << fd << std::endl;
 
-					fd_to_pfds_index.erase(fd);
+					fd_to_pfd_index.erase(fd);
 					fd_to_client_index.erase(fd);
+
 					if (close(fd) == -1)
 					{
 						perror("close");
@@ -147,8 +148,15 @@ int main(void)
 
 					if (client.server_to_cgi_fd != -1)
 					{
-						fd_to_pfds_index.erase(client.server_to_cgi_fd);
+						// Swap-remove
+						nfds_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+						fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
+						pfds[server_to_cgi_pfd_index] = pfds.back();
+						pfds.pop_back();
+
+						fd_to_pfd_index.erase(client.server_to_cgi_fd);
 						fd_to_client_index.erase(client.server_to_cgi_fd);
+
 						if (close(client.server_to_cgi_fd) == -1)
 						{
 							perror("close");
@@ -159,8 +167,15 @@ int main(void)
 
 					if (client.cgi_to_server_fd != -1)
 					{
-						fd_to_pfds_index.erase(client.cgi_to_server_fd);
+						// Swap-remove
+						nfds_t cgi_to_server_pfd_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
+						fd_to_pfd_index[pfds.back().fd] = cgi_to_server_pfd_index;
+						pfds[cgi_to_server_pfd_index] = pfds.back();
+						pfds.pop_back();
+
+						fd_to_pfd_index.erase(client.cgi_to_server_fd);
 						fd_to_client_index.erase(client.cgi_to_server_fd);
+
 						if (close(client.cgi_to_server_fd) == -1)
 						{
 							perror("close");
@@ -170,9 +185,7 @@ int main(void)
 					}
 
 					// Swap-remove
-					fd_to_pfds_index[pfds.back().fd] = pfd_index;
-
-					// Swap-remove
+					fd_to_pfd_index[pfds.back().fd] = pfd_index;
 					// Explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
 					// pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].
 					// This is fine however, since the for-loop's pfd_index > 0 condition will be false, meaning pfd[1] won't be processed twice.
@@ -184,8 +197,6 @@ int main(void)
 
 					// Swap-remove
 					fd_to_client_index[clients.back().fd] = client_index;
-
-					// Swap-remove
 					clients[client_index] = clients.back();
 					clients.pop_back();
 
@@ -200,7 +211,7 @@ int main(void)
 						int client_fd = accept(server_fd, NULL, NULL);
 						std::cerr << "    Accepted client fd " << client_fd << std::endl;
 
-						fd_to_pfds_index.insert(std::make_pair(client_fd, pfds.size()));
+						fd_to_pfd_index.insert(std::make_pair(client_fd, pfds.size()));
 
 						fd_to_client_index.insert(std::make_pair(client_fd, clients.size()));
 
@@ -222,7 +233,7 @@ int main(void)
 
 						ClientReadState::ClientReadState previous_read_state = client.client_read_state;
 
-						if (!client.readSocket(pfds, fd_to_pfds_index, fd_type))
+						if (!client.readSocket(pfds, fd_to_pfd_index, fd_type))
 						{
 							// TODO: Print error
 							exit(EXIT_FAILURE);
@@ -292,7 +303,7 @@ int main(void)
 
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
-							fd_to_pfds_index.insert(std::make_pair(server_to_cgi_fd, pfds.size()));
+							fd_to_pfd_index.insert(std::make_pair(server_to_cgi_fd, pfds.size()));
 							pollfd server_to_cgi_pfd;
 							server_to_cgi_pfd.fd = server_to_cgi_fd;
 							server_to_cgi_pfd.events = client.body.empty() ? 0 : POLLOUT;
@@ -309,10 +320,11 @@ int main(void)
 
 							int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
 
-							fd_to_pfds_index.insert(std::make_pair(cgi_to_server_fd, pfds.size()));
+							fd_to_pfd_index.insert(std::make_pair(cgi_to_server_fd, pfds.size()));
 							pollfd cgi_to_server_pfd;
 							cgi_to_server_pfd.fd = cgi_to_server_fd;
 							cgi_to_server_pfd.events = POLLIN;
+							// cgi_to_server_pfd.events = 0;
 							pfds.push_back(cgi_to_server_pfd);
 
 							fd_to_client_index.insert(std::make_pair(cgi_to_server_fd, client_index));
@@ -365,6 +377,29 @@ int main(void)
 							std::cerr << "    Disabling POLLOUT" << std::endl;
 							// Disable POLLOUT
 							pfds[pfd_index].events &= ~POLLOUT;
+
+							if (client.client_read_state == ClientReadState::DONE)
+							{
+								std::cerr << "    Closing server_to_cgi fd" << client.server_to_cgi_fd << std::endl;
+
+								client.cgi_write_state = CGIWriteState::DONE;
+
+								// Swap-remove
+								nfds_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+								fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
+								pfds[server_to_cgi_pfd_index] = pfds.back();
+								pfds.pop_back();
+
+								fd_to_pfd_index.erase(client.server_to_cgi_fd);
+								fd_to_client_index.erase(client.server_to_cgi_fd);
+
+								if (close(client.server_to_cgi_fd) == -1)
+								{
+									perror("close");
+									exit(EXIT_FAILURE);
+								}
+								client.server_to_cgi_fd = -1;
+							}
 						}
 					}
 					else if (fd_type == FdType::CLIENT)
@@ -400,8 +435,9 @@ int main(void)
 						// TODO: Don't *always* close right after a single write
 
 
-						// fd_to_pfds_index.erase(fd);
+						// fd_to_pfd_index.erase(fd);
 						// fd_to_client_index.erase(fd);
+
 						// if (close(fd) == -1)
 						// {
 						// 	perror("close");
@@ -409,7 +445,7 @@ int main(void)
 						// }
 						// client.fd = -1;
 
-						// fd_to_pfds_index[pfds.back().fd] = pfd_index;
+						// fd_to_pfd_index[pfds.back().fd] = pfd_index;
 
 						// // Swap-remove explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
 						// // pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].

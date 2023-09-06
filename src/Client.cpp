@@ -9,7 +9,7 @@
 #include <unistd.h>
 #include <vector>
 
-#define MAX_RECEIVED_LEN 4
+#define MAX_RECEIVED_LEN 50
 
 /*	Orthodox Canonical Form */
 
@@ -245,6 +245,8 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 
 	char received[MAX_RECEIVED_LEN] = {};
 
+	std::cerr << "    About to call read()" << std::endl;
+
 	// TODO: Never read past the content_length of the BODY
 	ssize_t bytes_read = read(this->fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
@@ -368,5 +370,14 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 		// TODO: Remove this before the evaluation
 		assert(false);
 	}
+
+	// TODO: Replace this with Victor's parsed content length value
+	if (this->body == "hello world\n")
+	{
+		std::cerr << "    Read the end of the body" << std::endl;
+
+		this->client_read_state = ClientReadState::DONE;
+	}
+
 	return true;
 }
