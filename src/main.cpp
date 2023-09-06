@@ -198,7 +198,7 @@ int main(void)
 					if (fd_type == FdType::SERVER)
 					{
 						int client_fd = accept(server_fd, NULL, NULL);
-						std::cerr << "  Accepted client fd " << client_fd << std::endl;
+						std::cerr << "    Accepted client fd " << client_fd << std::endl;
 
 						fd_to_pfds_index.insert(std::make_pair(client_fd, pfds.size()));
 
@@ -272,7 +272,7 @@ int main(void)
 								}
 								close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
 
-								std::cerr << "  Child is going to exec Python" << std::endl;
+								std::cerr << "    Child is going to exec Python" << std::endl;
 								// TODO: Define Python path in configuration file?
 								const char *path = "/usr/bin/python3";
 								char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
@@ -286,9 +286,9 @@ int main(void)
 							}
 
 							close(server_to_cgi_tube[PIPE_READ_INDEX]);
-							// std::cerr << "  Server closed server_to_cgi_tube[PIPE_READ_INDEX] fd " << server_to_cgi_tube[PIPE_READ_INDEX] << std::endl;
+							// std::cerr << "    Server closed server_to_cgi_tube[PIPE_READ_INDEX] fd " << server_to_cgi_tube[PIPE_READ_INDEX] << std::endl;
 							close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
-							// std::cerr << "  Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
+							// std::cerr << "    Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
 
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
@@ -296,7 +296,7 @@ int main(void)
 							pollfd server_to_cgi_pfd;
 							server_to_cgi_pfd.fd = server_to_cgi_fd;
 							server_to_cgi_pfd.events = client.body.empty() ? 0 : POLLOUT;
-							// std::cerr << "  have_read_body is " << client.have_read_body << std::endl;
+							// std::cerr << "    have_read_body is " << client.have_read_body << std::endl;
 							pfds.push_back(server_to_cgi_pfd);
 
 							client.server_to_cgi_fd = server_to_cgi_fd;
@@ -305,7 +305,7 @@ int main(void)
 							client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 							fd_to_fd_type.insert(std::make_pair(server_to_cgi_fd, FdType::SERVER_TO_CGI));
 
-							std::cerr << "  Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+							std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
 
 							int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
 
@@ -319,7 +319,7 @@ int main(void)
 							client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 							fd_to_fd_type.insert(std::make_pair(cgi_to_server_fd, FdType::CGI_TO_SERVER));
 
-							std::cerr << "  Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
+							std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
 						}
 					}
 				}
@@ -338,7 +338,7 @@ int main(void)
 						size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
 						size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
 
-						std::cerr << "body_substr_len is " << body_substr_len << " with a body length of " << client.body.length() << " and as body '" << client.body << "'" << std::endl;
+						// std::cerr << "    body_substr_len is " << body_substr_len << " with a body length of " << client.body.length() << " and as body '" << client.body << "'" << std::endl;
 
 						// TODO: Remove this before the evaluation
 						assert(body_substr_len > 0);
@@ -348,8 +348,7 @@ int main(void)
 
 						client.body_index += body_substr_len;
 
-						std::cerr << "    Sending this body substr to the CGI that has a len of " << body_substr.length() << ":" << std::endl
-								<< "'" << body_substr << "'" << std::endl;
+						std::cerr << "    Sending this body substr to the CGI of " << body_substr.length() << " bytes: '" << body_substr << "'" << std::endl;
 
 						// TODO: Don't ignore errors
 						write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length());
@@ -363,6 +362,7 @@ int main(void)
 						// If we don't have anything left to write at the moment
 						if (client.body_index == client.body.length())
 						{
+							std::cerr << "    Disabling POLLOUT" << std::endl;
 							// Disable POLLOUT
 							pfds[pfd_index].events &= ~POLLOUT;
 						}
@@ -423,6 +423,7 @@ int main(void)
 						// If we don't have anything left to write at the moment
 						if (client.response_index == client.response.length())
 						{
+							std::cerr << "    Disabling POLLOUT" << std::endl;
 							// Disable POLLOUT
 							pfds[pfd_index].events &= ~POLLOUT;
 						}

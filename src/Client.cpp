@@ -254,6 +254,8 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 	}
 	if (bytes_read == 0)
 	{
+		std::cerr << "    Read 0 bytes" << std::endl;
+
 		// TODO: Check that we reached content_length
 
 		if (fd_type == FdType::CLIENT)
@@ -261,6 +263,7 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 			this->client_read_state = ClientReadState::DONE;
 
 			size_t client_pfds_index = fd_to_pfds_index.at(this->fd);
+			std::cerr << "    Disabling client POLLIN" << std::endl;
 			pfds[client_pfds_index].events &= ~POLLIN;
 		}
 		else if (fd_type == FdType::CGI_TO_SERVER)
@@ -268,11 +271,14 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 			this->cgi_read_state = CGIReadState::DONE;
 
 			size_t cgi_to_server_pfds_index = fd_to_pfds_index.at(this->cgi_to_server_fd);
+			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
 			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
 		}
 
 		return true;
 	}
+
+	std::cerr << "    read " << bytes_read << " bytes: '" << std::string(received, bytes_read) << "'" << std::endl;
 
 	if (fd_type == FdType::CLIENT)
 	{
@@ -330,13 +336,11 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 		}
 		else if (this->client_read_state == ClientReadState::BODY)
 		{
-			if (this->body.empty() && this->server_to_cgi_fd != -1)
-			{
-				size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
-				pfds[server_to_cgi_pfds_index].events |= POLLOUT;
-			}
-
 			body += std::string(received, bytes_read);
+
+			size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
+			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
+			pfds[server_to_cgi_pfds_index].events |= POLLOUT;
 		}
 		else
 		{
