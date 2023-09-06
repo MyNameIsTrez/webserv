@@ -19,7 +19,9 @@
 - [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
-- [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte.
+- [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
+- [ ] Let ClientData hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
+- [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
 
 ## Victor
 
@@ -39,6 +41,9 @@
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
 - Rename ClientData to Client?
 - Move all defines to the config
+- Do we want to be fully C++98 compliant just cause?
+- Do we want to EXIT_FAILURE when read() returns -1, or do we want to try and keep going?
+- Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -87,3 +92,5 @@ http://f1r3s6.codam.nl:8080/
 - Double-check that the C++ classes' initializer lists aren't forgetting to initialize a member variable
 - Double-check that all the OCF methods we added work correctly in a test
 - Replace as many "#include <foo.h>" with "#include <foo>" or "#include <cfoo>"
+- Make sure the server socket is closed at the end of the program, along with its fds
+- Check for ***EVERY*** function call that its returned error value is handled properly
