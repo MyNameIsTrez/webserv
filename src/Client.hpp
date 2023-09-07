@@ -98,8 +98,9 @@ public:
 	int cgi_to_server_fd;
 
 private:
-	bool parseHeaders(void);
-	bool parseStartLine(std::string line);
+	int _getFdFromFdType(FdType::FdType fd_type);
+	bool _parseHeaders(void);
+	bool _parseStartLine(std::string line);
 
 	std::string _header;
 	size_t _content_length;

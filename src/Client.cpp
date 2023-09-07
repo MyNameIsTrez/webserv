@@ -106,56 +106,156 @@ Client::Client(int client_fd)
 {
 }
 
-/*	Member functions */
+/*	Public member functions */
 
-bool Client::parseStartLine(std::string line)
+bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
 {
-	// Find and set the request method
-	size_t request_method_end_pos = line.find(" ");
-	if (request_method_end_pos == std::string::npos)
-		return false;
-	this->request_method = line.substr(0, request_method_end_pos);
-	request_method_end_pos++;
+	// TODO: Remove this before the evaluation
+	assert(this->cgi_read_state != CGIReadState::DONE);
+	assert(this->client_write_state != ClientWriteState::DONE);
 
-	// Find and set the path
-	size_t path_end_pos = line.find_last_of(" ");
-	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1)
-		return false;
-	this->path = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
-	path_end_pos++;
+	char received[MAX_RECEIVED_LEN] = {};
 
-	// Set and validate the protocol
-	// // Validate "HTTP/"
-	this->protocol = line.substr(path_end_pos);
-	if (this->protocol.find("HTTP/", 0, 5) == std::string::npos)
-		return false;
+	std::cerr << "    About to call read(" << _getFdFromFdType(fd_type) << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
 
-	// // Validate major version
-	size_t i;
-	for (i = 5; i < this->protocol.size(); i++)
+	// TODO: Never read past the content_length of the BODY
+	ssize_t bytes_read = read(_getFdFromFdType(fd_type), received, MAX_RECEIVED_LEN);
+	if (bytes_read == -1)
 	{
-		if (this->protocol[i] < '0' || this->protocol[i] > '9')
-			break;
+		perror("read");
+		exit(EXIT_FAILURE);
+	}
+	if (bytes_read == 0)
+	{
+		std::cerr << "    Read 0 bytes" << std::endl;
+
+		// TODO: Check that we reached content_length
+
+		if (fd_type == FdType::CLIENT)
+		{
+			this->client_read_state = ClientReadState::DONE;
+
+			size_t client_pfds_index = fd_to_pfds_index.at(this->fd);
+			std::cerr << "    Disabling client POLLIN" << std::endl;
+			pfds[client_pfds_index].events &= ~POLLIN;
+		}
+		else if (fd_type == FdType::CGI_TO_SERVER)
+		{
+			this->cgi_read_state = CGIReadState::DONE;
+
+			size_t cgi_to_server_pfds_index = fd_to_pfds_index.at(this->cgi_to_server_fd);
+			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
+			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
+		}
+
+		return true;
 	}
 
-	// // Validate version seperator
-	if (i == 5 || i == this->protocol.size() || this->protocol[i] != '.')
-		return false;
+	std::cerr << "    read " << bytes_read << " bytes: '" << std::string(received, bytes_read) << "'" << std::endl;
 
-	// // Validate minor version
-	i++;
-	size_t j = i;
-	for (; i < this->protocol.size(); i++)
+	if (fd_type == FdType::CLIENT)
 	{
-		if (this->protocol[i] < '0' || this->protocol[i] > '9')
-			break;
+		if (this->client_read_state == ClientReadState::HEADER)
+		{
+			char *received_end = received + bytes_read;
+
+			// "\r\n\r" + "\n"
+			if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
+			{
+				this->_header.append(received, received + 1);
+				this->body.append(received + 1, received_end);
+				this->client_read_state = ClientReadState::BODY;
+				if (!_parseHeaders())
+					return false;
+			}
+			// "\r\n" + "\r\n"
+			else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
+			{
+				this->_header.append(received, received + 2);
+				this->body.append(received + 2, received_end);
+				this->client_read_state = ClientReadState::BODY;
+				if (!_parseHeaders())
+					return false;
+			}
+			// "\r" + "\n\r\n"
+			else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
+			{
+				this->_header.append(received, received + 3);
+				this->body.append(received + 3, received_end);
+				this->client_read_state = ClientReadState::BODY;
+				if (!_parseHeaders())
+					return false;
+			}
+			else
+			{
+				char const rnrn[] = "\r\n\r\n";
+				char *ptr = std::search(received, received_end, rnrn, rnrn + sizeof(rnrn) - 1);
+
+				// If "\r\n\r\n" isn't found in received
+				if (ptr == received_end)
+				{
+					this->_header += std::string(received, bytes_read);
+				}
+				// If "\r\n\r\n" is found in received
+				else
+				{
+					this->_header.append(received, ptr + 4);  // Include "\r\n\r\n"
+					this->body.append(ptr + 4, received_end); // Skip "\r\n\r\n"
+					this->client_read_state = ClientReadState::BODY;
+					if (!_parseHeaders())
+						return false;
+				}
+			}
+		}
+		else if (this->client_read_state == ClientReadState::BODY)
+		{
+			body += std::string(received, bytes_read);
+
+			size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
+			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
+			pfds[server_to_cgi_pfds_index].events |= POLLOUT;
+		}
+		else
+		{
+			// Should be unreachable
+			// TODO: Remove this before the evaluation
+			assert(false);
+		}
 	}
-	if (j == i || i != this->protocol.size())
-		return false;
+	else if (fd_type == FdType::CGI_TO_SERVER)
+	{
+		if (this->cgi_read_state == CGIReadState::READING_FROM_CGI)
+		{
+			response += std::string(received, bytes_read);
+		}
+		else
+		{
+			// Should be unreachable
+			// TODO: Remove this before the evaluation
+			assert(false);
+		}
+	}
+	else
+	{
+		// Should be unreachable
+		// TODO: Remove this before the evaluation
+		assert(false);
+	}
+
+	// TODO: Replace this with Victor's parsed content length value
+	if (fd_type == FdType::CLIENT && this->body == "hello world\n")
+	{
+		std::cerr << "    Read the end of the client's body: \n----------------------\n" << this->body << "\n----------------------" << std::endl;
+
+		this->client_read_state = ClientReadState::DONE;
+	}
+
 	return true;
 }
 
-// // TODO: Put in debug.cpp or smth
+/*	Private member functions */
+
+// // TODO: Put in debug.cpp or smth?
 // #include <sstream>
 // #include <iostream>
 // #include <iomanip>
@@ -169,7 +269,23 @@ bool Client::parseStartLine(std::string line)
 // 	return ret.str();
 // }
 
-bool Client::parseHeaders(void)
+int Client::_getFdFromFdType(FdType::FdType fd_type)
+{
+	if (fd_type == FdType::CLIENT)
+	{
+		return this->fd;
+	}
+	if (fd_type == FdType::CGI_TO_SERVER)
+	{
+		return this->cgi_to_server_fd;
+	}
+
+	// Should be unreachable
+	// TODO: Remove this before the evaluation
+	assert(false);
+}
+
+bool Client::_parseHeaders(void)
 {
 	std::vector<std::string> split;
 	size_t pos;
@@ -186,7 +302,7 @@ bool Client::parseHeaders(void)
 		start = pos + 2;
 	}
 
-	if (!this->parseStartLine(split[0]))
+	if (!this->_parseStartLine(split[0]))
 		return false;
 
 	// TODO: Look what to do with HTTP_ thingy (See page 11 & 19 in cgi rfc)
@@ -237,147 +353,49 @@ bool Client::parseHeaders(void)
 	return true;
 }
 
-bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
+bool Client::_parseStartLine(std::string line)
 {
-	// TODO: Remove this before the evaluation
-	assert(this->cgi_read_state != CGIReadState::DONE);
-	assert(this->client_write_state != ClientWriteState::DONE);
+	// Find and set the request method
+	size_t request_method_end_pos = line.find(" ");
+	if (request_method_end_pos == std::string::npos)
+		return false;
+	this->request_method = line.substr(0, request_method_end_pos);
+	request_method_end_pos++;
 
-	char received[MAX_RECEIVED_LEN] = {};
+	// Find and set the path
+	size_t path_end_pos = line.find_last_of(" ");
+	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1)
+		return false;
+	this->path = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
+	path_end_pos++;
 
-	std::cerr << "    About to call read()" << std::endl;
+	// Set and validate the protocol
+	// // Validate "HTTP/"
+	this->protocol = line.substr(path_end_pos);
+	if (this->protocol.find("HTTP/", 0, 5) == std::string::npos)
+		return false;
 
-	// TODO: Never read past the content_length of the BODY
-	ssize_t bytes_read = read(this->fd, received, MAX_RECEIVED_LEN);
-	if (bytes_read == -1)
+	// // Validate major version
+	size_t i;
+	for (i = 5; i < this->protocol.size(); i++)
 	{
-		perror("read");
-		exit(EXIT_FAILURE);
-	}
-	if (bytes_read == 0)
-	{
-		std::cerr << "    Read 0 bytes" << std::endl;
-
-		// TODO: Check that we reached content_length
-
-		if (fd_type == FdType::CLIENT)
-		{
-			this->client_read_state = ClientReadState::DONE;
-
-			size_t client_pfds_index = fd_to_pfds_index.at(this->fd);
-			std::cerr << "    Disabling client POLLIN" << std::endl;
-			pfds[client_pfds_index].events &= ~POLLIN;
-		}
-		else if (fd_type == FdType::CGI_TO_SERVER)
-		{
-			this->cgi_read_state = CGIReadState::DONE;
-
-			size_t cgi_to_server_pfds_index = fd_to_pfds_index.at(this->cgi_to_server_fd);
-			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
-			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
-		}
-
-		return true;
+		if (this->protocol[i] < '0' || this->protocol[i] > '9')
+			break;
 	}
 
-	std::cerr << "    read " << bytes_read << " bytes: '" << std::string(received, bytes_read) << "'" << std::endl;
+	// // Validate version seperator
+	if (i == 5 || i == this->protocol.size() || this->protocol[i] != '.')
+		return false;
 
-	if (fd_type == FdType::CLIENT)
+	// // Validate minor version
+	i++;
+	size_t j = i;
+	for (; i < this->protocol.size(); i++)
 	{
-		if (this->client_read_state == ClientReadState::HEADER)
-		{
-			char *received_end = received + bytes_read;
-
-			// "\r\n\r" + "\n"
-			if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
-			{
-				this->_header.append(received, received + 1);
-				this->body.append(received + 1, received_end);
-				this->client_read_state = ClientReadState::BODY;
-				if (!parseHeaders())
-					return false;
-			}
-			// "\r\n" + "\r\n"
-			else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
-			{
-				this->_header.append(received, received + 2);
-				this->body.append(received + 2, received_end);
-				this->client_read_state = ClientReadState::BODY;
-				if (!parseHeaders())
-					return false;
-			}
-			// "\r" + "\n\r\n"
-			else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
-			{
-				this->_header.append(received, received + 3);
-				this->body.append(received + 3, received_end);
-				this->client_read_state = ClientReadState::BODY;
-				if (!parseHeaders())
-					return false;
-			}
-			else
-			{
-				char const rnrn[] = "\r\n\r\n";
-				char *ptr = std::search(received, received_end, rnrn, rnrn + sizeof(rnrn) - 1);
-
-				// If "\r\n\r\n" isn't found in received
-				if (ptr == received_end)
-				{
-					this->_header += std::string(received, bytes_read);
-				}
-				// If "\r\n\r\n" is found in received
-				else
-				{
-					this->_header.append(received, ptr + 4);  // Include "\r\n\r\n"
-					this->body.append(ptr + 4, received_end); // Skip "\r\n\r\n"
-					this->client_read_state = ClientReadState::BODY;
-					if (!parseHeaders())
-						return false;
-				}
-			}
-		}
-		else if (this->client_read_state == ClientReadState::BODY)
-		{
-			body += std::string(received, bytes_read);
-
-			size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
-			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			pfds[server_to_cgi_pfds_index].events |= POLLOUT;
-		}
-		else
-		{
-			// Should be unreachable
-			// TODO: Remove this before the evaluation
-			assert(false);
-		}
+		if (this->protocol[i] < '0' || this->protocol[i] > '9')
+			break;
 	}
-	else if (fd_type == FdType::CGI_TO_SERVER)
-	{
-		if (this->cgi_read_state == CGIReadState::READING_FROM_CGI)
-		{
-			response += std::string(received, bytes_read);
-		}
-		else
-		{
-			// Should be unreachable
-			// TODO: Remove this before the evaluation
-			assert(false);
-		}
-	}
-	else
-	{
-		// Should be unreachable
-		// TODO: Remove this before the evaluation
-		assert(false);
-	}
-
-	// TODO: Replace this with Victor's parsed content length value
-	if (this->body == "hello world\n")
-	{
-		std::cerr << "    Read the end of the body" << std::endl;
-
-		this->client_read_state = ClientReadState::DONE;
-	}
-
+	if (j == i || i != this->protocol.size())
+		return false;
 	return true;
 }

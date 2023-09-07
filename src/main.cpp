@@ -126,7 +126,7 @@ int main(void)
 						  << ((pfds[pfd_index].revents & POLLWRBAND) ? "POLLWRBAND " : "")
 						  << ((pfds[pfd_index].revents & POLLWRNORM) ? "POLLWRNORM " : "")
 						  << ((pfds[pfd_index].revents & POLLERR) ? "POLLERR " : "")
-						  << "(" << std::hex << pfds[pfd_index].revents << ")" << std::endl;
+						  << "(" << std::hex << pfds[pfd_index].revents << std::dec << ")" << std::endl;
 
 				// TODO: Split these events
 				if (pfds[pfd_index].revents & POLLHUP || pfds[pfd_index].revents & POLLERR)
@@ -327,6 +327,8 @@ int main(void)
 							// cgi_to_server_pfd.events = 0;
 							pfds.push_back(cgi_to_server_pfd);
 
+							client.cgi_to_server_fd = cgi_to_server_fd;
+
 							fd_to_client_index.insert(std::make_pair(cgi_to_server_fd, client_index));
 							client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 							fd_to_fd_type.insert(std::make_pair(cgi_to_server_fd, FdType::CGI_TO_SERVER));
@@ -380,7 +382,7 @@ int main(void)
 
 							if (client.client_read_state == ClientReadState::DONE)
 							{
-								std::cerr << "    Closing server_to_cgi fd" << client.server_to_cgi_fd << std::endl;
+								std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
 
 								client.cgi_write_state = CGIWriteState::DONE;
 
