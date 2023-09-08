@@ -26,9 +26,12 @@ Client::Client(void)
 	  body_index(0),
 	  response(),
 	  response_index(0),
-	  fd(0),
+	  client_fd(0),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
+	  cgi_reaped(false),
+	  cgi_to_server_hangup(false),
+	  server_to_cgi_hangup(false),
 	  _header(),
 	  _content_length(0)
 {
@@ -47,9 +50,12 @@ Client::Client(Client const &src)
 	  body_index(src.body_index),
 	  response(src.body),
 	  response_index(0), // TODO: Why does this differ from what is done in the copy assignment overload?
-	  fd(src.fd),
+	  client_fd(src.client_fd),
 	  server_to_cgi_fd(src.server_to_cgi_fd),
 	  cgi_to_server_fd(src.cgi_to_server_fd),
+	  cgi_reaped(src.cgi_reaped),
+	  cgi_to_server_hangup(src.cgi_to_server_hangup),
+	  server_to_cgi_hangup(src.server_to_cgi_hangup),
 	  _header(src._header),
 	  _content_length(0) // TODO: Why does this differ from what is done in the copy assignment overload?
 {
@@ -75,9 +81,12 @@ Client &Client::operator=(Client const &src)
 	this->body_index = src.body_index;
 	this->response = src.response;
 	this->response_index = src.response_index; // TODO: Why does this differ from what is done in the copy constructor?
-	this->fd = src.fd;
+	this->client_fd = src.client_fd;
 	this->server_to_cgi_fd = src.server_to_cgi_fd;
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
+	this->cgi_reaped = src.cgi_reaped,
+	this->cgi_to_server_hangup = src.cgi_to_server_hangup,
+	this->server_to_cgi_hangup = src.server_to_cgi_hangup,
 	this->_header = src._header;
 	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
 	return *this;
@@ -98,9 +107,12 @@ Client::Client(int client_fd)
 	  body_index(0),
 	  response(),
 	  response_index(0),
-	  fd(client_fd),
+	  client_fd(client_fd),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
+	  cgi_reaped(false),
+	  cgi_to_server_hangup(false),
+	  server_to_cgi_hangup(false),
 	  _header(),
 	  _content_length(0)
 {
@@ -108,7 +120,7 @@ Client::Client(int client_fd)
 
 /*	Public member functions */
 
-bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
+bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
 {
 	// TODO: Remove this before the evaluation
 	assert(this->cgi_read_state != CGIReadState::DONE);
@@ -116,10 +128,12 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 
 	char received[MAX_RECEIVED_LEN] = {};
 
-	std::cerr << "    About to call read(" << _getFdFromFdType(fd_type) << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
+	int fdx = _getFdFromFdType(fd_type);
+
+	std::cerr << "    About to call read(" << fdx << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
 
 	// TODO: Never read past the content_length of the BODY
-	ssize_t bytes_read = read(_getFdFromFdType(fd_type), received, MAX_RECEIVED_LEN);
+	ssize_t bytes_read = read(fdx, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
 	{
 		perror("read");
@@ -135,7 +149,7 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 		{
 			this->client_read_state = ClientReadState::DONE;
 
-			size_t client_pfds_index = fd_to_pfds_index.at(this->fd);
+			size_t client_pfds_index = fd_to_pfds_index.at(this->client_fd);
 			std::cerr << "    Disabling client POLLIN" << std::endl;
 			pfds[client_pfds_index].events &= ~POLLIN;
 		}
@@ -151,7 +165,7 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 		return true;
 	}
 
-	std::cerr << "    read " << bytes_read << " bytes: '" << std::string(received, bytes_read) << "'" << std::endl;
+	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------" << std::endl;
 
 	if (fd_type == FdType::CLIENT)
 	{
@@ -221,6 +235,16 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 			// TODO: Remove this before the evaluation
 			assert(false);
 		}
+
+		// TODO: Replace this with Victor's parsed content length value
+		// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
+		// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
+		if (this->body == "hello world\n")
+		{
+			std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------" << std::endl;
+
+			this->client_read_state = ClientReadState::DONE;
+		}
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
 	{
@@ -240,14 +264,6 @@ bool Client::readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int,
 		// Should be unreachable
 		// TODO: Remove this before the evaluation
 		assert(false);
-	}
-
-	// TODO: Replace this with Victor's parsed content length value
-	if (fd_type == FdType::CLIENT && this->body == "hello world\n")
-	{
-		std::cerr << "    Read the end of the client's body: \n----------------------\n" << this->body << "\n----------------------" << std::endl;
-
-		this->client_read_state = ClientReadState::DONE;
 	}
 
 	return true;
@@ -273,7 +289,7 @@ int Client::_getFdFromFdType(FdType::FdType fd_type)
 {
 	if (fd_type == FdType::CLIENT)
 	{
-		return this->fd;
+		return this->client_fd;
 	}
 	if (fd_type == FdType::CGI_TO_SERVER)
 	{

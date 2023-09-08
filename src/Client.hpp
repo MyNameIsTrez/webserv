@@ -78,7 +78,7 @@ public:
 
 	Client(int client_fd);
 
-	bool readSocket(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type);
+	bool readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type);
 
 	ClientReadState::ClientReadState client_read_state;
 	CGIWriteState::CGIWriteState cgi_write_state;
@@ -93,9 +93,12 @@ public:
 	size_t body_index;
 	std::string response;
 	size_t response_index;
-	int fd;
+	int client_fd;
 	int server_to_cgi_fd;
 	int cgi_to_server_fd;
+	bool cgi_reaped; // TODO: Do we still need this?
+	bool cgi_to_server_hangup; // TODO: Do we still need this?
+	bool server_to_cgi_hangup; // TODO: Do we still need this?
 
 private:
 	int _getFdFromFdType(FdType::FdType fd_type);
