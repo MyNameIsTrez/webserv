@@ -96,9 +96,7 @@ public:
 	int client_fd;
 	int server_to_cgi_fd;
 	int cgi_to_server_fd;
-	bool cgi_reaped; // TODO: Do we still need this?
-	bool cgi_to_server_hangup; // TODO: Do we still need this?
-	bool server_to_cgi_hangup; // TODO: Do we still need this?
+	int cgi_exit_status;
 
 private:
 	int _getFdFromFdType(FdType::FdType fd_type);

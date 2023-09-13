@@ -29,9 +29,7 @@ Client::Client(void)
 	  client_fd(0),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
-	  cgi_reaped(false),
-	  cgi_to_server_hangup(false),
-	  server_to_cgi_hangup(false),
+	  cgi_exit_status(-1),
 	  _header(),
 	  _content_length(0)
 {
@@ -53,9 +51,7 @@ Client::Client(Client const &src)
 	  client_fd(src.client_fd),
 	  server_to_cgi_fd(src.server_to_cgi_fd),
 	  cgi_to_server_fd(src.cgi_to_server_fd),
-	  cgi_reaped(src.cgi_reaped),
-	  cgi_to_server_hangup(src.cgi_to_server_hangup),
-	  server_to_cgi_hangup(src.server_to_cgi_hangup),
+	  cgi_exit_status(src.cgi_exit_status),
 	  _header(src._header),
 	  _content_length(0) // TODO: Why does this differ from what is done in the copy assignment overload?
 {
@@ -84,9 +80,7 @@ Client &Client::operator=(Client const &src)
 	this->client_fd = src.client_fd;
 	this->server_to_cgi_fd = src.server_to_cgi_fd;
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
-	this->cgi_reaped = src.cgi_reaped,
-	this->cgi_to_server_hangup = src.cgi_to_server_hangup,
-	this->server_to_cgi_hangup = src.server_to_cgi_hangup,
+	this->cgi_exit_status = src.cgi_exit_status,
 	this->_header = src._header;
 	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
 	return *this;
@@ -110,9 +104,7 @@ Client::Client(int client_fd)
 	  client_fd(client_fd),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
-	  cgi_reaped(false),
-	  cgi_to_server_hangup(false),
-	  server_to_cgi_hangup(false),
+	  cgi_exit_status(-1),
 	  _header(),
 	  _content_length(0)
 {
@@ -122,10 +114,6 @@ Client::Client(int client_fd)
 
 bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
 {
-	// TODO: Remove this before the evaluation
-	assert(this->cgi_read_state != CGIReadState::DONE);
-	assert(this->client_write_state != ClientWriteState::DONE);
-
 	char received[MAX_RECEIVED_LEN] = {};
 
 	int fdx = _getFdFromFdType(fd_type);
@@ -149,6 +137,10 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 		{
 			this->client_read_state = ClientReadState::DONE;
 
+			// TODO: Nuke client: start server, connect client, ctrl+c client should disconnect the client
+			// It DOES NOT generate a HUP!
+			// this->client_write_state = ClientWriteState::DONE;
+
 			size_t client_pfds_index = fd_to_pfds_index.at(this->client_fd);
 			std::cerr << "    Disabling client POLLIN" << std::endl;
 			pfds[client_pfds_index].events &= ~POLLIN;
@@ -164,6 +156,10 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 
 		return true;
 	}
+
+	// TODO: Remove this before the evaluation
+	assert(this->cgi_read_state != CGIReadState::DONE);
+	assert(this->client_write_state != ClientWriteState::DONE);
 
 	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------" << std::endl;
 
