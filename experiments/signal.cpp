@@ -32,8 +32,9 @@ int main(void)
 
 	while (1)
 	{
-		printf("Loop\n");
+		printf("A\n");
 		sleep(1);
+		printf("B\n");
 	}
 
 	return EXIT_SUCCESS;

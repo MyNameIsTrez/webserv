@@ -17,7 +17,7 @@ def main():
     os.close(sys.stdout.fileno())
     sys.stdout.close()
 
-    time.sleep(5)
+    time.sleep(3)
 
     # TODO: Test that this sends a "CGI failed" page to the client
     exit(2)

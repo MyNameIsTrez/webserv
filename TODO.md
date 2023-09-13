@@ -44,6 +44,7 @@
 - Do we want to EXIT_FAILURE when read() returns -1, or do we want to try and keep going?
 - Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
 - Consider replacing all instances of unordered_map and vector [i] indexing with .at(i)
+- Right now we stop reading the client if we've read everything from the CGI. Is this correct, according to the nginx behavior in practice/the HTTP 1.1 RFC? Same goes for how we stop writing to the CGI if we've read everything from the CGI.
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -95,3 +96,4 @@ http://f1r3s6.codam.nl:8080/
 - Make sure the server socket is closed at the end of the program, along with its fds
 - Make sure that maps don't grow in memory usage over time; in other words, make sure stuff is always erased
 - Check for ***EVERY*** function call that its returned error value is handled properly
+- Manually try crash the server by using Ctrl+C on the curl client at random intervals
