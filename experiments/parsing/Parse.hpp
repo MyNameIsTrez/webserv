@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/28 17:04:16 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/13 13:11:59 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/13 17:30:18 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -27,7 +27,7 @@ class Parse
 private:
 	std::vector<int> _ports;
 	std::string _server_name;
-	int _worker_connections;
+	int _max_connections;
 	std::string _root_path;
 	std::string _index_file;
 	std::vector<ServerData> _serverdata;

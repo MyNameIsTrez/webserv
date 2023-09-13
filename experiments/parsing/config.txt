@@ -1,0 +1,41 @@
+max_connections=10
+
+server {
+	server_name=test
+	listen=8080
+
+	client_max_body_size=10
+
+	http_redirection=/
+
+	error_page 404 400 500 = /error/404.html
+	location {
+		root_path=html
+		index_file=index.html
+	}
+}
+
+server {
+	server_name=server2
+	listen=8000
+	listen=25565
+	listen=9000
+
+	client_max_body_size=3
+
+	http_redirection=/
+
+	location {
+		root_path=html
+		index_file=index.html
+	}
+}
+
+
+
+
+directory_listening=
+default_file=
+method=GET
+method=POST
+method=DELETE

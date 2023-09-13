@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        ::::::::            */
-/*   Parse.cpp                                          :+:    :+:            */
+/*   parse.cpp                                          :+:    :+:            */
 /*                                                     +:+                    */
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/29 11:52:13 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/13 13:10:38 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/13 17:31:54 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -26,13 +26,13 @@ Parse::~Parse(void)
 
 enum parse_types
 {
-	invalid_type = 0,
-	server_name = 1,
-	listen = 2,
-	worker_connections = 3,
-	root_path = 4,
-	index_file = 5,
-	new_server = 6
+	invalid_type,
+	server_name,
+	listen,
+	max_connections,
+	root_path,
+	index_file,
+	new_server
 };
 
 int Parse::get_type(std::string type)
@@ -41,8 +41,8 @@ int Parse::get_type(std::string type)
 		return (server_name);
 	else if (type == "listen")
 		return (listen);
-	else if (type == "worker_connections")
-		return (worker_connections);
+	else if (type == "max_connections")
+		return (max_connections);
 	else if (type == "root_path")
 		return (root_path);
 	else if (type == "index_file")
@@ -57,7 +57,7 @@ void Parse::save_type(std::string line, std::string type)
 		return (save_server_name(line));
 	else if (type == "listen")
 		return (save_port(line));
-	else if (type == "worker_connections")
+	else if (type == "max_connections")
 		return (save_wc(line));
 	else if (type == "root_path")
 		return (save_root_path(line));
@@ -87,7 +87,7 @@ void Parse::save_port(std::string line)
 
 void Parse::save_wc(std::string line)
 {
-	_worker_connections = std::stoi(line.substr(line.find('=') + 1));
+	_max_connections = std::stoi(line.substr(line.find('=') + 1));
 }
 
 void Parse::save_root_path(std::string line)
@@ -107,7 +107,7 @@ std::string Parse::get_server_name(void)
 
 int Parse::get_connections(void)
 {
-	return (_worker_connections);
+	return (_max_connections);
 }
 
 int Parse::get_port(size_t index)
@@ -185,26 +185,28 @@ void Parse::save_config(std::string file)
 	}
 }
 
-void save_error_pages(std::string line)
+void save_error_pages(std::string line, ServerData *new_server)
 {
+	std::cout << "TEST::::: " << isdigit(' ') << std::endl;
 	int i = line.find("error_page");
 	if (i != line.npos)
 	{
 		while (line[i] != '\0')
 		{
-			int page = 0;
-			while (isdigit(line.c_str()[i]) != 0)
-			{
-				std::cout << "ep test" << std::endl;
-				page *= 10;
-				page += line.c_str()[i] - '0';
-				i++;
-				std::cout << "error_page: " << page << std::endl;
-			}
 			if (line[i] == '=')
-			{
-				// save error page and link it to the given error codes
 				break;
+			int page = 0;
+			if (isdigit(line.c_str()[i]) != 0)
+			{
+				while (isdigit(line.c_str()[i]) != 0)
+				{
+					std::cout << "ep test" << std::endl;
+					page *= 10;
+					page += line.c_str()[i] - '0';
+					i++;
+					std::cout << "error_page: " << page << std::endl;
+				}
+				new_server->error_pages.insert(std::pair<int, std::string>(page, line.substr(line.find('=') + 2)));
 			}
 			i++;
 		}
@@ -234,8 +236,10 @@ void Parse::new_server(std::string line, std::ifstream &config)
 				unclosed++;
 			if (line.find('=') != line.npos)
 			{
-				line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+				if (line.find("error_page") != line.npos) // is nog niet beschermd
+					save_error_pages(line, &new_server);
 				std::string type = line.substr(0, line.find('='));
+				line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
 				// std::cout << type << std::endl;
 				std::string value = line.substr(line.find('=') + 1);
 				// std::cout << "value of " << type << ": " << value << std::endl;
@@ -263,7 +267,6 @@ void Parse::new_server(std::string line, std::ifstream &config)
 				// }
 				// save_type(line, type);
 			}
-			save_error_pages(line);
 		}
 	}
 	_serverdata.push_back(new_server);
@@ -283,6 +286,10 @@ void Parse::print_server_info(size_t index)
 	std::cout << std::endl;
 	std::cout << "root path: " << _serverdata.at(index)._root_path << std::endl;
 	std::cout << "index file: " << _serverdata.at(index)._index_file << std::endl;
+	for (std::map<int, std::string>::iterator it = _serverdata.at(index).error_pages.begin(); it != _serverdata.at(index).error_pages.end(); ++it)
+	{
+		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
+	}
 }
 
 /*
