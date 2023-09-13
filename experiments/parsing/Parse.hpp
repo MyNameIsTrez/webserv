@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/28 17:04:16 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/11 14:22:54 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/13 13:11:59 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,6 +19,7 @@
 #include <iostream>
 #include <fstream>
 #include <exception>
+#include <algorithm>
 #include "ServerData.hpp"
 
 class Parse
