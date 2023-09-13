@@ -155,10 +155,14 @@ int main(void)
 	while (true)
 	{
 		std::cerr << "Waiting on an event..." << std::endl;
-		fflush(stdout);
 
-		if (poll(pfds.data(), pfds.size(), -1) == -1)
+		int event_count = poll(pfds.data(), pfds.size(), -1);
+		if (event_count == -1)
 		{
+			if (errno == EINTR)
+			{
+				continue;
+			}
 			perror("poll");
 			exit(EXIT_FAILURE);
 		}
@@ -435,6 +439,8 @@ int main(void)
 					{
 						int client_fd = accept(server_fd, NULL, NULL);
 						std::cerr << "    Accepted client fd " << client_fd << std::endl;
+
+						// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
 
 						fd_to_pfd_index.insert(std::make_pair(client_fd, pfds.size()));
 
