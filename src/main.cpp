@@ -122,6 +122,14 @@ static void sigIntHandler(int signum)
 	Signal::shutting_down_gracefully = true;
 }
 
+// vector=[ A, B, C, D ] with index=1 results in [ A, D, C ]
+template <typename T>
+static void swapRemove(T &vector, size_t index)
+{
+	vector[index] = vector.back();
+	vector.pop_back();
+}
+
 // c++ main.cpp Client.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
@@ -186,8 +194,7 @@ int main(void)
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
 			Signal::fd_to_pfd_index[Signal::pfds.back().fd] = server_pfd_index;
-			Signal::pfds[server_pfd_index] = Signal::pfds.back();
-			Signal::pfds.pop_back();
+			swapRemove(Signal::pfds, server_pfd_index);
 
 			servers_active = false;
 		}
@@ -263,11 +270,9 @@ int main(void)
 					// Close and remove server_to_cgi
 					if (client.server_to_cgi_fd != -1)
 					{
-						// Swap-remove
 						size_t server_to_cgi_pfd_index = Signal::fd_to_pfd_index.at(client.server_to_cgi_fd);
 						Signal::fd_to_pfd_index[Signal::pfds.back().fd] = server_to_cgi_pfd_index;
-						Signal::pfds[server_to_cgi_pfd_index] = Signal::pfds.back();
-						Signal::pfds.pop_back();
+						swapRemove(Signal::pfds, server_to_cgi_pfd_index);
 
 						Signal::fd_to_pfd_index.erase(client.server_to_cgi_fd);
 						Signal::fd_to_client_index.erase(client.server_to_cgi_fd);
@@ -283,11 +288,9 @@ int main(void)
 					// Close and remove cgi_to_server_fd
 					if (client.cgi_to_server_fd != -1)
 					{
-						// Swap-remove
 						size_t cgi_to_server_pfd_index = Signal::fd_to_pfd_index.at(client.cgi_to_server_fd);
 						Signal::fd_to_pfd_index[Signal::pfds.back().fd] = cgi_to_server_pfd_index;
-						Signal::pfds[cgi_to_server_pfd_index] = Signal::pfds.back();
-						Signal::pfds.pop_back();
+						swapRemove(Signal::pfds, cgi_to_server_pfd_index);
 
 						Signal::fd_to_pfd_index.erase(client.cgi_to_server_fd);
 						Signal::fd_to_client_index.erase(client.cgi_to_server_fd);
@@ -307,25 +310,15 @@ int main(void)
 						// TODO: Should we kill()/signal() the child CGI process to prevent them being zombies?
 					}
 
-					// Swap-remove
 					Signal::fd_to_pfd_index.erase(client.client_fd);
 					Signal::fd_to_pfd_index[Signal::pfds.back().fd] = pfd_index;
-					// Explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
-					// pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].
-					// This is fine however, since the for-loop's pfd_index > 0 condition will be false, meaning pfd[1] won't be processed twice.
-					//
-					// In this visualization, the processed pfd is put in <>:
-					// [ POLLHUP_A, POLLHUP_B, <POLLIN> ] -> [ POLLHUP_A, <POLLHUP_B>, POLLIN ] -> [ <POLLHUP_A>, POLLIN ] -> [ POLLIN ]
-					Signal::pfds[pfd_index] = Signal::pfds.back();
-					Signal::pfds.pop_back();
+					swapRemove(Signal::pfds, pfd_index);
 
-					// Swap-remove
 					// TODO: Is it possible for client.client_fd to have already been closed and erased?
 					size_t client_index = Signal::fd_to_client_index.at(client.client_fd);
 					Signal::fd_to_client_index.erase(client.client_fd);
 					Signal::fd_to_client_index[Signal::clients.back().client_fd] = client_index;
-					Signal::clients[client_index] = Signal::clients.back();
-					Signal::clients.pop_back();
+					swapRemove(Signal::clients, client_index);
 
 					continue;
 				}
@@ -381,12 +374,10 @@ int main(void)
 							{
 								client.cgi_write_state = CGIWriteState::DONE;
 
-								// Swap-remove
 								std::cerr << "    Removing server_to_cgi from pfds" << std::endl;
 								size_t server_to_cgi_pfd_index = Signal::fd_to_pfd_index.at(client.server_to_cgi_fd);
 								Signal::fd_to_pfd_index[Signal::pfds.back().fd] = server_to_cgi_pfd_index;
-								Signal::pfds[server_to_cgi_pfd_index] = Signal::pfds.back();
-								Signal::pfds.pop_back();
+								swapRemove(Signal::pfds, server_to_cgi_pfd_index);
 
 								Signal::fd_to_pfd_index.erase(client.server_to_cgi_fd);
 								Signal::fd_to_client_index.erase(client.server_to_cgi_fd);
@@ -404,12 +395,10 @@ int main(void)
 								assert(client.cgi_to_server_fd != -1);
 								client.cgi_read_state = CGIReadState::DONE;
 
-								// Swap-remove
 								std::cerr << "    Removing cgi_to_server from pfds" << std::endl;
 								size_t cgi_to_server_pfd_index = Signal::fd_to_pfd_index.at(client.cgi_to_server_fd);
 								Signal::fd_to_pfd_index[Signal::pfds.back().fd] = cgi_to_server_pfd_index;
-								Signal::pfds[cgi_to_server_pfd_index] = Signal::pfds.back();
-								Signal::pfds.pop_back();
+								swapRemove(Signal::pfds, cgi_to_server_pfd_index);
 
 								Signal::fd_to_pfd_index.erase(client.cgi_to_server_fd);
 								Signal::fd_to_client_index.erase(client.cgi_to_server_fd);
@@ -615,11 +604,9 @@ int main(void)
 
 								client.cgi_write_state = CGIWriteState::DONE;
 
-								// Swap-remove
 								size_t server_to_cgi_pfd_index = Signal::fd_to_pfd_index.at(client.server_to_cgi_fd);
 								Signal::fd_to_pfd_index[Signal::pfds.back().fd] = server_to_cgi_pfd_index;
-								Signal::pfds[server_to_cgi_pfd_index] = Signal::pfds.back();
-								Signal::pfds.pop_back();
+								swapRemove(Signal::pfds, server_to_cgi_pfd_index);
 
 								Signal::fd_to_pfd_index.erase(client.server_to_cgi_fd);
 								Signal::fd_to_client_index.erase(client.server_to_cgi_fd);
