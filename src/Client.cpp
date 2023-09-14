@@ -360,7 +360,7 @@ bool Client::_parseHeaders(void)
 		}
 
 		// Add key and value to the map
-		this->header_map.insert(std::make_pair(key, value));
+		this->header_map.emplace(key, value);
 	}
 	return true;
 }

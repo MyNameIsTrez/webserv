@@ -158,7 +158,7 @@ int main(void)
 		exit(EXIT_FAILURE);
 	}
 
-	// fd_to_pfd_index.insert(std::make_pair(server_fd, pfds.size()));
+	// fd_to_pfd_index.emplace(server_fd, pfds.size());
 
 	pollfd server_pfd;
 	server_pfd.fd = server_fd;
@@ -171,7 +171,7 @@ int main(void)
 
 	std::unordered_map<int, FdType::FdType> fd_to_fd_type;
 
-	fd_to_fd_type.insert(std::make_pair(server_fd, FdType::SERVER));
+	fd_to_fd_type.emplace(server_fd, FdType::SERVER);
 
 	signal(SIGCHLD, sigChildHandler);
 	signal(SIGINT, sigIntHandler);
@@ -182,10 +182,13 @@ int main(void)
 		if (Signal::shutting_down_gracefully && servers_active)
 		{
 			std::cerr << "Shutting down gracefully..." << std::endl;
-			// TODO: Handle multiple servers. Can bind() let an fd point to multiple sockaddr_in structs?
-			Signal::fd_to_pfd_index[Signal::pfds.back().fd] = 0;
-			Signal::pfds[0] = Signal::pfds.back();
+
+			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
+			size_t server_pfd_index = 0;
+			Signal::fd_to_pfd_index[Signal::pfds.back().fd] = server_pfd_index;
+			Signal::pfds[server_pfd_index] = Signal::pfds.back();
 			Signal::pfds.pop_back();
+
 			servers_active = false;
 		}
 
@@ -430,9 +433,9 @@ int main(void)
 
 						// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
 
-						Signal::fd_to_pfd_index.insert(std::make_pair(client_fd, Signal::pfds.size()));
+						Signal::fd_to_pfd_index.emplace(client_fd, Signal::pfds.size());
 
-						fd_to_client_index.insert(std::make_pair(client_fd, Signal::clients.size()));
+						fd_to_client_index.emplace(client_fd, Signal::clients.size());
 
 						pollfd client_pfd;
 						client_pfd.fd = client_fd;
@@ -441,7 +444,7 @@ int main(void)
 
 						Signal::clients.push_back(Client(client_fd));
 
-						fd_to_fd_type.insert(std::make_pair(client_fd, FdType::CLIENT));
+						fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
 					}
 					else
 					{
@@ -523,11 +526,11 @@ int main(void)
 
 							size_t client_index = fd_to_client_index.at(fd);
 							// TODO: Make sure that every swap-remove spot also updates this!
-							Signal::child_pid_to_client_index.insert(std::make_pair(forked_pid, client_index));
+							Signal::child_pid_to_client_index.emplace(forked_pid, client_index);
 
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
-							Signal::fd_to_pfd_index.insert(std::make_pair(server_to_cgi_fd, Signal::pfds.size()));
+							Signal::fd_to_pfd_index.emplace(server_to_cgi_fd, Signal::pfds.size());
 							pollfd server_to_cgi_pfd;
 							server_to_cgi_pfd.fd = server_to_cgi_fd;
 							server_to_cgi_pfd.events = client.body.empty() ? 0 : POLLOUT;
@@ -536,15 +539,15 @@ int main(void)
 
 							client.server_to_cgi_fd = server_to_cgi_fd;
 
-							fd_to_client_index.insert(std::make_pair(server_to_cgi_fd, client_index));
+							fd_to_client_index.emplace(server_to_cgi_fd, client_index);
 							client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
-							fd_to_fd_type.insert(std::make_pair(server_to_cgi_fd, FdType::SERVER_TO_CGI));
+							fd_to_fd_type.emplace(server_to_cgi_fd, FdType::SERVER_TO_CGI);
 
 							std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
 
 							int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
 
-							Signal::fd_to_pfd_index.insert(std::make_pair(cgi_to_server_fd, Signal::pfds.size()));
+							Signal::fd_to_pfd_index.emplace(cgi_to_server_fd, Signal::pfds.size());
 							pollfd cgi_to_server_pfd;
 							cgi_to_server_pfd.fd = cgi_to_server_fd;
 							cgi_to_server_pfd.events = POLLIN;
@@ -552,9 +555,9 @@ int main(void)
 
 							client.cgi_to_server_fd = cgi_to_server_fd;
 
-							fd_to_client_index.insert(std::make_pair(cgi_to_server_fd, client_index));
+							fd_to_client_index.emplace(cgi_to_server_fd, client_index);
 							client.cgi_read_state = CGIReadState::READING_FROM_CGI;
-							fd_to_fd_type.insert(std::make_pair(cgi_to_server_fd, FdType::CGI_TO_SERVER));
+							fd_to_fd_type.emplace(cgi_to_server_fd, FdType::CGI_TO_SERVER);
 
 							std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
 						}
