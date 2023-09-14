@@ -88,7 +88,6 @@ static void sigChildHandler(int signum)
 		else
 		{
 			// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-			// TODO: ??
 			assert(false);
 		}
 
@@ -250,8 +249,7 @@ int main(void)
 				// This can be reached by commenting out a line that removes a closed fd from pfds
 				if (Signal::pfds[pfd_index].revents & POLLNVAL)
 				{
-					// Should be unreachable
-					// TODO: Remove this before the evaluation
+					// TODO: Should be unreachable
 					assert(false);
 				}
 
@@ -573,13 +571,11 @@ int main(void)
 
 					if (fd_type == FdType::SERVER_TO_CGI)
 					{
-						// TODO: Remove this before the evaluation
 						assert(client.cgi_write_state == CGIWriteState::WRITING_TO_CGI);
 
 						size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
 						size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
 
-						// TODO: Remove this before the evaluation
 						assert(body_substr_len > 0);
 
 						// TODO: substr() can fail
@@ -622,13 +618,11 @@ int main(void)
 					}
 					else if (fd_type == FdType::CLIENT)
 					{
-						// TODO: Remove this before the evaluation
 						assert(client.client_write_state == ClientWriteState::WRITING_TO_CLIENT);
 
 						size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config
 						size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
 
-						// TODO: Remove this before the evaluation
 						assert(response_substr_len > 0);
 
 						// TODO: substr() can fail
@@ -641,32 +635,8 @@ int main(void)
 						// TODO: Don't ignore errors
 						write(fd, response_substr.c_str(), response_substr.length());
 
-
-						// TODO: Close
+						// TODO: Close the client at some point
 						// std::cerr << "    Closing client fd " << fd << std::endl;
-						// TODO: Don't *always* close right after a single write
-
-
-						// fd_to_pfd_index.erase(fd);
-						// fd_to_client_index.erase(fd);
-
-						// if (close(fd) == -1)
-						// {
-						// 	perror("close");
-						// 	exit(EXIT_FAILURE);
-						// }
-						// client.client_fd = -1;
-
-						// fd_to_pfd_index[pfds.back().fd] = pfd_index;
-
-						// // Swap-remove explanation: If pfds.size() == 2, with pfd[1] firing POLLIN and pfd[0] firing POLLHUP,
-						// // pfd[1] will be handled first, and then pfd[0] will run the below two lines, moving pfd[1] to pfds[0].
-						// // This is fine however, since the for-loop's pfd_index > 0 condition will be false, meaning pfd[1] won't be processed twice.
-						// //
-						// // In this visualization, the processed pfd is put in <>:
-						// // [ POLLHUP_A, POLLHUP_B, <POLLIN> ] -> [ POLLHUP_A, <POLLHUP_B>, POLLIN ] -> [ <POLLHUP_A>, POLLIN ] -> [ POLLIN ]
-						// pfds[pfd_index] = pfds.back();
-						// pfds.pop_back();
 
 						// If we don't have anything left to write at the moment
 						if (client.response_index == client.response.length())
@@ -677,8 +647,7 @@ int main(void)
 					}
 					else
 					{
-						// Should be unreachable
-						// TODO: Remove this before the evaluation
+						// TODO: Should be unreachable
 						assert(false);
 					}
 				}

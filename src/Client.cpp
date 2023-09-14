@@ -163,7 +163,6 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 		return true;
 	}
 
-	// TODO: Remove this before the evaluation
 	assert(this->cgi_read_state != CGIReadState::DONE);
 	assert(this->client_write_state != ClientWriteState::DONE);
 
@@ -233,8 +232,7 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 		}
 		else
 		{
-			// Should be unreachable
-			// TODO: Remove this before the evaluation
+			// TODO: Should be unreachable
 			assert(false);
 		}
 
@@ -256,15 +254,13 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 		}
 		else
 		{
-			// Should be unreachable
-			// TODO: Remove this before the evaluation
+			// TODO: Should be unreachable
 			assert(false);
 		}
 	}
 	else
 	{
-		// Should be unreachable
-		// TODO: Remove this before the evaluation
+		// TODO: Should be unreachable
 		assert(false);
 	}
 
@@ -298,8 +294,7 @@ int Client::_getFdFromFdType(FdType::FdType fd_type)
 		return this->cgi_to_server_fd;
 	}
 
-	// Should be unreachable
-	// TODO: Remove this before the evaluation
+	// TODO: Should be unreachable
 	assert(false);
 }
 
