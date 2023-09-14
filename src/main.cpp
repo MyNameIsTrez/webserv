@@ -34,7 +34,8 @@ const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
 namespace Signal
 {
 	bool shutting_down_gracefully = false;
-	std::unordered_map<pid_t, size_t> child_pid_to_client_index;
+	std::unordered_map<pid_t, int> cgi_pid_to_client_fd;
+	std::unordered_map<int, size_t> fd_to_client_index;
 	std::vector<Client> clients;
 	std::vector<pollfd> pfds;
 	std::unordered_map<int, size_t> fd_to_pfd_index;
@@ -91,7 +92,8 @@ static void sigChildHandler(int signum)
 			assert(false);
 		}
 
-		size_t client_index = Signal::child_pid_to_client_index.at(child_pid);
+		int client_fd = Signal::cgi_pid_to_client_fd.at(child_pid);
+		size_t client_index = Signal::fd_to_client_index.at(client_fd);
 		Client &client = Signal::clients.at(client_index);
 
 		assert(client.client_read_state == ClientReadState::DONE);
@@ -166,8 +168,6 @@ int main(void)
 	Signal::pfds.push_back(server_pfd);
 
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
-
-	std::unordered_map<int, size_t> fd_to_client_index;
 
 	std::unordered_map<int, FdType::FdType> fd_to_fd_type;
 
@@ -251,7 +251,7 @@ int main(void)
 				// If there was an error, remove the client, and close all its file descriptors
 				if (Signal::pfds[pfd_index].revents & POLLERR)
 				{
-					Client &client = getClient(fd_to_client_index, fd, Signal::clients);
+					Client &client = getClient(Signal::fd_to_client_index, fd, Signal::clients);
 
 					if (close(client.client_fd) == -1)
 					{
@@ -270,7 +270,7 @@ int main(void)
 						Signal::pfds.pop_back();
 
 						Signal::fd_to_pfd_index.erase(client.server_to_cgi_fd);
-						fd_to_client_index.erase(client.server_to_cgi_fd);
+						Signal::fd_to_client_index.erase(client.server_to_cgi_fd);
 
 						if (close(client.server_to_cgi_fd) == -1)
 						{
@@ -290,7 +290,7 @@ int main(void)
 						Signal::pfds.pop_back();
 
 						Signal::fd_to_pfd_index.erase(client.cgi_to_server_fd);
-						fd_to_client_index.erase(client.cgi_to_server_fd);
+						Signal::fd_to_client_index.erase(client.cgi_to_server_fd);
 
 						if (close(client.cgi_to_server_fd) == -1)
 						{
@@ -298,6 +298,13 @@ int main(void)
 							exit(EXIT_FAILURE);
 						}
 						client.cgi_to_server_fd = -1;
+					}
+
+					if (client.cgi_pid != -1)
+					{
+						Signal::cgi_pid_to_client_fd.erase(client.cgi_pid);
+						client.cgi_pid = -1;
+						// TODO: Should we kill()/signal() the child CGI process to prevent them being zombies?
 					}
 
 					// Swap-remove
@@ -314,9 +321,9 @@ int main(void)
 
 					// Swap-remove
 					// TODO: Is it possible for client.client_fd to have already been closed and erased?
-					size_t client_index = fd_to_client_index.at(client.client_fd);
-					fd_to_client_index.erase(client.client_fd);
-					fd_to_client_index[Signal::clients.back().client_fd] = client_index;
+					size_t client_index = Signal::fd_to_client_index.at(client.client_fd);
+					Signal::fd_to_client_index.erase(client.client_fd);
+					Signal::fd_to_client_index[Signal::clients.back().client_fd] = client_index;
 					Signal::clients[client_index] = Signal::clients.back();
 					Signal::clients.pop_back();
 
@@ -353,7 +360,9 @@ int main(void)
 						// If the server has read everything from the Python script
 						if (!(Signal::pfds[pfd_index].revents & POLLIN))
 						{
-							Client &client = getClient(fd_to_client_index, fd, Signal::clients);
+							Client &client = getClient(Signal::fd_to_client_index, fd, Signal::clients);
+
+							// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 
 							// Disable client POLLIN
 							// We don't care that we could've read some more of the client's body
@@ -380,7 +389,7 @@ int main(void)
 								Signal::pfds.pop_back();
 
 								Signal::fd_to_pfd_index.erase(client.server_to_cgi_fd);
-								fd_to_client_index.erase(client.server_to_cgi_fd);
+								Signal::fd_to_client_index.erase(client.server_to_cgi_fd);
 
 								if (close(client.server_to_cgi_fd) == -1)
 								{
@@ -403,7 +412,7 @@ int main(void)
 								Signal::pfds.pop_back();
 
 								Signal::fd_to_pfd_index.erase(client.cgi_to_server_fd);
-								fd_to_client_index.erase(client.cgi_to_server_fd);
+								Signal::fd_to_client_index.erase(client.cgi_to_server_fd);
 
 								if (close(client.cgi_to_server_fd) == -1)
 								{
@@ -435,7 +444,7 @@ int main(void)
 
 						Signal::fd_to_pfd_index.emplace(client_fd, Signal::pfds.size());
 
-						fd_to_client_index.emplace(client_fd, Signal::clients.size());
+						Signal::fd_to_client_index.emplace(client_fd, Signal::clients.size());
 
 						pollfd client_pfd;
 						client_pfd.fd = client_fd;
@@ -450,7 +459,7 @@ int main(void)
 					{
 						assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
 
-						Client &client = getClient(fd_to_client_index, fd, Signal::clients);
+						Client &client = getClient(Signal::fd_to_client_index, fd, Signal::clients);
 
 						ClientReadState::ClientReadState previous_read_state = client.client_read_state;
 
@@ -464,6 +473,8 @@ int main(void)
 						if (previous_read_state != ClientReadState::BODY && client.client_read_state == ClientReadState::BODY)
 						{
 							// TODO: Only run the below code if the request wants to start the CGI
+
+							assert(fd_type == FdType::CLIENT);
 
 							int server_to_cgi_tube[2];
 							int cgi_to_server_tube[2];
@@ -524,9 +535,11 @@ int main(void)
 							close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
 							// std::cerr << "    Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
 
-							size_t client_index = fd_to_client_index.at(fd);
-							// TODO: Make sure that every swap-remove spot also updates this!
-							Signal::child_pid_to_client_index.emplace(forked_pid, client_index);
+							client.cgi_pid = forked_pid;
+
+							Signal::cgi_pid_to_client_fd.emplace(forked_pid, fd);
+
+							size_t client_index = Signal::fd_to_client_index.at(fd);
 
 							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
@@ -539,7 +552,7 @@ int main(void)
 
 							client.server_to_cgi_fd = server_to_cgi_fd;
 
-							fd_to_client_index.emplace(server_to_cgi_fd, client_index);
+							Signal::fd_to_client_index.emplace(server_to_cgi_fd, client_index);
 							client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 							fd_to_fd_type.emplace(server_to_cgi_fd, FdType::SERVER_TO_CGI);
 
@@ -555,7 +568,7 @@ int main(void)
 
 							client.cgi_to_server_fd = cgi_to_server_fd;
 
-							fd_to_client_index.emplace(cgi_to_server_fd, client_index);
+							Signal::fd_to_client_index.emplace(cgi_to_server_fd, client_index);
 							client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 							fd_to_fd_type.emplace(cgi_to_server_fd, FdType::CGI_TO_SERVER);
 
@@ -567,7 +580,7 @@ int main(void)
 				// If we can write
 				if (Signal::pfds[pfd_index].revents & POLLOUT_ANY)
 				{
-					Client &client = getClient(fd_to_client_index, fd, Signal::clients);
+					Client &client = getClient(Signal::fd_to_client_index, fd, Signal::clients);
 
 					if (fd_type == FdType::SERVER_TO_CGI)
 					{
@@ -609,7 +622,7 @@ int main(void)
 								Signal::pfds.pop_back();
 
 								Signal::fd_to_pfd_index.erase(client.server_to_cgi_fd);
-								fd_to_client_index.erase(client.server_to_cgi_fd);
+								Signal::fd_to_client_index.erase(client.server_to_cgi_fd);
 
 								if (close(client.server_to_cgi_fd) == -1)
 								{

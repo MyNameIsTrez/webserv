@@ -30,6 +30,7 @@ Client::Client(void)
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
 	  cgi_exit_status(-1),
+	  cgi_pid(-1),
 	  _header(),
 	  _content_length(0)
 {
@@ -52,6 +53,7 @@ Client::Client(Client const &src)
 	  server_to_cgi_fd(src.server_to_cgi_fd),
 	  cgi_to_server_fd(src.cgi_to_server_fd),
 	  cgi_exit_status(src.cgi_exit_status),
+	  cgi_pid(src.cgi_pid),
 	  _header(src._header),
 	  _content_length(0) // TODO: Why does this differ from what is done in the copy assignment overload?
 {
@@ -81,6 +83,7 @@ Client &Client::operator=(Client const &src)
 	this->server_to_cgi_fd = src.server_to_cgi_fd;
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
 	this->cgi_exit_status = src.cgi_exit_status,
+	this->cgi_pid = src.cgi_pid;
 	this->_header = src._header;
 	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
 	return *this;
@@ -105,6 +108,7 @@ Client::Client(int client_fd)
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
 	  cgi_exit_status(-1),
+	  cgi_pid(-1),
 	  _header(),
 	  _content_length(0)
 {
@@ -152,6 +156,8 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 			size_t cgi_to_server_pfds_index = fd_to_pfds_index.at(this->cgi_to_server_fd);
 			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
 			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
+
+			// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 		}
 
 		return true;

@@ -97,6 +97,7 @@ public:
 	int server_to_cgi_fd;
 	int cgi_to_server_fd;
 	int cgi_exit_status;
+	pid_t cgi_pid;
 
 private:
 	int _getFdFromFdType(FdType::FdType fd_type);
