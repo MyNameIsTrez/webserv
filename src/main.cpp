@@ -202,6 +202,318 @@ static void removeClient(int fd, nfds_t pfd_index)
 	swapRemove(clients, client_index);
 }
 
+static void printEvents(const pollfd &pfd)
+{
+	std::cerr
+		<< "  fd=" << pfd.fd << "; "
+		<< "Events: "
+		<< ((pfd.revents & POLLIN) ? "POLLIN " : "")
+		<< ((pfd.revents & POLLOUT) ? "POLLOUT " : "")
+		<< ((pfd.revents & POLLHUP) ? "POLLHUP " : "")
+		<< ((pfd.revents & POLLNVAL) ? "POLLNVAL " : "")
+		<< ((pfd.revents & POLLPRI) ? "POLLPRI " : "")
+		<< ((pfd.revents & POLLRDBAND) ? "POLLRDBAND " : "")
+		<< ((pfd.revents & POLLRDNORM) ? "POLLRDNORM " : "")
+		<< ((pfd.revents & POLLWRBAND) ? "POLLWRBAND " : "")
+		<< ((pfd.revents & POLLWRNORM) ? "POLLWRNORM " : "")
+		<< ((pfd.revents & POLLERR) ? "POLLERR " : "")
+		<< std::endl;
+}
+
+static void pollhupServerToCGI()
+{
+	// TODO: ??
+	assert(false);
+
+	// Client &client = getClient(fd_to_client_index, fd, clients);
+
+	// client.client_read_state = ClientReadState::DONE;
+
+	// size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
+	// std::cerr << "    Disabling client POLLIN" << std::endl;
+	// pfds[client_pfd_index].events &= ~POLLIN;
+
+	// client.cgi_write_state = CGIWriteState::DONE;
+	// size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+	// std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
+	// pfds[server_to_cgi_pfd_index].events &= ~POLLOUT;
+}
+
+static void pollhupCGIToServer(int fd)
+{
+	using namespace Signal;
+
+	Client &client = getClient(fd_to_client_index, fd, clients);
+
+	// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
+
+	// Disable client POLLIN
+	// We don't care that we could've read some more of the client's body
+	if (client.client_read_state != ClientReadState::DONE)
+	{
+		client.client_read_state = ClientReadState::DONE;
+
+		size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
+		std::cerr << "    Disabling client POLLIN" << std::endl;
+		pfds[client_pfd_index].events &= ~POLLIN;
+	}
+
+	// Close and remove server_to_cgi
+	// We don't care that we could've written some more of the client's body
+	if (client.server_to_cgi_fd != -1)
+	{
+		client.cgi_write_state = CGIWriteState::DONE;
+
+		std::cerr << "    Removing server_to_cgi from pfds" << std::endl;
+		size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+		fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
+		swapRemove(pfds, server_to_cgi_pfd_index);
+
+		fd_to_pfd_index.erase(client.server_to_cgi_fd);
+		fd_to_client_index.erase(client.server_to_cgi_fd);
+
+		if (close(client.server_to_cgi_fd) == -1)
+		{
+			perror("close");
+			exit(EXIT_FAILURE);
+		}
+		client.server_to_cgi_fd = -1;
+	}
+
+	// Close and remove cgi_to_server
+	{
+		assert(client.cgi_to_server_fd != -1);
+		client.cgi_read_state = CGIReadState::DONE;
+
+		std::cerr << "    Removing cgi_to_server from pfds" << std::endl;
+		size_t cgi_to_server_pfd_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
+		fd_to_pfd_index[pfds.back().fd] = cgi_to_server_pfd_index;
+		swapRemove(pfds, cgi_to_server_pfd_index);
+
+		fd_to_pfd_index.erase(client.cgi_to_server_fd);
+		fd_to_client_index.erase(client.cgi_to_server_fd);
+
+		if (close(client.cgi_to_server_fd) == -1)
+		{
+			perror("close");
+			exit(EXIT_FAILURE);
+		}
+		client.cgi_to_server_fd = -1;
+	}
+}
+
+static void acceptClient(int server_fd, std::unordered_map<int, FdType::FdType> &fd_to_fd_type)
+{
+	using namespace Signal;
+
+	int client_fd = accept(server_fd, NULL, NULL);
+	std::cerr << "    Accepted client fd " << client_fd << std::endl;
+
+	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
+
+	fd_to_pfd_index.emplace(client_fd, pfds.size());
+
+	fd_to_client_index.emplace(client_fd, clients.size());
+
+	pollfd client_pfd;
+	client_pfd.fd = client_fd;
+	client_pfd.events = POLLIN;
+	pfds.push_back(client_pfd);
+
+	clients.push_back(Client(client_fd));
+
+	fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
+}
+
+static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unordered_map<int, FdType::FdType> &fd_to_fd_type)
+{
+	using namespace Signal;
+
+	assert(fd_type == FdType::CLIENT);
+
+	int server_to_cgi_tube[2];
+	int cgi_to_server_tube[2];
+
+	if (pipe(server_to_cgi_tube) == -1)
+	{
+		perror("pipe");
+		return false;
+	}
+	if (pipe(cgi_to_server_tube) == -1)
+	{
+		perror("pipe");
+		return false;
+	}
+
+	pid_t forked_pid = fork();
+	if (forked_pid == -1)
+	{
+		perror("fork");
+		return false;
+	}
+	else if (forked_pid == CHILD)
+	{
+		signal(SIGINT, SIG_IGN);
+
+		close(server_to_cgi_tube[PIPE_WRITE_INDEX]);
+		close(cgi_to_server_tube[PIPE_READ_INDEX]);
+
+		if (dup2(server_to_cgi_tube[PIPE_READ_INDEX], STDIN_FILENO) == -1)
+		{
+			perror("dup2");
+			return false;
+		}
+		close(server_to_cgi_tube[PIPE_READ_INDEX]);
+
+		if (dup2(cgi_to_server_tube[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
+		{
+			perror("dup2");
+			return false;
+		}
+		close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+
+		std::cerr << "    Child is going to exec Python" << std::endl;
+		// TODO: Define Python path in configuration file?
+		const char *path = "/usr/bin/python3";
+		char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
+
+		// TODO: Construct cgi_env using header_map
+		char *cgi_env[] = {NULL};
+		execve(path, argv, cgi_env);
+
+		perror("execve");
+		return false;
+	}
+
+	close(server_to_cgi_tube[PIPE_READ_INDEX]);
+	// std::cerr << "    Server closed server_to_cgi_tube[PIPE_READ_INDEX] fd " << server_to_cgi_tube[PIPE_READ_INDEX] << std::endl;
+	close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+	// std::cerr << "    Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
+
+	client.cgi_pid = forked_pid;
+
+	cgi_pid_to_client_fd.emplace(forked_pid, fd);
+
+	size_t client_index = fd_to_client_index.at(fd);
+
+	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
+
+	fd_to_pfd_index.emplace(server_to_cgi_fd, pfds.size());
+	pollfd server_to_cgi_pfd;
+	server_to_cgi_pfd.fd = server_to_cgi_fd;
+	server_to_cgi_pfd.events = client.body.empty() ? 0 : POLLOUT;
+	// std::cerr << "    have_read_body is " << client.have_read_body << std::endl;
+	pfds.push_back(server_to_cgi_pfd);
+
+	client.server_to_cgi_fd = server_to_cgi_fd;
+
+	fd_to_client_index.emplace(server_to_cgi_fd, client_index);
+	client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
+	fd_to_fd_type.emplace(server_to_cgi_fd, FdType::SERVER_TO_CGI);
+
+	std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+
+	int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
+
+	fd_to_pfd_index.emplace(cgi_to_server_fd, pfds.size());
+	pollfd cgi_to_server_pfd;
+	cgi_to_server_pfd.fd = cgi_to_server_fd;
+	cgi_to_server_pfd.events = POLLIN;
+	pfds.push_back(cgi_to_server_pfd);
+
+	client.cgi_to_server_fd = cgi_to_server_fd;
+
+	fd_to_client_index.emplace(cgi_to_server_fd, client_index);
+	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
+	fd_to_fd_type.emplace(cgi_to_server_fd, FdType::CGI_TO_SERVER);
+
+	std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
+
+	return true;
+}
+
+static void writeServerToCGI(Client &client, nfds_t pfd_index)
+{
+	using namespace Signal;
+
+	assert(client.cgi_write_state == CGIWriteState::WRITING_TO_CGI);
+
+	size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
+	size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
+
+	assert(body_substr_len > 0);
+
+	// TODO: substr() can fail
+	std::string body_substr = client.body.substr(client.body_index, body_substr_len);
+
+	client.body_index += body_substr_len;
+
+	std::cerr << "    Sending this body substr to the CGI that has a len of " << body_substr.length() << " bytes:\n----------\n" << body_substr << "\n----------" << std::endl;
+
+	// TODO: Don't ignore errors
+	write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length());
+
+	// If we don't have anything left to write at the moment
+	if (client.body_index == client.body.length())
+	{
+		std::cerr << "    Disabling POLLOUT" << std::endl;
+		pfds[pfd_index].events &= ~POLLOUT;
+
+		if (client.client_read_state == ClientReadState::DONE)
+		{
+			std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
+
+			client.cgi_write_state = CGIWriteState::DONE;
+
+			size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+			fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
+			swapRemove(pfds, server_to_cgi_pfd_index);
+
+			fd_to_pfd_index.erase(client.server_to_cgi_fd);
+			fd_to_client_index.erase(client.server_to_cgi_fd);
+
+			if (close(client.server_to_cgi_fd) == -1)
+			{
+				perror("close");
+				exit(EXIT_FAILURE);
+			}
+			client.server_to_cgi_fd = -1;
+		}
+	}
+}
+
+static void writeToClient(Client &client, int fd, nfds_t pfd_index)
+{
+	using namespace Signal;
+
+	assert(client.client_write_state == ClientWriteState::WRITING_TO_CLIENT);
+
+	size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config
+	size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
+
+	assert(response_substr_len > 0);
+
+	// TODO: substr() can fail
+	std::string response_substr = client.response.substr(client.response_index, response_substr_len);
+
+	client.response_index += response_substr_len;
+
+	std::cerr << "    Sending this response substr that has a len of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------" << std::endl;
+
+	// TODO: Don't ignore errors
+	write(fd, response_substr.c_str(), response_substr.length());
+
+	// TODO: Close the client at some point
+	// std::cerr << "    Closing client fd " << fd << std::endl;
+
+	// If we don't have anything left to write at the moment
+	if (client.response_index == client.response.length())
+	{
+		std::cerr << "    Disabling POLLOUT" << std::endl;
+		pfds[pfd_index].events &= ~POLLOUT;
+	}
+}
+
 // c++ main.cpp Client.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // Code stolen from https://youtu.be/esXw4bdaZkc
 int main(void)
@@ -306,25 +618,12 @@ int main(void)
 				int fd = pfds[pfd_index].fd;
 				FdType::FdType fd_type = fd_to_fd_type.at(fd);
 
-				// TODO: Move to printEvents()
-				std::cerr << "  fd=" << pfds[pfd_index].fd << "; "
-						  << "Events: "
-						  << ((pfds[pfd_index].revents & POLLIN) ? "POLLIN " : "")
-						  << ((pfds[pfd_index].revents & POLLOUT) ? "POLLOUT " : "")
-						  << ((pfds[pfd_index].revents & POLLHUP) ? "POLLHUP " : "")
-						  << ((pfds[pfd_index].revents & POLLNVAL) ? "POLLNVAL " : "")
-						  << ((pfds[pfd_index].revents & POLLPRI) ? "POLLPRI " : "")
-						  << ((pfds[pfd_index].revents & POLLRDBAND) ? "POLLRDBAND " : "")
-						  << ((pfds[pfd_index].revents & POLLRDNORM) ? "POLLRDNORM " : "")
-						  << ((pfds[pfd_index].revents & POLLWRBAND) ? "POLLWRBAND " : "")
-						  << ((pfds[pfd_index].revents & POLLWRNORM) ? "POLLWRNORM " : "")
-						  << ((pfds[pfd_index].revents & POLLERR) ? "POLLERR " : "")
-						  << std::endl;
+				printEvents(pfds[pfd_index]);
 
 				// This can be reached by commenting out a line that removes a closed fd from pfds
 				if (pfds[pfd_index].revents & POLLNVAL)
 				{
-					// TODO: Should be unreachable
+					// TODO: Should the server exit, or should the client be removed?
 					assert(false);
 				}
 
@@ -341,23 +640,8 @@ int main(void)
 					// If the Python script closed its stdin
 					if (fd_type == FdType::SERVER_TO_CGI)
 					{
-						// TODO: ??
-						assert(false);
-
-						// Client &client = getClient(fd_to_client_index, fd, clients);
-
-						// client.client_read_state = ClientReadState::DONE;
-
-						// size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-						// std::cerr << "    Disabling client POLLIN" << std::endl;
-						// pfds[client_pfd_index].events &= ~POLLIN;
-
-						// client.cgi_write_state = CGIWriteState::DONE;
-						// size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-						// std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
-						// pfds[server_to_cgi_pfd_index].events &= ~POLLOUT;
-
-						// continue;
+						pollhupServerToCGI();
+						continue;
 					}
 					// If the Python script closed its stdout
 					else if (fd_type == FdType::CGI_TO_SERVER)
@@ -365,64 +649,7 @@ int main(void)
 						// If the server has read everything from the Python script
 						if (!(pfds[pfd_index].revents & POLLIN))
 						{
-							Client &client = getClient(fd_to_client_index, fd, clients);
-
-							// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
-
-							// Disable client POLLIN
-							// We don't care that we could've read some more of the client's body
-							if (client.client_read_state != ClientReadState::DONE)
-							{
-								client.client_read_state = ClientReadState::DONE;
-
-								size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-								std::cerr << "    Disabling client POLLIN" << std::endl;
-								pfds[client_pfd_index].events &= ~POLLIN;
-							}
-
-							// Close and remove server_to_cgi
-							// We don't care that we could've written some more of the client's body
-							if (client.server_to_cgi_fd != -1)
-							{
-								client.cgi_write_state = CGIWriteState::DONE;
-
-								std::cerr << "    Removing server_to_cgi from pfds" << std::endl;
-								size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-								fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
-								swapRemove(pfds, server_to_cgi_pfd_index);
-
-								fd_to_pfd_index.erase(client.server_to_cgi_fd);
-								fd_to_client_index.erase(client.server_to_cgi_fd);
-
-								if (close(client.server_to_cgi_fd) == -1)
-								{
-									perror("close");
-									exit(EXIT_FAILURE);
-								}
-								client.server_to_cgi_fd = -1;
-							}
-
-							// Close and remove cgi_to_server
-							{
-								assert(client.cgi_to_server_fd != -1);
-								client.cgi_read_state = CGIReadState::DONE;
-
-								std::cerr << "    Removing cgi_to_server from pfds" << std::endl;
-								size_t cgi_to_server_pfd_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
-								fd_to_pfd_index[pfds.back().fd] = cgi_to_server_pfd_index;
-								swapRemove(pfds, cgi_to_server_pfd_index);
-
-								fd_to_pfd_index.erase(client.cgi_to_server_fd);
-								fd_to_client_index.erase(client.cgi_to_server_fd);
-
-								if (close(client.cgi_to_server_fd) == -1)
-								{
-									perror("close");
-									exit(EXIT_FAILURE);
-								}
-								client.cgi_to_server_fd = -1;
-							}
-
+							pollhupCGIToServer(fd);
 							continue;
 						}
 					}
@@ -438,23 +665,7 @@ int main(void)
 				{
 					if (fd_type == FdType::SERVER)
 					{
-						int client_fd = accept(server_fd, NULL, NULL);
-						std::cerr << "    Accepted client fd " << client_fd << std::endl;
-
-						// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
-
-						fd_to_pfd_index.emplace(client_fd, pfds.size());
-
-						fd_to_client_index.emplace(client_fd, clients.size());
-
-						pollfd client_pfd;
-						client_pfd.fd = client_fd;
-						client_pfd.events = POLLIN;
-						pfds.push_back(client_pfd);
-
-						clients.push_back(Client(client_fd));
-
-						fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
+						acceptClient(server_fd, fd_to_fd_type);
 					}
 					else
 					{
@@ -467,7 +678,7 @@ int main(void)
 						if (!client.readFd(pfds, fd_to_pfd_index, fd_type))
 						{
 							// TODO: Print error
-							exit(EXIT_FAILURE);
+							return EXIT_FAILURE;
 						}
 
 						// If we've just started reading this client's body
@@ -475,105 +686,10 @@ int main(void)
 						{
 							// TODO: Only run the below code if the request wants to start the CGI
 
-							assert(fd_type == FdType::CLIENT);
-
-							int server_to_cgi_tube[2];
-							int cgi_to_server_tube[2];
-
-							if (pipe(server_to_cgi_tube) == -1)
+							if (!startCGI(fd_type, client, fd, fd_to_fd_type))
 							{
-								perror("pipe");
 								return EXIT_FAILURE;
 							}
-							if (pipe(cgi_to_server_tube) == -1)
-							{
-								perror("pipe");
-								return EXIT_FAILURE;
-							}
-
-							pid_t forked_pid = fork();
-							if (forked_pid == -1)
-							{
-								perror("fork");
-								return EXIT_FAILURE;
-							}
-							else if (forked_pid == CHILD)
-							{
-								signal(SIGINT, SIG_IGN);
-
-								close(server_to_cgi_tube[PIPE_WRITE_INDEX]);
-								close(cgi_to_server_tube[PIPE_READ_INDEX]);
-
-								if (dup2(server_to_cgi_tube[PIPE_READ_INDEX], STDIN_FILENO) == -1)
-								{
-									perror("dup2");
-									return EXIT_FAILURE;
-								}
-								close(server_to_cgi_tube[PIPE_READ_INDEX]);
-
-								if (dup2(cgi_to_server_tube[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
-								{
-									perror("dup2");
-									return EXIT_FAILURE;
-								}
-								close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
-
-								std::cerr << "    Child is going to exec Python" << std::endl;
-								// TODO: Define Python path in configuration file?
-								const char *path = "/usr/bin/python3";
-								char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
-
-								// TODO: Construct cgi_env using header_map
-								char *cgi_env[] = {NULL};
-								execve(path, argv, cgi_env);
-
-								perror("execve");
-								return EXIT_FAILURE;
-							}
-
-							close(server_to_cgi_tube[PIPE_READ_INDEX]);
-							// std::cerr << "    Server closed server_to_cgi_tube[PIPE_READ_INDEX] fd " << server_to_cgi_tube[PIPE_READ_INDEX] << std::endl;
-							close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
-							// std::cerr << "    Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
-
-							client.cgi_pid = forked_pid;
-
-							cgi_pid_to_client_fd.emplace(forked_pid, fd);
-
-							size_t client_index = fd_to_client_index.at(fd);
-
-							int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
-
-							fd_to_pfd_index.emplace(server_to_cgi_fd, pfds.size());
-							pollfd server_to_cgi_pfd;
-							server_to_cgi_pfd.fd = server_to_cgi_fd;
-							server_to_cgi_pfd.events = client.body.empty() ? 0 : POLLOUT;
-							// std::cerr << "    have_read_body is " << client.have_read_body << std::endl;
-							pfds.push_back(server_to_cgi_pfd);
-
-							client.server_to_cgi_fd = server_to_cgi_fd;
-
-							fd_to_client_index.emplace(server_to_cgi_fd, client_index);
-							client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
-							fd_to_fd_type.emplace(server_to_cgi_fd, FdType::SERVER_TO_CGI);
-
-							std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
-
-							int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
-
-							fd_to_pfd_index.emplace(cgi_to_server_fd, pfds.size());
-							pollfd cgi_to_server_pfd;
-							cgi_to_server_pfd.fd = cgi_to_server_fd;
-							cgi_to_server_pfd.events = POLLIN;
-							pfds.push_back(cgi_to_server_pfd);
-
-							client.cgi_to_server_fd = cgi_to_server_fd;
-
-							fd_to_client_index.emplace(cgi_to_server_fd, client_index);
-							client.cgi_read_state = CGIReadState::READING_FROM_CGI;
-							fd_to_fd_type.emplace(cgi_to_server_fd, FdType::CGI_TO_SERVER);
-
-							std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
 						}
 					}
 				}
@@ -585,79 +701,11 @@ int main(void)
 
 					if (fd_type == FdType::SERVER_TO_CGI)
 					{
-						assert(client.cgi_write_state == CGIWriteState::WRITING_TO_CGI);
-
-						size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
-						size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
-
-						assert(body_substr_len > 0);
-
-						// TODO: substr() can fail
-						std::string body_substr = client.body.substr(client.body_index, body_substr_len);
-
-						client.body_index += body_substr_len;
-
-						std::cerr << "    Sending this body substr to the CGI that has a len of " << body_substr.length() << " bytes:\n----------\n" << body_substr << "\n----------" << std::endl;
-
-						// TODO: Don't ignore errors
-						write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length());
-
-						// If we don't have anything left to write at the moment
-						if (client.body_index == client.body.length())
-						{
-							std::cerr << "    Disabling POLLOUT" << std::endl;
-							pfds[pfd_index].events &= ~POLLOUT;
-
-							if (client.client_read_state == ClientReadState::DONE)
-							{
-								std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
-
-								client.cgi_write_state = CGIWriteState::DONE;
-
-								size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-								fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
-								swapRemove(pfds, server_to_cgi_pfd_index);
-
-								fd_to_pfd_index.erase(client.server_to_cgi_fd);
-								fd_to_client_index.erase(client.server_to_cgi_fd);
-
-								if (close(client.server_to_cgi_fd) == -1)
-								{
-									perror("close");
-									exit(EXIT_FAILURE);
-								}
-								client.server_to_cgi_fd = -1;
-							}
-						}
+						writeServerToCGI(client, pfd_index);
 					}
 					else if (fd_type == FdType::CLIENT)
 					{
-						assert(client.client_write_state == ClientWriteState::WRITING_TO_CLIENT);
-
-						size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config
-						size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
-
-						assert(response_substr_len > 0);
-
-						// TODO: substr() can fail
-						std::string response_substr = client.response.substr(client.response_index, response_substr_len);
-
-						client.response_index += response_substr_len;
-
-						std::cerr << "    Sending this response substr that has a len of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------" << std::endl;
-
-						// TODO: Don't ignore errors
-						write(fd, response_substr.c_str(), response_substr.length());
-
-						// TODO: Close the client at some point
-						// std::cerr << "    Closing client fd " << fd << std::endl;
-
-						// If we don't have anything left to write at the moment
-						if (client.response_index == client.response.length())
-						{
-							std::cerr << "    Disabling POLLOUT" << std::endl;
-							pfds[pfd_index].events &= ~POLLOUT;
-						}
+						writeToClient(client, fd, pfd_index);
 					}
 					else
 					{
