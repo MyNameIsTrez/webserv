@@ -135,13 +135,13 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 	{
 		std::cerr << "    Read 0 bytes" << std::endl;
 
-		// TODO: Check that we reached content_length
+		// TODO: Assert that we reached content_length
 
 		if (fd_type == FdType::CLIENT)
 		{
 			this->client_read_state = ClientReadState::DONE;
 
-			// TODO: Nuke client: start server, connect client, ctrl+c client should disconnect the client
+			// TODO: Nuke client: start server -> connect client -> Ctrl+C client: should disconnect the client
 			// It DOES NOT generate a HUP!
 			// this->client_write_state = ClientWriteState::DONE;
 
