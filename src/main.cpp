@@ -22,7 +22,7 @@
 #define SERVER_PORT 18000
 #define MAX_CONNECTION_QUEUE_LEN 10
 #define MAX_CGI_WRITE_LEN 3
-#define MAX_CLIENT_WRITE_LEN 2
+#define MAX_CLIENT_WRITE_LEN 100
 #define CHILD 0
 #define PIPE_READ_INDEX 0
 #define PIPE_WRITE_INDEX 1
@@ -139,14 +139,9 @@ static void removeClient(int fd, nfds_t pfd_index)
 {
 	using namespace Signal;
 
-	Client &client = getClient(fd_to_client_index, fd, clients);
+	std::cerr << "  Removing client with fd " << fd << std::endl;
 
-	if (close(client.client_fd) == -1)
-	{
-		perror("close");
-		exit(EXIT_FAILURE);
-	}
-	client.client_fd = -1;
+	Client &client = getClient(fd_to_client_index, fd, clients);
 
 	// Close and remove server_to_cgi
 	if (client.server_to_cgi_fd != -1)
@@ -197,9 +192,18 @@ static void removeClient(int fd, nfds_t pfd_index)
 
 	// TODO: Is it possible for client.client_fd to have already been closed and erased?
 	size_t client_index = fd_to_client_index.at(client.client_fd);
+
 	fd_to_client_index.erase(client.client_fd);
 	fd_to_client_index[clients.back().client_fd] = client_index;
+
 	swapRemove(clients, client_index);
+
+	if (close(client.client_fd) == -1)
+	{
+		perror("close");
+		exit(EXIT_FAILURE);
+	}
+	client.client_fd = -1;
 }
 
 static void printEvents(const pollfd &pfd)
@@ -222,6 +226,8 @@ static void printEvents(const pollfd &pfd)
 
 static void pollhupServerToCGI()
 {
+	std::cerr << "  In pollhupServerToCGI()" << std::endl;
+
 	// TODO: ??
 	assert(false);
 
@@ -242,6 +248,8 @@ static void pollhupServerToCGI()
 static void pollhupCGIToServer(int fd)
 {
 	using namespace Signal;
+
+	std::cerr << "  In pollhupCGIToServer()" << std::endl;
 
 	Client &client = getClient(fd_to_client_index, fd, clients);
 
@@ -328,6 +336,8 @@ static void acceptClient(int server_fd, std::unordered_map<int, FdType::FdType> 
 static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unordered_map<int, FdType::FdType> &fd_to_fd_type)
 {
 	using namespace Signal;
+
+	std::cerr << "  Starting CGI..." << std::endl;
 
 	assert(fd_type == FdType::CLIENT);
 
@@ -436,6 +446,8 @@ static void writeServerToCGI(Client &client, nfds_t pfd_index)
 {
 	using namespace Signal;
 
+	std::cerr << "  Writing from the server to the CGI..." << std::endl;
+
 	assert(client.cgi_write_state == CGIWriteState::WRITING_TO_CGI);
 
 	size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
@@ -485,6 +497,8 @@ static void writeServerToCGI(Client &client, nfds_t pfd_index)
 static void writeToClient(Client &client, int fd, nfds_t pfd_index)
 {
 	using namespace Signal;
+
+	std::cerr << "  Writing to the client..." << std::endl;
 
 	assert(client.client_write_state == ClientWriteState::WRITING_TO_CLIENT);
 
@@ -655,7 +669,7 @@ int main(void)
 					}
 					else
 					{
-						// TODO: ??
+						// TODO: Should be unreachable
 						assert(false);
 					}
 				}

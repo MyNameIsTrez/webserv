@@ -120,12 +120,13 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
-	int fdx = _getFdFromFdType(fd_type);
+	// TODO: Can this method be removed, and the fd just be passed in? Maybe make it _getFdTypeFromFd()?
+	int fd = _getFdFromFdType(fd_type);
 
-	std::cerr << "    About to call read(" << fdx << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
+	std::cerr << "    About to call read(" << fd << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
 
 	// TODO: Never read past the content_length of the BODY
-	ssize_t bytes_read = read(fdx, received, MAX_RECEIVED_LEN);
+	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == -1)
 	{
 		perror("read");
@@ -168,6 +169,7 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 
 	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------" << std::endl;
 
+	// TODO: Move this block to its own method
 	if (fd_type == FdType::CLIENT)
 	{
 		if (this->client_read_state == ClientReadState::HEADER)
