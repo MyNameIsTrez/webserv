@@ -1,10 +1,12 @@
 #pragma once
 
+#include <cstddef>
 #include <poll.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
 
+// TODO: Remove this comment block when handing in
 /*
 // whole socket input
 Header string

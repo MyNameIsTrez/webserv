@@ -46,7 +46,8 @@
 - Right now we stop reading the client if we've read everything from the CGI. Is this correct, according to the nginx behavior in practice/the HTTP 1.1 RFC? Same goes for how we stop writing to the CGI if we've read everything from the CGI.
 - Multi-part form requests
 - Do we want to support non-parsed headers? See https://docstore.mik.ua/orelly/linux/cgi/ch03_03.htm#ch03-10-fm2xml
-- Do we want to support having multiple Server instances active at the same time? How will this interact with the Signal globals?
+- Do we want to support having multiple Server instances active at the same time? If so, test it thoroughly
+- Discuss removing Client's copy constructor and copy assignment operator, since it's a hazard that we won't even bother properly testing
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
