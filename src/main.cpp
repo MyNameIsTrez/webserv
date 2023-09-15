@@ -79,7 +79,29 @@ static void swapRemove(T &vector, size_t index)
 	vector.pop_back();
 }
 
-static void removeClient(int fd, nfds_t pfd_index)
+static void removeFd(int &fd)
+{
+	using namespace Signal;
+
+	std::cerr << "    Removing fd " << fd << std::endl;
+
+	size_t pfd_index = fd_to_pfd_index.at(fd);
+	fd_to_pfd_index[pfds.back().fd] = pfd_index;
+	swapRemove(pfds, pfd_index);
+
+	fd_to_pfd_index.erase(fd);
+	fd_to_client_index.erase(fd);
+
+	if (close(fd) == -1)
+	{
+		perror("close");
+		exit(EXIT_FAILURE);
+	}
+
+	fd = -1;
+}
+
+static void removeClient(int fd)
 {
 	using namespace Signal;
 
@@ -90,37 +112,13 @@ static void removeClient(int fd, nfds_t pfd_index)
 	// Close and remove server_to_cgi
 	if (client.server_to_cgi_fd != -1)
 	{
-		size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-		fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
-		swapRemove(pfds, server_to_cgi_pfd_index);
-
-		fd_to_pfd_index.erase(client.server_to_cgi_fd);
-		fd_to_client_index.erase(client.server_to_cgi_fd);
-
-		if (close(client.server_to_cgi_fd) == -1)
-		{
-			perror("close");
-			exit(EXIT_FAILURE);
-		}
-		client.server_to_cgi_fd = -1;
+		removeFd(client.server_to_cgi_fd);
 	}
 
 	// Close and remove cgi_to_server_fd
 	if (client.cgi_to_server_fd != -1)
 	{
-		size_t cgi_to_server_pfd_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
-		fd_to_pfd_index[pfds.back().fd] = cgi_to_server_pfd_index;
-		swapRemove(pfds, cgi_to_server_pfd_index);
-
-		fd_to_pfd_index.erase(client.cgi_to_server_fd);
-		fd_to_client_index.erase(client.cgi_to_server_fd);
-
-		if (close(client.cgi_to_server_fd) == -1)
-		{
-			perror("close");
-			exit(EXIT_FAILURE);
-		}
-		client.cgi_to_server_fd = -1;
+		removeFd(client.cgi_to_server_fd);
 	}
 
 	if (client.cgi_pid != -1)
@@ -130,24 +128,12 @@ static void removeClient(int fd, nfds_t pfd_index)
 		// TODO: Should we kill()/signal() the child CGI process to prevent them being zombies?
 	}
 
-	fd_to_pfd_index.erase(client.client_fd);
-	fd_to_pfd_index[pfds.back().fd] = pfd_index;
-	swapRemove(pfds, pfd_index);
-
-	// TODO: Is it possible for client.client_fd to have already been closed and erased?
+	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
 	size_t client_index = fd_to_client_index.at(client.client_fd);
-
-	fd_to_client_index.erase(client.client_fd);
 	fd_to_client_index[clients.back().client_fd] = client_index;
-
 	swapRemove(clients, client_index);
 
-	if (close(client.client_fd) == -1)
-	{
-		perror("close");
-		exit(EXIT_FAILURE);
-	}
-	client.client_fd = -1;
+	removeFd(client.client_fd);
 }
 
 static void printEvents(const pollfd &pfd)
@@ -193,23 +179,9 @@ static void removeServerToCGI(Client &client)
 {
 	using namespace Signal;
 
-	std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
-
 	client.cgi_write_state = CGIWriteState::DONE;
 
-	size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-	fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
-	swapRemove(pfds, server_to_cgi_pfd_index);
-
-	fd_to_pfd_index.erase(client.server_to_cgi_fd);
-	fd_to_client_index.erase(client.server_to_cgi_fd);
-
-	if (close(client.server_to_cgi_fd) == -1)
-	{
-		perror("close");
-		exit(EXIT_FAILURE);
-	}
-	client.server_to_cgi_fd = -1;
+	removeFd(client.server_to_cgi_fd);
 }
 
 static void pollhupCGIToServer(int fd)
@@ -245,19 +217,7 @@ static void pollhupCGIToServer(int fd)
 		assert(client.cgi_to_server_fd != -1);
 		client.cgi_read_state = CGIReadState::DONE;
 
-		std::cerr << "    Removing cgi_to_server from pfds" << std::endl;
-		size_t cgi_to_server_pfd_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
-		fd_to_pfd_index[pfds.back().fd] = cgi_to_server_pfd_index;
-		swapRemove(pfds, cgi_to_server_pfd_index);
-
-		fd_to_pfd_index.erase(client.cgi_to_server_fd);
-		fd_to_client_index.erase(client.cgi_to_server_fd);
-
-		if (close(client.cgi_to_server_fd) == -1)
-		{
-			perror("close");
-			exit(EXIT_FAILURE);
-		}
+		removeFd(client.cgi_to_server_fd);
 		client.cgi_to_server_fd = -1;
 	}
 }
@@ -272,20 +232,7 @@ static void pollhupCGIExitDetector(int fd)
 
 	assert(client.cgi_exit_detector_fd != -1);
 
-	std::cerr << "    Removing cgi_exit_detector from pfds" << std::endl;
-	size_t cgi_exit_detector_pfd_index = fd_to_pfd_index.at(client.cgi_exit_detector_fd);
-	fd_to_pfd_index[pfds.back().fd] = cgi_exit_detector_pfd_index;
-	swapRemove(pfds, cgi_exit_detector_pfd_index);
-
-	fd_to_pfd_index.erase(client.cgi_exit_detector_fd);
-	fd_to_client_index.erase(client.cgi_exit_detector_fd);
-
-	if (close(client.cgi_exit_detector_fd) == -1)
-	{
-		perror("close");
-		exit(EXIT_FAILURE);
-	}
-	client.cgi_exit_detector_fd = -1;
+	removeFd(client.cgi_exit_detector_fd);
 }
 
 static void acceptClient(int server_fd, std::unordered_map<int, FdType::FdType> &fd_to_fd_type)
@@ -631,7 +578,7 @@ int main(void)
 				// If there was an error, remove the client, and close all its file descriptors
 				if (pfds[pfd_index].revents & POLLERR)
 				{
-					removeClient(fd, pfd_index);
+					removeClient(fd);
 					continue;
 				}
 
