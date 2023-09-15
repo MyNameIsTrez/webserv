@@ -31,6 +31,7 @@
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
 const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
 
+// TODO: Nuke this shit
 namespace Signal
 {
 	bool shutting_down_gracefully = false;
@@ -51,6 +52,8 @@ namespace Signal
 // 	exit(EXIT_FAILURE);
 // }
 
+// TODO: Don't let fd_to_client_index nor clients be passed in, by just getting it from the member variable;
+// TODO: Do the same for other methods that are getting useless args!
 // This is called in many spots
 // due to the fact that client pointer can dangle
 // whenever the clients vector resizes
@@ -58,71 +61,6 @@ static Client &getClient(const std::unordered_map<int, size_t> &fd_to_client_ind
 {
 	size_t client_index = fd_to_client_index.at(fd);
 	return clients[client_index];
-}
-
-// TODO: Replace this signal handler with a pipe-hup based approach:
-// https://stackoverflow.com/a/8976461/13279557
-//
-// Source: https://stackoverflow.com/a/22940622/13279557
-static void sigChildHandler(int signum)
-{
-	using namespace Signal;
-
-	pid_t child_pid;
-	int child_exit_status;
-
-	(void)signum;
-
-	// Reaps all children that have exited
-	// waitpid() returns 0 if no more children can be reaped right now
-	// WNOHANG guarantees that this call doesn't block
-	// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
-	while ((child_pid = waitpid(-1, &child_exit_status, WNOHANG)) > 0)
-	{
-		if (WIFEXITED(child_exit_status))
-		{
-			std::cerr << "PID " << child_pid << " exited normally. Exit status: " << WEXITSTATUS(child_exit_status) << std::endl;
-		}
-		else if (WIFSTOPPED(child_exit_status))
-		{
-			std::cerr << "PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
-		}
-		else if (WIFSIGNALED(child_exit_status))
-		{
-			std::cerr << "PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
-		}
-		else
-		{
-			// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-			assert(false);
-		}
-
-		int client_fd = cgi_pid_to_client_fd.at(child_pid);
-		size_t client_index = fd_to_client_index.at(client_fd);
-		Client &client = clients.at(client_index);
-
-		assert(client.client_read_state == ClientReadState::DONE);
-		assert(client.cgi_write_state == CGIWriteState::DONE);
-		assert(client.cgi_read_state == CGIReadState::DONE);
-		assert(client.client_write_state != ClientWriteState::DONE);
-
-		client.cgi_exit_status = child_exit_status;
-
-		size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-		std::cerr << "    Enabling client POLLOUT" << std::endl;
-		pfds[client_pfd_index].events |= POLLOUT;
-
-		client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
-
-		client.prependResponseHeader();
-	}
-	// TODO: Decide what to do when errno is EINTR
-	// errno is set to ECHILD when there are no children left to wait for
-	if (child_pid == -1 && errno != ECHILD)
-	{
-		perror("waitpid");
-		exit(EXIT_FAILURE);
-	}
 }
 
 static void sigIntHandler(int signum)
@@ -251,6 +189,29 @@ static void pollhupServerToCGI()
 	// pfds[server_to_cgi_pfd_index].events &= ~POLLOUT;
 }
 
+static void removeServerToCGI(Client &client)
+{
+	using namespace Signal;
+
+	std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
+
+	client.cgi_write_state = CGIWriteState::DONE;
+
+	size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+	fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
+	swapRemove(pfds, server_to_cgi_pfd_index);
+
+	fd_to_pfd_index.erase(client.server_to_cgi_fd);
+	fd_to_client_index.erase(client.server_to_cgi_fd);
+
+	if (close(client.server_to_cgi_fd) == -1)
+	{
+		perror("close");
+		exit(EXIT_FAILURE);
+	}
+	client.server_to_cgi_fd = -1;
+}
+
 static void pollhupCGIToServer(int fd)
 {
 	using namespace Signal;
@@ -276,22 +237,7 @@ static void pollhupCGIToServer(int fd)
 	// We don't care that we could've written some more of the client's body
 	if (client.server_to_cgi_fd != -1)
 	{
-		client.cgi_write_state = CGIWriteState::DONE;
-
-		std::cerr << "    Removing server_to_cgi from pfds" << std::endl;
-		size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-		fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
-		swapRemove(pfds, server_to_cgi_pfd_index);
-
-		fd_to_pfd_index.erase(client.server_to_cgi_fd);
-		fd_to_client_index.erase(client.server_to_cgi_fd);
-
-		if (close(client.server_to_cgi_fd) == -1)
-		{
-			perror("close");
-			exit(EXIT_FAILURE);
-		}
-		client.server_to_cgi_fd = -1;
+		removeServerToCGI(client);
 	}
 
 	// Close and remove cgi_to_server
@@ -314,6 +260,32 @@ static void pollhupCGIToServer(int fd)
 		}
 		client.cgi_to_server_fd = -1;
 	}
+}
+
+static void pollhupCGIExitDetector(int fd)
+{
+	using namespace Signal;
+
+	std::cerr << "  In pollhupCGIExitDetector()" << std::endl;
+
+	Client &client = getClient(fd_to_client_index, fd, clients);
+
+	assert(client.cgi_exit_detector_fd != -1);
+
+	std::cerr << "    Removing cgi_exit_detector from pfds" << std::endl;
+	size_t cgi_exit_detector_pfd_index = fd_to_pfd_index.at(client.cgi_exit_detector_fd);
+	fd_to_pfd_index[pfds.back().fd] = cgi_exit_detector_pfd_index;
+	swapRemove(pfds, cgi_exit_detector_pfd_index);
+
+	fd_to_pfd_index.erase(client.cgi_exit_detector_fd);
+	fd_to_client_index.erase(client.cgi_exit_detector_fd);
+
+	if (close(client.cgi_exit_detector_fd) == -1)
+	{
+		perror("close");
+		exit(EXIT_FAILURE);
+	}
+	client.cgi_exit_detector_fd = -1;
 }
 
 static void acceptClient(int server_fd, std::unordered_map<int, FdType::FdType> &fd_to_fd_type)
@@ -349,6 +321,7 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 
 	int server_to_cgi_tube[2];
 	int cgi_to_server_tube[2];
+	int cgi_exit_detector_tube[2];
 
 	if (pipe(server_to_cgi_tube) == -1)
 	{
@@ -356,6 +329,11 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 		return false;
 	}
 	if (pipe(cgi_to_server_tube) == -1)
+	{
+		perror("pipe");
+		return false;
+	}
+	if (pipe(cgi_exit_detector_tube) == -1)
 	{
 		perror("pipe");
 		return false;
@@ -373,6 +351,7 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 
 		close(server_to_cgi_tube[PIPE_WRITE_INDEX]);
 		close(cgi_to_server_tube[PIPE_READ_INDEX]);
+		close(cgi_exit_detector_tube[PIPE_READ_INDEX]);
 
 		if (dup2(server_to_cgi_tube[PIPE_READ_INDEX], STDIN_FILENO) == -1)
 		{
@@ -402,9 +381,10 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 	}
 
 	close(server_to_cgi_tube[PIPE_READ_INDEX]);
-	// std::cerr << "    Server closed server_to_cgi_tube[PIPE_READ_INDEX] fd " << server_to_cgi_tube[PIPE_READ_INDEX] << std::endl;
 	close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
-	// std::cerr << "    Server closed cgi_to_server_tube[PIPE_WRITE_INDEX] fd " << cgi_to_server_tube[PIPE_WRITE_INDEX] << std::endl;
+	// Whether the parent closes its READ or WRITE end might seem like an arbitrary choice,
+	// but it absolutely isn't, since we want to generate a POLLHUP, and not a POLLERR
+	close(cgi_exit_detector_tube[PIPE_WRITE_INDEX]);
 
 	client.cgi_pid = forked_pid;
 
@@ -412,13 +392,13 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 
 	size_t client_index = fd_to_client_index.at(fd);
 
+
 	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
 	fd_to_pfd_index.emplace(server_to_cgi_fd, pfds.size());
 	pollfd server_to_cgi_pfd;
 	server_to_cgi_pfd.fd = server_to_cgi_fd;
 	server_to_cgi_pfd.events = client.body.empty() ? 0 : POLLOUT;
-	// std::cerr << "    have_read_body is " << client.have_read_body << std::endl;
 	pfds.push_back(server_to_cgi_pfd);
 
 	client.server_to_cgi_fd = server_to_cgi_fd;
@@ -428,6 +408,7 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 	fd_to_fd_type.emplace(server_to_cgi_fd, FdType::SERVER_TO_CGI);
 
 	std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+
 
 	int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
 
@@ -444,6 +425,23 @@ static bool startCGI(FdType::FdType fd_type, Client &client, int fd, std::unorde
 	fd_to_fd_type.emplace(cgi_to_server_fd, FdType::CGI_TO_SERVER);
 
 	std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
+
+
+	int cgi_exit_detector_fd = cgi_exit_detector_tube[PIPE_READ_INDEX];
+
+	fd_to_pfd_index.emplace(cgi_exit_detector_fd, pfds.size());
+	pollfd cgi_exit_detector_pfd;
+	cgi_exit_detector_pfd.fd = cgi_exit_detector_fd;
+	cgi_exit_detector_pfd.events = 0; // We're only interested in POLLHUP
+	pfds.push_back(cgi_exit_detector_pfd);
+
+	client.cgi_exit_detector_fd = cgi_exit_detector_fd;
+
+	fd_to_client_index.emplace(cgi_exit_detector_fd, client_index);
+	fd_to_fd_type.emplace(cgi_exit_detector_fd, FdType::CGI_EXIT_DETECTOR);
+
+	std::cerr << "    Added cgi_exit_detector fd " << cgi_exit_detector_fd << std::endl;
+
 
 	return true;
 }
@@ -474,28 +472,12 @@ static void writeServerToCGI(Client &client, nfds_t pfd_index)
 	// If we don't have anything left to write at the moment
 	if (client.body_index == client.body.length())
 	{
-		std::cerr << "    Disabling POLLOUT" << std::endl;
+		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
 		pfds[pfd_index].events &= ~POLLOUT;
 
 		if (client.client_read_state == ClientReadState::DONE)
 		{
-			std::cerr << "    Closing server_to_cgi fd " << client.server_to_cgi_fd << std::endl;
-
-			client.cgi_write_state = CGIWriteState::DONE;
-
-			size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-			fd_to_pfd_index[pfds.back().fd] = server_to_cgi_pfd_index;
-			swapRemove(pfds, server_to_cgi_pfd_index);
-
-			fd_to_pfd_index.erase(client.server_to_cgi_fd);
-			fd_to_client_index.erase(client.server_to_cgi_fd);
-
-			if (close(client.server_to_cgi_fd) == -1)
-			{
-				perror("close");
-				exit(EXIT_FAILURE);
-			}
-			client.server_to_cgi_fd = -1;
+			removeServerToCGI(client);
 		}
 	}
 }
@@ -529,7 +511,7 @@ static void writeToClient(Client &client, int fd, nfds_t pfd_index)
 	// If we don't have anything left to write at the moment
 	if (client.response_index == client.response.length())
 	{
-		std::cerr << "    Disabling POLLOUT" << std::endl;
+		std::cerr << "    Disabling client POLLOUT" << std::endl;
 		pfds[pfd_index].events &= ~POLLOUT;
 	}
 }
@@ -586,7 +568,6 @@ int main(void)
 
 	fd_to_fd_type.emplace(server_fd, FdType::SERVER);
 
-	signal(SIGCHLD, sigChildHandler);
 	signal(SIGINT, sigIntHandler);
 
 	bool servers_active = true;
@@ -673,6 +654,73 @@ int main(void)
 							continue;
 						}
 					}
+					else if (fd_type == FdType::CGI_EXIT_DETECTOR)
+					{
+						// We use a pipe-generating-POLLHUP-based approach, rather than signal(SIGCHLD, handler),
+						// as that's what we did first, and it required a mess of global state
+						// Suggested here as "Approach 1": https://stackoverflow.com/a/8976461/13279557
+
+						pid_t child_pid;
+						int child_exit_status;
+
+						// Reaps all children that have exited
+						// waitpid() returns 0 if no more children can be reaped right now
+						// WNOHANG guarantees that this call doesn't block
+						// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
+						while ((child_pid = waitpid(-1, &child_exit_status, WNOHANG)) > 0)
+						{
+							if (WIFEXITED(child_exit_status))
+							{
+								std::cerr << "    PID " << child_pid << " exited normally. Exit status: " << WEXITSTATUS(child_exit_status) << std::endl;
+							}
+							else if (WIFSTOPPED(child_exit_status))
+							{
+								std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
+							}
+							else if (WIFSIGNALED(child_exit_status))
+							{
+								std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
+							}
+							else
+							{
+								// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
+								assert(false);
+							}
+
+							int client_fd = cgi_pid_to_client_fd.at(child_pid);
+							size_t client_index = fd_to_client_index.at(client_fd);
+							Client &client = clients.at(client_index);
+
+							assert(client.client_read_state == ClientReadState::DONE);
+							assert(client.cgi_write_state == CGIWriteState::DONE);
+							assert(client.cgi_read_state == CGIReadState::DONE);
+							assert(client.client_write_state != ClientWriteState::DONE);
+
+							client.cgi_exit_status = child_exit_status;
+
+							size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
+							std::cerr << "    Enabling client POLLOUT" << std::endl;
+							pfds[client_pfd_index].events |= POLLOUT;
+
+							client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+
+							client.prependResponseHeader();
+						}
+
+						// TODO: Decide what to do when errno is EINTR
+						// errno is set to ECHILD when there are no children left to wait for
+						if (child_pid == -1 && errno != ECHILD)
+						{
+							perror("waitpid");
+							exit(EXIT_FAILURE);
+						}
+
+						pollhupCGIExitDetector(fd);
+
+						// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
+
+						continue;
+					}
 					else
 					{
 						// TODO: Should be unreachable
@@ -695,7 +743,7 @@ int main(void)
 
 						ClientReadState::ClientReadState previous_read_state = client.client_read_state;
 
-						if (!client.readFd(pfds, fd_to_pfd_index, fd_type))
+						if (!client.readFd(pfds, fd_to_pfd_index, fd, fd_type))
 						{
 							// TODO: Print error
 							return EXIT_FAILURE;

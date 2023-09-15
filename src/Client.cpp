@@ -29,6 +29,7 @@ Client::Client(void)
 	  client_fd(0),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
+	  cgi_exit_detector_fd(-1),
 	  cgi_exit_status(-1),
 	  cgi_pid(-1),
 	  _header(),
@@ -52,6 +53,7 @@ Client::Client(Client const &src)
 	  client_fd(src.client_fd),
 	  server_to_cgi_fd(src.server_to_cgi_fd),
 	  cgi_to_server_fd(src.cgi_to_server_fd),
+	  cgi_exit_detector_fd(src.cgi_exit_detector_fd),
 	  cgi_exit_status(src.cgi_exit_status),
 	  cgi_pid(src.cgi_pid),
 	  _header(src._header),
@@ -82,6 +84,7 @@ Client &Client::operator=(Client const &src)
 	this->client_fd = src.client_fd;
 	this->server_to_cgi_fd = src.server_to_cgi_fd;
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
+	this->cgi_exit_detector_fd = src.cgi_exit_detector_fd;
 	this->cgi_exit_status = src.cgi_exit_status,
 	this->cgi_pid = src.cgi_pid;
 	this->_header = src._header;
@@ -107,6 +110,7 @@ Client::Client(int client_fd)
 	  client_fd(client_fd),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
+	  cgi_exit_detector_fd(-1),
 	  cgi_exit_status(-1),
 	  cgi_pid(-1),
 	  _header(),
@@ -116,12 +120,9 @@ Client::Client(int client_fd)
 
 /*	Public member functions */
 
-bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type)
+bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, int fd, FdType::FdType fd_type)
 {
 	char received[MAX_RECEIVED_LEN] = {};
-
-	// TODO: Can this method be removed, and the fd just be passed in? Maybe make it _getFdTypeFromFd()?
-	int fd = _getFdFromFdType(fd_type);
 
 	std::cerr << "    About to call read(" << fd << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
 
@@ -290,21 +291,6 @@ void Client::prependResponseHeader(void)
 
 // 	return ret.str();
 // }
-
-int Client::_getFdFromFdType(FdType::FdType fd_type)
-{
-	if (fd_type == FdType::CLIENT)
-	{
-		return this->client_fd;
-	}
-	if (fd_type == FdType::CGI_TO_SERVER)
-	{
-		return this->cgi_to_server_fd;
-	}
-
-	// TODO: Should be unreachable
-	assert(false);
-}
 
 bool Client::_parseHeaders(void)
 {

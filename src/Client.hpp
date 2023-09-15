@@ -64,7 +64,8 @@ namespace FdType
 		SERVER,
 		CLIENT,
 		SERVER_TO_CGI,
-		CGI_TO_SERVER
+		CGI_TO_SERVER,
+		CGI_EXIT_DETECTOR
 	};
 }
 
@@ -78,7 +79,7 @@ public:
 
 	Client(int client_fd);
 
-	bool readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type);
+	bool readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, int fd, FdType::FdType fd_type);
 
 	void prependResponseHeader(void);
 
@@ -98,11 +99,11 @@ public:
 	int client_fd;
 	int server_to_cgi_fd;
 	int cgi_to_server_fd;
+	int cgi_exit_detector_fd;
 	int cgi_exit_status;
 	pid_t cgi_pid;
 
 private:
-	int _getFdFromFdType(FdType::FdType fd_type);
 	bool _parseHeaders(void);
 	bool _parseStartLine(std::string line);
 
