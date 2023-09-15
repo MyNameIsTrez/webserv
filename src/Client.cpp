@@ -269,6 +269,12 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 	return true;
 }
 
+// TODO: Don't hardcode the header
+void Client::prependResponseHeader(void)
+{
+	this->response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 1\r\n\r\n" + this->response;
+}
+
 /*	Private member functions */
 
 // // TODO: Put in debug.cpp or smth?

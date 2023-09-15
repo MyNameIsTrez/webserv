@@ -60,6 +60,9 @@ static Client &getClient(const std::unordered_map<int, size_t> &fd_to_client_ind
 	return clients[client_index];
 }
 
+// TODO: Replace this signal handler with a pipe-hup based approach:
+// https://stackoverflow.com/a/8976461/13279557
+//
 // Source: https://stackoverflow.com/a/22940622/13279557
 static void sigChildHandler(int signum)
 {
@@ -73,6 +76,7 @@ static void sigChildHandler(int signum)
 	// Reaps all children that have exited
 	// waitpid() returns 0 if no more children can be reaped right now
 	// WNOHANG guarantees that this call doesn't block
+	// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
 	while ((child_pid = waitpid(-1, &child_exit_status, WNOHANG)) > 0)
 	{
 		if (WIFEXITED(child_exit_status))
@@ -109,6 +113,8 @@ static void sigChildHandler(int signum)
 		pfds[client_pfd_index].events |= POLLOUT;
 
 		client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+
+		client.prependResponseHeader();
 	}
 	// TODO: Decide what to do when errno is EINTR
 	// errno is set to ECHILD when there are no children left to wait for

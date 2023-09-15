@@ -5,7 +5,7 @@ def main():
     print("This is printed to stderr by print.py", file=sys.stderr)
 
     # Non-parsed header
-    print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 1\r\n\r\nab")
+    # print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 1\r\n\r\nab")
 
     print(f"argv: {sys.argv}")
 

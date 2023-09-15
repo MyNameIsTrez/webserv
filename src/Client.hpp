@@ -80,6 +80,8 @@ public:
 
 	bool readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, FdType::FdType fd_type);
 
+	void prependResponseHeader(void);
+
 	ClientReadState::ClientReadState client_read_state;
 	CGIWriteState::CGIWriteState cgi_write_state;
 	CGIReadState::CGIReadState cgi_read_state;
