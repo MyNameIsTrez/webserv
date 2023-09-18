@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <poll.h>
+#include <sstream>
 #include <unistd.h>
 #include <vector>
 
@@ -273,7 +274,10 @@ bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, siz
 // TODO: Don't hardcode the header
 void Client::prependResponseHeader(void)
 {
-	this->response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 1\r\n\r\n" + this->response;
+	// TODO: Use cgi_exit_status
+	std::stringstream len_ss;
+	len_ss << this->response.length();
+	this->response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + len_ss.str() + "\r\n\r\n" + this->response;
 }
 
 /*	Private member functions */
