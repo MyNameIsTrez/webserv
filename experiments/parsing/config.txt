@@ -33,9 +33,6 @@ server {
 
 
 
-
+allow_methods GET POST DELETE
 directory_listening=
 default_file=
-method=GET
-method=POST
-method=DELETE

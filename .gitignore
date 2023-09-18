@@ -10,4 +10,10 @@
 !subject.pdf
 !experiments/parsing/Parse.hpp
 !experiments/parsing/Parse.cpp
+!experiments/parsing/ServerData.hpp
+!experiments/parsing/ServerData.cpp
+!experiments/parsing/config.txt
+!experiments/parsing/TODO.txt
+!experiments/parsing/Makefile
+!experiments/parsing/main.cpp
 !TODO.md

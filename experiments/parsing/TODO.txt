@@ -12,9 +12,6 @@ line checks:
  - spaties tussen type, '=' en value negeren, maar spaties in de value worden niet geaccepteerd
 
 
-server block toevoegen
-
-
 • Choose the port and host of each ’server’.
 • Setup the server_names or not.
 • Limit client body size.
