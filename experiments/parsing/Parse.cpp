@@ -1,12 +1,12 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        ::::::::            */
-/*   parse.cpp                                          :+:    :+:            */
+/*   Parse.cpp                                          :+:    :+:            */
 /*                                                     +:+                    */
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/29 11:52:13 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/13 17:31:54 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/18 15:38:44 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -53,77 +53,61 @@ int Parse::get_type(std::string type)
 
 void Parse::save_type(std::string line, std::string type)
 {
-	if (type == "server_name")
-		return (save_server_name(line));
-	else if (type == "listen")
-		return (save_port(line));
-	else if (type == "max_connections")
-		return (save_wc(line));
-	else if (type == "root_path")
-		return (save_root_path(line));
-	else if (type == "index_file")
-		return (save_index_file(line));
+	if (type == "max_connections")
+		return (save_max_connections(line));
 	else
 		return;
 }
 
-// int Parse::call_conversion(std::string type, std::string line)
+// void Parse::save_server_name(std::string line)
 // {
-// 	const static t_jump_function jump_table[] = {
-// 		[server_name] = save_server_name,
-// 	};
-// 	return (jump_table[get_type(type)](line));
+// 	_server_name = line.substr(line.find('=') + 1);
 // }
 
-void Parse::save_server_name(std::string line)
-{
-	_server_name = line.substr(line.find('=') + 1);
-}
+// void Parse::save_port(std::string line)
+// {
+// 	_ports.push_back(std::stof(line.substr(line.find('=') + 1)));
+// }
 
-void Parse::save_port(std::string line)
-{
-	_ports.push_back(std::stof(line.substr(line.find('=') + 1)));
-}
-
-void Parse::save_wc(std::string line)
+void Parse::save_max_connections(std::string line)
 {
 	_max_connections = std::stoi(line.substr(line.find('=') + 1));
 }
 
-void Parse::save_root_path(std::string line)
-{
-	_root_path = line.substr(line.find('=') + 1);
-}
+// void Parse::save_root_path(std::string line)
+// {
+// 	_root_path = line.substr(line.find('=') + 1);
+// }
 
-void Parse::save_index_file(std::string line)
-{
-	_index_file = line.substr(line.find('=') + 1);
-}
+// void Parse::save_index_file(std::string line)
+// {
+// 	_index_file = line.substr(line.find('=') + 1);
+// }
 
-std::string Parse::get_server_name(void)
-{
-	return (_server_name);
-}
+// std::string Parse::get_server_name(void)
+// {
+// 	return (_server_name);
+// }
 
 int Parse::get_connections(void)
 {
 	return (_max_connections);
 }
 
-int Parse::get_port(size_t index)
-{
-	return (_ports.at(index));
-}
+// int Parse::get_port(size_t index)
+// {
+// 	return (_ports.at(index));
+// }
 
-std::string Parse::get_root(void)
-{
-	return (_root_path);
-}
+// std::string Parse::get_root(void)
+// {
+// 	return (_root_path);
+// }
 
-std::string Parse::get_index_file(void)
-{
-	return (_index_file);
-}
+// std::string Parse::get_index_file(void)
+// {
+// 	return (_index_file);
+// }
 
 // int Parse::check_line(std::string line)
 // {
@@ -185,9 +169,8 @@ void Parse::save_config(std::string file)
 	}
 }
 
-void save_error_pages(std::string line, ServerData *new_server)
+void Parse::save_error_pages(std::string line, ServerData *new_server)
 {
-	std::cout << "TEST::::: " << isdigit(' ') << std::endl;
 	int i = line.find("error_page");
 	if (i != line.npos)
 	{
@@ -200,11 +183,11 @@ void save_error_pages(std::string line, ServerData *new_server)
 			{
 				while (isdigit(line.c_str()[i]) != 0)
 				{
-					std::cout << "ep test" << std::endl;
+					// std::cout << "ep test" << std::endl;
 					page *= 10;
 					page += line.c_str()[i] - '0';
 					i++;
-					std::cout << "error_page: " << page << std::endl;
+					// std::cout << "error_page: " << page << std::endl;
 				}
 				new_server->error_pages.insert(std::pair<int, std::string>(page, line.substr(line.find('=') + 2)));
 			}
@@ -213,6 +196,25 @@ void save_error_pages(std::string line, ServerData *new_server)
 	}
 }
 
+void Parse::save_page(std::string line, ServerData *new_server)
+{
+	std::cout << "LOCATION BEGINNING" << std::endl;
+	int page_start = line.find('/');
+	if (page_start == line.npos)
+	{
+		// error
+	}
+	int page_end = line.find('{');
+	if (page_end == line.npos)
+	{
+		// error
+	}
+	std::string page_path = line.substr(page_start, page_end - page_start);
+	std::cout << "LOCATION: " << page_path << std::endl;
+}
+
+// "new_server" zou ik kunnen rewriten zodat het meteen in de "_serverdata" gezet wordt
+// dan hoeven functies zoals save_page en save_error_pages geen "new_server" mee te krijgen
 void Parse::new_server(std::string line, std::ifstream &config)
 {
 	std::cout << "			NEW_SERVER" << std::endl;
@@ -234,6 +236,8 @@ void Parse::new_server(std::string line, std::ifstream &config)
 			}
 			else if (line.find('{') != line.npos)
 				unclosed++;
+			if (line.find("location") != line.npos)
+				save_page(line, &new_server);
 			if (line.find('=') != line.npos)
 			{
 				if (line.find("error_page") != line.npos) // is nog niet beschermd

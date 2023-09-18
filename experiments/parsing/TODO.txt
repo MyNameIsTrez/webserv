@@ -11,12 +11,14 @@ line checks:
  - er wordt iets in de type gezet
  - spaties tussen type, '=' en value negeren, maar spaties in de value worden niet geaccepteerd
 
-
+DONE:
 • Choose the port and host of each ’server’.
 • Setup the server_names or not.
 • Limit client body size.
 • Setup default error pages. // finish locations
 
+
+TODO:
 • The first server for a host:port will be the default for this host:port (that means
 it will answer to all the requests that don’t belong to an other server).
 

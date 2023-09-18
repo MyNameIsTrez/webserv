@@ -9,7 +9,8 @@ server {
 	http_redirection=/
 
 	error_page 404 400 500 = /error/404.html
-	location {
+
+	location /test {
 		root_path=html
 		index_file=index.html
 	}
@@ -25,7 +26,7 @@ server {
 
 	http_redirection=/
 
-	location {
+	location / {
 		root_path=html
 		index_file=index.html
 	}
