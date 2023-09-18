@@ -225,15 +225,13 @@ void Server::run(void)
 							assert(client.cgi_read_state == CGIReadState::DONE);
 							assert(client.client_write_state != ClientWriteState::DONE);
 
-							client.cgi_exit_status = child_exit_status;
-
 							size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
 							std::cerr << "    Enabling client POLLOUT" << std::endl;
 							pfds[client_pfd_index].events |= POLLOUT;
 
 							client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
 
-							client.prependResponseHeader();
+							client.prependResponseHeader(child_exit_status);
 						}
 
 						// TODO: Decide what to do when errno is EINTR

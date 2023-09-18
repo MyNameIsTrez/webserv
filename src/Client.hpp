@@ -83,7 +83,7 @@ public:
 
 	bool readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, int fd, FdType::FdType fd_type);
 
-	void prependResponseHeader(void);
+	void prependResponseHeader(int cgi_exit_status);
 
 	ClientReadState::ClientReadState client_read_state;
 	CGIWriteState::CGIWriteState cgi_write_state;
@@ -102,7 +102,6 @@ public:
 	int server_to_cgi_fd;
 	int cgi_to_server_fd;
 	int cgi_exit_detector_fd;
-	int cgi_exit_status;
 	pid_t cgi_pid;
 
 private:
