@@ -81,7 +81,7 @@ public:
 
 	Client(int client_fd);
 
-	bool readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, int fd, FdType::FdType fd_type);
+	bool appendReadString(char *received, ssize_t bytes_read);
 
 	void prependResponseHeader(int cgi_exit_status);
 
@@ -107,6 +107,7 @@ public:
 private:
 	bool _parseHeaders(void);
 	bool _parseStartLine(std::string line);
+	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
 
 	std::string _header;
 	size_t _content_length;

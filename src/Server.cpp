@@ -17,6 +17,7 @@
 #define CHILD 0
 #define PIPE_READ_INDEX 0
 #define PIPE_WRITE_INDEX 1
+#define MAX_RECEIVED_LEN 50
 
 // TODO: Turn these into static ints inside of a class?
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
@@ -268,23 +269,10 @@ void Server::run(void)
 
 						Client &client = getClient(fd);
 
-						ClientReadState::ClientReadState previous_read_state = client.client_read_state;
-
-						if (!client.readFd(pfds, fd_to_pfd_index, fd, fd_type))
+						if (!readFd(client, fd, fd_type))
 						{
 							// TODO: Print error
 							exit(EXIT_FAILURE);
-						}
-
-						// If we've just started reading this client's body
-						if (previous_read_state != ClientReadState::BODY && client.client_read_state == ClientReadState::BODY)
-						{
-							// TODO: Only run the below code if the request wants to start the CGI
-
-							if (!startCGI(fd_type, client, fd))
-							{
-								exit(EXIT_FAILURE);
-							}
 						}
 					}
 				}
@@ -511,7 +499,109 @@ void Server::acceptClient()
 	fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
 }
 
-bool Server::startCGI(FdType::FdType fd_type, Client &client, int fd)
+bool Server::readFd(Client &client, int fd, FdType::FdType fd_type)
+{
+	char received[MAX_RECEIVED_LEN] = {};
+
+	std::cerr << "    About to call read(" << fd << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
+
+	// TODO: We should never read past the content_length of the BODY
+	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);
+	if (bytes_read == -1)
+	{
+		perror("read");
+		exit(EXIT_FAILURE);
+	}
+	if (bytes_read == 0)
+	{
+		std::cerr << "    Read 0 bytes" << std::endl;
+
+		// TODO: Assert that we reached content_length
+
+		if (fd_type == FdType::CLIENT)
+		{
+			client.client_read_state = ClientReadState::DONE;
+
+			size_t client_pfds_index = fd_to_pfd_index.at(client.client_fd);
+			std::cerr << "    Disabling client POLLIN" << std::endl;
+			pfds[client_pfds_index].events &= ~POLLIN;
+
+			// TODO: Nuke client: start server -> connect client and wait for it to get a response -> connect second client, which should also have fd 4
+			// It DOES NOT generate a HUP!
+			// client.client_write_state = ClientWriteState::DONE;
+			// if (writing_to_cgi_is_done or writing_to_client_is_done)
+			// {
+			// 	removeClient();
+			// }
+		}
+		else if (fd_type == FdType::CGI_TO_SERVER)
+		{
+			client.cgi_read_state = CGIReadState::DONE;
+
+			size_t cgi_to_server_pfds_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
+			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
+			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
+
+			// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
+		}
+
+		return true;
+	}
+
+	assert(client.cgi_read_state != CGIReadState::DONE);
+	assert(client.client_write_state != ClientWriteState::DONE);
+
+	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------" << std::endl;
+
+	if (fd_type == FdType::CLIENT)
+	{
+		ClientReadState::ClientReadState previous_read_state = client.client_read_state;
+
+		if (!client.appendReadString(received, bytes_read))
+		{
+			return false;
+		}
+
+		// If we've just started reading this client's body, start a CGI script
+		if (previous_read_state != ClientReadState::BODY && client.client_read_state == ClientReadState::BODY)
+		{
+			// TODO: Only run the below code if the request wants to start the CGI
+
+			if (!startCGI(client, fd, fd_type))
+			{
+				exit(EXIT_FAILURE);
+			}
+		}
+
+		if ((client.client_read_state == ClientReadState::BODY || client.client_read_state == ClientReadState::DONE) && !client.body.empty())
+		{
+			size_t server_to_cgi_pfds_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
+			pfds[server_to_cgi_pfds_index].events |= POLLOUT;
+		}
+	}
+	else if (fd_type == FdType::CGI_TO_SERVER)
+	{
+		if (client.cgi_read_state == CGIReadState::READING_FROM_CGI)
+		{
+			client.response += std::string(received, bytes_read);
+		}
+		else
+		{
+			// TODO: Should be unreachable
+			assert(false);
+		}
+	}
+	else
+	{
+		// TODO: Should be unreachable
+		assert(false);
+	}
+
+	return true;
+}
+
+bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 {
 	std::cerr << "  Starting CGI..." << std::endl;
 

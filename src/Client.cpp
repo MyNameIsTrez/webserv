@@ -10,6 +10,7 @@
 #include <unistd.h>
 #include <vector>
 
+// TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN server.cpp!!
 #define MAX_RECEIVED_LEN 50
 
 /*	Orthodox Canonical Form */
@@ -117,151 +118,78 @@ Client::Client(int client_fd)
 
 /*	Public member functions */
 
-bool Client::readFd(std::vector<pollfd> &pfds, const std::unordered_map<int, size_t> &fd_to_pfds_index, int fd, FdType::FdType fd_type)
+bool Client::appendReadString(char *received, ssize_t bytes_read)
 {
-	char received[MAX_RECEIVED_LEN] = {};
-
-	std::cerr << "    About to call read(" << fd << ", received, " << MAX_RECEIVED_LEN << ") on fd_type " << fd_type << std::endl;
-
-	// TODO: Never read past the content_length of the BODY
-	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);
-	if (bytes_read == -1)
+	if (this->client_read_state == ClientReadState::HEADER)
 	{
-		perror("read");
-		exit(EXIT_FAILURE);
-	}
-	if (bytes_read == 0)
-	{
-		std::cerr << "    Read 0 bytes" << std::endl;
+		char *received_end = received + bytes_read;
 
-		// TODO: Assert that we reached content_length
-
-		if (fd_type == FdType::CLIENT)
+		// "\r\n\r" + "\n"
+		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
 		{
-			this->client_read_state = ClientReadState::DONE;
-
-			// TODO: Nuke client: start server -> connect client -> Ctrl+C client: should disconnect the client
-			// It DOES NOT generate a HUP!
-			// this->client_write_state = ClientWriteState::DONE;
-
-			size_t client_pfds_index = fd_to_pfds_index.at(this->client_fd);
-			std::cerr << "    Disabling client POLLIN" << std::endl;
-			pfds[client_pfds_index].events &= ~POLLIN;
+			this->_header.append(received, received + 1);
+			this->body.append(received + 1, received_end);
+			this->client_read_state = ClientReadState::BODY;
+			if (!_parseHeaders())
+				return false;
 		}
-		else if (fd_type == FdType::CGI_TO_SERVER)
+		// "\r\n" + "\r\n"
+		else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
 		{
-			this->cgi_read_state = CGIReadState::DONE;
-
-			size_t cgi_to_server_pfds_index = fd_to_pfds_index.at(this->cgi_to_server_fd);
-			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
-			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
-
-			// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
+			this->_header.append(received, received + 2);
+			this->body.append(received + 2, received_end);
+			this->client_read_state = ClientReadState::BODY;
+			if (!_parseHeaders())
+				return false;
 		}
-
-		return true;
-	}
-
-	assert(this->cgi_read_state != CGIReadState::DONE);
-	assert(this->client_write_state != ClientWriteState::DONE);
-
-	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------" << std::endl;
-
-	// TODO: Move this block to its own method
-	if (fd_type == FdType::CLIENT)
-	{
-		if (this->client_read_state == ClientReadState::HEADER)
+		// "\r" + "\n\r\n"
+		else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
 		{
-			char *received_end = received + bytes_read;
+			this->_header.append(received, received + 3);
+			this->body.append(received + 3, received_end);
+			this->client_read_state = ClientReadState::BODY;
+			if (!_parseHeaders())
+				return false;
+		}
+		else
+		{
+			char const rnrn[] = "\r\n\r\n";
+			char *ptr = std::search(received, received_end, rnrn, rnrn + sizeof(rnrn) - 1);
 
-			// "\r\n\r" + "\n"
-			if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
+			// If "\r\n\r\n" isn't found in received
+			if (ptr == received_end)
 			{
-				this->_header.append(received, received + 1);
-				this->body.append(received + 1, received_end);
-				this->client_read_state = ClientReadState::BODY;
-				if (!_parseHeaders())
-					return false;
+				this->_header += std::string(received, bytes_read);
 			}
-			// "\r\n" + "\r\n"
-			else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
-			{
-				this->_header.append(received, received + 2);
-				this->body.append(received + 2, received_end);
-				this->client_read_state = ClientReadState::BODY;
-				if (!_parseHeaders())
-					return false;
-			}
-			// "\r" + "\n\r\n"
-			else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
-			{
-				this->_header.append(received, received + 3);
-				this->body.append(received + 3, received_end);
-				this->client_read_state = ClientReadState::BODY;
-				if (!_parseHeaders())
-					return false;
-			}
+			// If "\r\n\r\n" is found in received
 			else
 			{
-				char const rnrn[] = "\r\n\r\n";
-				char *ptr = std::search(received, received_end, rnrn, rnrn + sizeof(rnrn) - 1);
-
-				// If "\r\n\r\n" isn't found in received
-				if (ptr == received_end)
-				{
-					this->_header += std::string(received, bytes_read);
-				}
-				// If "\r\n\r\n" is found in received
-				else
-				{
-					this->_header.append(received, ptr + 4);  // Include "\r\n\r\n"
-					this->body.append(ptr + 4, received_end); // Skip "\r\n\r\n"
-					this->client_read_state = ClientReadState::BODY;
-					if (!_parseHeaders())
-						return false;
-				}
+				this->_header.append(received, ptr + 4);  // Include "\r\n\r\n"
+				this->body.append(ptr + 4, received_end); // Skip "\r\n\r\n"
+				this->client_read_state = ClientReadState::BODY;
+				if (!_parseHeaders())
+					return false;
 			}
 		}
-		else if (this->client_read_state == ClientReadState::BODY)
-		{
-			body += std::string(received, bytes_read);
-
-			size_t server_to_cgi_pfds_index = fd_to_pfds_index.at(this->server_to_cgi_fd);
-			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			pfds[server_to_cgi_pfds_index].events |= POLLOUT;
-		}
-		else
-		{
-			// TODO: Should be unreachable
-			assert(false);
-		}
-
-		// TODO: Replace this with Victor's parsed content length value
-		// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
-		// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
-		if (this->body == "hello world\n")
-		{
-			std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------" << std::endl;
-
-			this->client_read_state = ClientReadState::DONE;
-		}
 	}
-	else if (fd_type == FdType::CGI_TO_SERVER)
+	else if (this->client_read_state == ClientReadState::BODY)
 	{
-		if (this->cgi_read_state == CGIReadState::READING_FROM_CGI)
-		{
-			response += std::string(received, bytes_read);
-		}
-		else
-		{
-			// TODO: Should be unreachable
-			assert(false);
-		}
+		body += std::string(received, bytes_read);
 	}
 	else
 	{
 		// TODO: Should be unreachable
 		assert(false);
+	}
+
+	// TODO: Replace this with Victor's parsed content length value
+	// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
+	// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
+	if (this->body == "hello world\n")
+	{
+		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------" << std::endl;
+
+		this->client_read_state = ClientReadState::DONE;
 	}
 
 	return true;
@@ -408,3 +336,14 @@ bool Client::_parseStartLine(std::string line)
 		return false;
 	return true;
 }
+
+// std::string Client::_replace_all(std::string input, const std::string& needle, const std::string& replacement)
+// {
+// 	size_t start_pos = 0;
+// 	while((start_pos = input.find(needle, start_pos)) != std::string::npos)
+// 	{
+// 		input.replace(start_pos, needle.length(), replacement);
+// 		start_pos += replacement.length(); // Handles case where 'replacement' is a substring of 'needle'
+// 	}
+// 	return input;
+// }
