@@ -5,7 +5,8 @@
 !experiments/*.[ch]pp
 !rfcs/*.pdf
 !src/*.[ch]pp
-!tests/posted.txt
+!tests/empty.txt
+!tests/hello.txt
 !YoupiBanane/**
 !.gitignore
 !fn_descriptions.c
