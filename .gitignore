@@ -1,10 +1,10 @@
 *
 !*/
 !.vscode/settings.json
+!cgi-bin/*.py
 !experiments/*.[ch]pp
 !rfcs/*.pdf
 !src/*.[ch]pp
-!src/*.py
 !tests/posted.txt
 !YoupiBanane/**
 !.gitignore

@@ -21,7 +21,7 @@ def main():
     sys.stdout.close()
 
     # TODO: Probably want to comment this out before handing in
-    time.sleep(2)
+    time.sleep(3)
 
     # TODO: Test that this sends a "CGI failed" page to the client
     exit(2)

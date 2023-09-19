@@ -676,7 +676,7 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 		std::cerr << "    Child is going to exec Python" << std::endl;
 		// TODO: Define Python path in configuration file?
 		const char *path = "/usr/bin/python3";
-		char *const argv[] = {(char *)"python3", (char *)"print.py", NULL};
+		char *const argv[] = {(char *)"python3", (char *)"cgi-bin/print.py", NULL};
 
 		// TODO: Construct cgi_env using header_map
 		char *cgi_env[] = {NULL};
