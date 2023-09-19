@@ -49,6 +49,7 @@ This will print localhost's response: (by search-and-replacing example.com)
 - First run `export REQUEST_METHOD="GET" SERVER_PROTOCOL="HTTP/1.1" PATH_INFO="/foo/bar"`
 - Then run `./cgi_tester`, and press Enter once
 
-## Using curl for POST request
+## Using curl
 
-- `curl -XPOST localhost:18000 --data-binary "@tests/posted.txt"`
+- GET: `curl -XGET localhost:18000`
+- POST: `curl -XPOST localhost:18000 --data-binary "@tests/hello.txt"`

@@ -10,7 +10,7 @@
 #include <unistd.h>
 #include <vector>
 
-// TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN server.cpp!!
+// TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN Server.cpp!
 #define MAX_RECEIVED_LEN 50
 
 /*	Orthodox Canonical Form */
@@ -160,7 +160,7 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 	// TODO: Replace this with Victor's parsed content length value
 	// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
 	// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
-	if (this->body == "hello world\n")
+	if (this->body == "hello world\n" || this->_header.substr(0, 3) == "GET")
 	{
 		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------" << std::endl;
 

@@ -22,6 +22,8 @@
 - [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
 - [ ] Let Client hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
+- [ ] Refactor appendReadString() so it uses substr() together with find("\r\n\r\n") to separate the header from the body?
+- [ ] 3xx is redirect; 4xx is not available; 5xx server error
 
 ## Victor
 

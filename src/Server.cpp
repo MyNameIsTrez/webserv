@@ -48,6 +48,7 @@ Server::Server(void)
 	// TODO: This can *still* cause "Address already in use",
 	// as described by the "Strategies for Avoidance" section here:
 	// https://hea-www.harvard.edu/~fine/Tech/addrinuse.html
+	// Which was linked here: https://stackoverflow.com/a/41490982/13279557
 	// Enables local address reuse
 	// This prevents socket() calls from possibly returning an error on server restart
 	// "the parameter should be non-zero to enable a boolean option"
@@ -535,6 +536,8 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 
 		if (fd_type == FdType::CLIENT)
 		{
+			// TODO: Probably need to send the client a response like "expected more body bytes" if it's less than content_length
+
 			// client.client_read_state = ClientReadState::DONE;
 
 			// size_t client_pfds_index = fd_to_pfd_index.at(client.client_fd);
@@ -587,11 +590,11 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 
 			if (!startCGI(client, fd, fd_type))
 			{
-				exit(EXIT_FAILURE);
+				return false;
 			}
 		}
 
-		if ((client.client_read_state == ClientReadState::BODY || client.client_read_state == ClientReadState::DONE) && !client.body.empty())
+		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty())
 		{
 			size_t server_to_cgi_pfds_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
 			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
@@ -699,10 +702,20 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 	size_t client_index = fd_to_client_index.at(fd);
 
 	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
-	addCGIFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
-	client.server_to_cgi_fd = server_to_cgi_fd;
-	client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
-	std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+
+	// If this is a GET or a POST with an empty body, immediately close server_to_cgi_fd
+	if (client.client_read_state == ClientReadState::DONE && client.body.empty())
+	{
+		close(server_to_cgi_fd);
+		client.cgi_write_state = CGIWriteState::DONE;
+	}
+	else
+	{
+		addCGIFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
+		client.server_to_cgi_fd = server_to_cgi_fd;
+		client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
+		std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+	}
 
 	int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
 	addCGIFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
@@ -794,10 +807,4 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 		std::cerr << "    Disabling client POLLOUT" << std::endl;
 		pfds[pfd_index].events &= ~POLLOUT;
 	}
-
-	// TODO: If the client.content_length tells us that we won't ever have anything to write again to the client
-	// if (client.content_length ??)
-	// {
-	// 	client.client_write_state = ClientWriteState::DONE;
-	// }
 }

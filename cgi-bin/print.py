@@ -11,7 +11,9 @@ def main():
 
     # TODO: Test closing stdin
 
+    print("Before reading stdin", file=sys.stderr)
     print(f"stdin: {sys.stdin.readlines()}")
+    print("After reading stdin", file=sys.stderr)
 
     print(f"env: {json.dumps(dict(os.environ), sort_keys=True, indent=4)}")
 
