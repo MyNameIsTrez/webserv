@@ -17,7 +17,7 @@
 #define CHILD 0
 #define PIPE_READ_INDEX 0
 #define PIPE_WRITE_INDEX 1
-#define MAX_RECEIVED_LEN 50
+#define MAX_RECEIVED_LEN 200
 
 // TODO: Turn these into static ints inside of a class?
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
@@ -580,8 +580,8 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 			return false;
 		}
 
-		// If we've just started reading this client's body, start a CGI script
-		if (previous_read_state != ClientReadState::BODY && client.client_read_state == ClientReadState::BODY)
+		// If we've just started reading/entirely read this client's body, start a CGI script
+		if (previous_read_state == ClientReadState::HEADER && client.client_read_state != ClientReadState::HEADER)
 		{
 			// TODO: Only run the below code if the request wants to start the CGI
 
