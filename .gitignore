@@ -9,6 +9,7 @@
 !YoupiBanane/**
 !.gitignore
 !fn_descriptions.c
+!Makefile
 !README.md
 !subject.pdf
 !TODO.md
