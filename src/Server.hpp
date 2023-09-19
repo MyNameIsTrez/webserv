@@ -29,7 +29,7 @@ private:
 	void removeServerToCGI(Client &client);
 	void pollhupCGIExitDetector(int fd);
 	void acceptClient();
-	bool readFd(Client &client, int fd, FdType::FdType fd_type);
+	bool readFd(Client &client, int fd, FdType::FdType fd_type, bool &removed_client);
 	bool startCGI(Client &client, int fd, FdType::FdType fd_type);
 	void addCGIFd(int cgi_fd, size_t client_index, FdType::FdType fd_type, short int events);
 	void writeServerToCGI(Client &client, nfds_t pfd_index);

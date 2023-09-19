@@ -45,6 +45,9 @@ Server::Server(void)
 		exit(EXIT_FAILURE);
 	}
 
+	// TODO: This can *still* cause "Address already in use",
+	// as described by the "Strategies for Avoidance" section here:
+	// https://hea-www.harvard.edu/~fine/Tech/addrinuse.html
 	// Enables local address reuse
 	// This prevents socket() calls from possibly returning an error on server restart
 	// "the parameter should be non-zero to enable a boolean option"
@@ -187,7 +190,7 @@ void Server::run(void)
 					else if (fd_type == FdType::CGI_EXIT_DETECTOR)
 					{
 						// We use a pipe-generating-POLLHUP-based approach, rather than signal(SIGCHLD, handler),
-						// as that's what we did first, and it required a mess of global state
+						// as the signal approach is what we did first and required a mess of global state
 						// Suggested here as "Approach 1": https://stackoverflow.com/a/8976461/13279557
 
 						pid_t child_pid;
@@ -197,6 +200,7 @@ void Server::run(void)
 						// waitpid() returns 0 if no more children can be reaped right now
 						// WNOHANG guarantees that this call doesn't block
 						// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
+						// TODO: Are there other options we should use?
 						while ((child_pid = waitpid(-1, &child_exit_status, WNOHANG)) > 0)
 						{
 							if (WIFEXITED(child_exit_status))
@@ -269,10 +273,18 @@ void Server::run(void)
 
 						Client &client = getClient(fd);
 
-						if (!readFd(client, fd, fd_type))
+						// TODO: Consider replacing all "continue"s with this bool
+						bool removed_client = false;
+
+						if (!readFd(client, fd, fd_type, removed_client))
 						{
 							// TODO: Print error
 							exit(EXIT_FAILURE);
+						}
+
+						if (removed_client)
+						{
+							continue;
 						}
 					}
 				}
@@ -345,16 +357,19 @@ void Server::removeClient(int fd)
 
 	Client &client = getClient(fd);
 
-	// Close and remove server_to_cgi
 	if (client.server_to_cgi_fd != -1)
 	{
 		removeFd(client.server_to_cgi_fd);
 	}
 
-	// Close and remove cgi_to_server_fd
 	if (client.cgi_to_server_fd != -1)
 	{
 		removeFd(client.cgi_to_server_fd);
+	}
+
+	if (client.cgi_exit_detector_fd != -1)
+	{
+		removeFd(client.cgi_exit_detector_fd);
 	}
 
 	if (client.cgi_pid != -1)
@@ -499,7 +514,7 @@ void Server::acceptClient()
 	fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
 }
 
-bool Server::readFd(Client &client, int fd, FdType::FdType fd_type)
+bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &removed_client)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
@@ -520,18 +535,21 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type)
 
 		if (fd_type == FdType::CLIENT)
 		{
-			client.client_read_state = ClientReadState::DONE;
+			// client.client_read_state = ClientReadState::DONE;
 
-			size_t client_pfds_index = fd_to_pfd_index.at(client.client_fd);
-			std::cerr << "    Disabling client POLLIN" << std::endl;
-			pfds[client_pfds_index].events &= ~POLLIN;
+			// size_t client_pfds_index = fd_to_pfd_index.at(client.client_fd);
+			// std::cerr << "    Disabling client POLLIN" << std::endl;
+			// pfds[client_pfds_index].events &= ~POLLIN;
 
 			// TODO: Nuke client: start server -> connect client and wait for it to get a response -> connect second client, which should also have fd 4
 			// It DOES NOT generate a HUP!
 			// client.client_write_state = ClientWriteState::DONE;
-			// if (writing_to_cgi_is_done or writing_to_client_is_done)
+
+			// writing_to_cgi_is_done or
+			// if (client.client_write_state == ClientWriteState::DONE)
 			// {
-			// 	removeClient();
+			removeClient(client.client_fd);
+			removed_client = true;
 			// }
 		}
 		else if (fd_type == FdType::CGI_TO_SERVER)
@@ -776,4 +794,10 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 		std::cerr << "    Disabling client POLLOUT" << std::endl;
 		pfds[pfd_index].events &= ~POLLOUT;
 	}
+
+	// TODO: If the client.content_length tells us that we won't ever have anything to write again to the client
+	// if (client.content_length ??)
+	// {
+	// 	client.client_write_state = ClientWriteState::DONE;
+	// }
 }
