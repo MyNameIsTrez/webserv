@@ -15,84 +15,6 @@
 
 /*	Orthodox Canonical Form */
 
-Client::Client(void)
-	: client_read_state(ClientReadState::HEADER),
-	  cgi_write_state(CGIWriteState::NOT_WRITING),
-	  cgi_read_state(CGIReadState::NOT_READING),
-	  client_write_state(ClientWriteState::NOT_WRITING),
-	  request_method(),
-	  path(),
-	  protocol(),
-	  header_map(),
-	  body(),
-	  body_index(0),
-	  response(),
-	  response_index(0),
-	  client_fd(0),
-	  server_to_cgi_fd(-1),
-	  cgi_to_server_fd(-1),
-	  cgi_exit_detector_fd(-1),
-	  cgi_pid(-1),
-	  _header(),
-	  _content_length(0)
-{
-}
-
-Client::Client(Client const &src)
-	: client_read_state(src.client_read_state),
-	  cgi_write_state(src.cgi_write_state),
-	  cgi_read_state(src.cgi_read_state),
-	  client_write_state(src.client_write_state),
-	  request_method(src.request_method),
-	  path(src.path),
-	  protocol(src.protocol),
-	  header_map(src.header_map), // TODO: Check whether this correctly copies
-	  body(src.body),
-	  body_index(src.body_index),
-	  response(src.body),
-	  response_index(0), // TODO: Why does this differ from what is done in the copy assignment overload?
-	  client_fd(src.client_fd),
-	  server_to_cgi_fd(src.server_to_cgi_fd),
-	  cgi_to_server_fd(src.cgi_to_server_fd),
-	  cgi_exit_detector_fd(src.cgi_exit_detector_fd),
-	  cgi_pid(src.cgi_pid),
-	  _header(src._header),
-	  _content_length(0) // TODO: Why does this differ from what is done in the copy assignment overload?
-{
-}
-
-Client::~Client(void)
-{
-}
-
-Client &Client::operator=(Client const &src)
-{
-	if (this == &src)
-		return *this;
-	this->client_read_state = src.client_read_state;
-	this->cgi_write_state = src.cgi_write_state;
-	this->cgi_read_state = src.cgi_read_state;
-	this->client_write_state = src.client_write_state;
-	this->request_method = src.request_method;
-	this->path = src.path;
-	this->protocol = src.protocol;
-	this->header_map = src.header_map; // TODO: Check whether this correctly copies
-	this->body = src.body;
-	this->body_index = src.body_index;
-	this->response = src.response;
-	this->response_index = src.response_index; // TODO: Why does this differ from what is done in the copy constructor?
-	this->client_fd = src.client_fd;
-	this->server_to_cgi_fd = src.server_to_cgi_fd;
-	this->cgi_to_server_fd = src.cgi_to_server_fd;
-	this->cgi_exit_detector_fd = src.cgi_exit_detector_fd;
-	this->cgi_pid = src.cgi_pid;
-	this->_header = src._header;
-	this->_content_length = src._content_length; // TODO: Why does this differ from what is done in the copy constructor?
-	return *this;
-}
-
-/*	Other constructors */
-
 Client::Client(int client_fd)
 	: client_read_state(ClientReadState::HEADER),
 	  cgi_write_state(CGIWriteState::NOT_WRITING),
@@ -114,6 +36,59 @@ Client::Client(int client_fd)
 	  _header(),
 	  _content_length(0)
 {
+}
+
+Client::Client(Client const &src)
+	: client_read_state(src.client_read_state),
+	  cgi_write_state(src.cgi_write_state),
+	  cgi_read_state(src.cgi_read_state),
+	  client_write_state(src.client_write_state),
+	  request_method(src.request_method),
+	  path(src.path),
+	  protocol(src.protocol),
+	  header_map(src.header_map),
+	  body(src.body),
+	  body_index(src.body_index),
+	  response(src.body),
+	  response_index(src.response_index),
+	  client_fd(src.client_fd),
+	  server_to_cgi_fd(src.server_to_cgi_fd),
+	  cgi_to_server_fd(src.cgi_to_server_fd),
+	  cgi_exit_detector_fd(src.cgi_exit_detector_fd),
+	  cgi_pid(src.cgi_pid),
+	  _header(src._header),
+	  _content_length(src._content_length)
+{
+}
+
+Client::~Client(void)
+{
+}
+
+Client &Client::operator=(Client const &src)
+{
+	if (this == &src)
+		return *this;
+	this->client_read_state = src.client_read_state;
+	this->cgi_write_state = src.cgi_write_state;
+	this->cgi_read_state = src.cgi_read_state;
+	this->client_write_state = src.client_write_state;
+	this->request_method = src.request_method;
+	this->path = src.path;
+	this->protocol = src.protocol;
+	this->header_map = src.header_map;
+	this->body = src.body;
+	this->body_index = src.body_index;
+	this->response = src.response;
+	this->response_index = src.response_index;
+	this->client_fd = src.client_fd;
+	this->server_to_cgi_fd = src.server_to_cgi_fd;
+	this->cgi_to_server_fd = src.cgi_to_server_fd;
+	this->cgi_exit_detector_fd = src.cgi_exit_detector_fd;
+	this->cgi_pid = src.cgi_pid;
+	this->_header = src._header;
+	this->_content_length = src._content_length;
+	return *this;
 }
 
 /*	Public member functions */

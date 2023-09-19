@@ -74,12 +74,10 @@ namespace FdType
 class Client
 {
 public:
-	Client(void);
+	Client(int client_fd);
 	Client(Client const &src);
 	virtual ~Client(void);
 	Client &operator=(Client const &src);
-
-	Client(int client_fd);
 
 	bool appendReadString(char *received, ssize_t bytes_read);
 
@@ -105,6 +103,8 @@ public:
 	pid_t cgi_pid;
 
 private:
+	Client(void);
+
 	bool _parseHeaders(void);
 	bool _parseStartLine(std::string line);
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
