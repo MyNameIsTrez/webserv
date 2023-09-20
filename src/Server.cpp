@@ -133,6 +133,7 @@ void Server::run(void)
 		}
 
 		std::cerr << "Waiting on an event..." << std::endl;
+		// TODO: Consider having a timeout of 5000 ms or something again
 		int event_count = poll(pfds.data(), pfds.size(), -1);
 		if (event_count == -1)
 		{
@@ -143,6 +144,10 @@ void Server::run(void)
 			perror("poll");
 			exit(EXIT_FAILURE);
 		}
+		// else if (event_count == 0)
+		// {
+		// 	std::cerr << "poll() timed out" << std::endl;
+		// }
 
 		for (nfds_t pfd_index = pfds.size(); pfd_index > 0;)
 		{
@@ -424,21 +429,8 @@ void Server::pollhupServerToCGI()
 {
 	std::cerr << "  In pollhupServerToCGI()" << std::endl;
 
-	// TODO: ??
+	// TODO: ?? Test this by having a Python script close its stdin
 	assert(false);
-
-	// Client &client = getClient(fd);
-
-	// client.client_read_state = ClientReadState::DONE;
-
-	// size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-	// std::cerr << "    Disabling client POLLIN" << std::endl;
-	// pfds[client_pfd_index].events &= ~POLLIN;
-
-	// client.cgi_write_state = CGIWriteState::DONE;
-	// size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
-	// std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
-	// pfds[server_to_cgi_pfd_index].events &= ~POLLOUT;
 }
 
 void Server::pollhupCGIToServer(int fd)
@@ -458,6 +450,7 @@ void Server::pollhupCGIToServer(int fd)
 		size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
 		std::cerr << "    Disabling client POLLIN" << std::endl;
 		pfds[client_pfd_index].events &= ~POLLIN;
+		pfds[client_pfd_index].revents &= ~POLLIN;
 	}
 
 	// Close and remove server_to_cgi
@@ -549,6 +542,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 			size_t cgi_to_server_pfds_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
 			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
 			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
+			pfds[cgi_to_server_pfds_index].revents &= ~POLLIN;
 
 			// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 		}
@@ -757,6 +751,7 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 	{
 		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
 		pfds[pfd_index].events &= ~POLLOUT;
+		pfds[pfd_index].revents &= ~POLLOUT;
 
 		if (client.client_read_state == ClientReadState::DONE)
 		{
@@ -794,5 +789,6 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 	{
 		std::cerr << "    Disabling client POLLOUT" << std::endl;
 		pfds[pfd_index].events &= ~POLLOUT;
+		pfds[pfd_index].revents &= ~POLLOUT;
 	}
 }
