@@ -22,8 +22,7 @@
 - [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
 - [ ] Let Client hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
-- [ ] Refactor appendReadString() so it uses substr() together with find("\r\n\r\n") to separate the header from the body?
-- [ ] 3xx is redirect; 4xx is not available; 5xx server error
+- [ ] Make sure all error code pages are correctly sent: 3xx is redirect; 4xx is not available; 5xx is server error
 
 ## Victor
 
@@ -50,6 +49,7 @@
 - Do we want to support non-parsed headers? See https://docstore.mik.ua/orelly/linux/cgi/ch03_03.htm#ch03-10-fm2xml
 - Do we want to support having multiple Server instances active at the same time? If so, test it thoroughly
 - Discuss removing Client's copy constructor and copy assignment operator, since it's a hazard that we won't even bother properly testing
+- Make sure DELETE is idempotent (sending a second time has no effect)
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?

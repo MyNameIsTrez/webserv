@@ -51,5 +51,8 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Using curl
 
-- GET: `curl -XGET localhost:18000`
-- POST: `curl -XPOST localhost:18000 --data-binary "@tests/hello.txt"`
+- GET: `curl localhost:18000`
+- POST: `curl --data-binary @tests/hello.txt localhost:18000`
+- POST with newline trimming: `curl -d @tests/hello.txt localhost:18000`
+- DELETE: `curl -X DELETE localhost:18000`
+- Nonexistent header type: `curl -X FOO localhost:18000`

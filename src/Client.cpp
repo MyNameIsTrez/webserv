@@ -11,7 +11,7 @@
 #include <vector>
 
 // TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN Server.cpp!
-#define MAX_RECEIVED_LEN 50
+#define MAX_RECEIVED_LEN 2
 
 /*	Orthodox Canonical Form */
 
@@ -93,6 +93,22 @@ Client &Client::operator=(Client const &src)
 
 /*	Public member functions */
 
+// TODO: Put in debug.cpp or smth?
+// #include <sstream>
+// #include <iostream>
+// #include <iomanip>
+// static std::string to_hex(const std::string &s, bool upper_case = true)
+// {
+// 	std::stringstream ret;
+
+// 	for (std::string::size_type i = 0; i < s.length(); ++i)
+// 	{
+// 		ret << std::hex << std::setfill('0') << std::setw(2) << (upper_case ? std::uppercase : std::nouppercase) << (int)s[i];
+// 	}
+
+// 	return ret.str();
+// }
+
 bool Client::appendReadString(char *received, ssize_t bytes_read)
 {
 	if (this->client_read_state == ClientReadState::HEADER)
@@ -157,10 +173,12 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 		assert(false);
 	}
 
+	// std::cerr << "Hex body:\n----------\n" << to_hex(this->body) << "\n----------" << std::endl;
+
 	// TODO: Replace this with Victor's parsed content length value
 	// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
 	// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
-	if (this->body == "hello world\n" || this->_header.substr(0, 3) == "GET")
+	if (this->body == "hello world" || this->body == "hello world\n" || (this->client_read_state == ClientReadState::BODY && (this->_header.substr(0, 3) == "GET" || this->_header.substr(0, 6) == "DELETE")))
 	{
 		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------" << std::endl;
 
@@ -183,20 +201,6 @@ void Client::prependResponseHeader(int cgi_exit_status)
 
 /*	Private member functions */
 
-// // TODO: Put in debug.cpp or smth?
-// #include <sstream>
-// #include <iostream>
-// #include <iomanip>
-// std::string ToHex(const std::string &s, bool upper_case = true)
-// {
-// 	std::stringstream ret;
-
-// 	for (std::string::size_type i = 0; i < s.length(); ++i)
-// 		ret << std::hex << std::setfill('0') << std::setw(2) << (upper_case ? std::uppercase : std::nouppercase) << (int)s[i];
-
-// 	return ret.str();
-// }
-
 bool Client::_parseHeaders(void)
 {
 	std::vector<std::string> split;
@@ -206,7 +210,7 @@ bool Client::_parseHeaders(void)
 	// Delete the trailing "\r\n" that separates the headers from the body
 	this->_header.erase(this->_header.size() - 2);
 
-	// std::cerr << "\"" << ToHex(this->_header) << "\"" << std::endl;
+	// std::cerr << "\"" << to_hex(this->_header) << "\"" << std::endl;
 
 	while ((pos = this->_header.find("\r\n", start)) != std::string::npos)
 	{

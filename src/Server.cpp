@@ -17,7 +17,7 @@
 #define CHILD 0
 #define PIPE_READ_INDEX 0
 #define PIPE_WRITE_INDEX 1
-#define MAX_RECEIVED_LEN 200
+#define MAX_RECEIVED_LEN 2
 
 // TODO: Turn these into static ints inside of a class?
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
@@ -538,22 +538,8 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 		{
 			// TODO: Probably need to send the client a response like "expected more body bytes" if it's less than content_length
 
-			// client.client_read_state = ClientReadState::DONE;
-
-			// size_t client_pfds_index = fd_to_pfd_index.at(client.client_fd);
-			// std::cerr << "    Disabling client POLLIN" << std::endl;
-			// pfds[client_pfds_index].events &= ~POLLIN;
-
-			// TODO: Nuke client: start server -> connect client and wait for it to get a response -> connect second client, which should also have fd 4
-			// It DOES NOT generate a HUP!
-			// client.client_write_state = ClientWriteState::DONE;
-
-			// writing_to_cgi_is_done or
-			// if (client.client_write_state == ClientWriteState::DONE)
-			// {
 			removeClient(client.client_fd);
 			removed_client = true;
-			// }
 		}
 		else if (fd_type == FdType::CGI_TO_SERVER)
 		{
