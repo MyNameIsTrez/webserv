@@ -173,14 +173,14 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 		assert(false);
 	}
 
-	// std::cerr << "Hex body:\n----------\n" << to_hex(this->body) << "\n----------" << std::endl;
+	// std::cerr << "Hex body:\n----------\n" << to_hex(this->body) << "\n----------\n" << std::endl;
 
 	// TODO: Replace this with Victor's parsed content length value
 	// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
 	// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
 	if (this->body == "hello world" || this->body == "hello world\n" || (this->client_read_state == ClientReadState::BODY && (this->_header.substr(0, 3) == "GET" || this->_header.substr(0, 6) == "DELETE")))
 	{
-		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------" << std::endl;
+		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------\n" << std::endl;
 
 		this->client_read_state = ClientReadState::DONE;
 	}

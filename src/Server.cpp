@@ -206,7 +206,7 @@ void Server::run(void)
 						{
 							if (WIFEXITED(child_exit_status))
 							{
-								std::cerr << "    PID " << child_pid << " exited normally. Exit status: " << WEXITSTATUS(child_exit_status) << std::endl;
+								std::cerr << "    PID " << child_pid << " exit status: " << WEXITSTATUS(child_exit_status) << std::endl;
 							}
 							else if (WIFSTOPPED(child_exit_status))
 							{
@@ -559,7 +559,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 	assert(client.cgi_read_state != CGIReadState::DONE);
 	assert(client.client_write_state != ClientWriteState::DONE);
 
-	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------" << std::endl;
+	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------\n" << std::endl;
 
 	if (fd_type == FdType::CLIENT)
 	{
@@ -690,9 +690,10 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
-	// If this is a GET or a POST with an empty body, immediately close server_to_cgi_fd
+	// TODO: If this is a GET or a POST (can they have a body?)
 	if (client.client_read_state == ClientReadState::DONE && client.body.empty())
 	{
+		std::cerr << "    Closing server_to_cgi fd immediately, since there is no body" << std::endl;
 		close(server_to_cgi_fd);
 		client.cgi_write_state = CGIWriteState::DONE;
 	}
@@ -746,7 +747,7 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 
 	client.body_index += body_substr_len;
 
-	std::cerr << "    Sending this body substr to the CGI that has a len of " << body_substr.length() << " bytes:\n----------\n" << body_substr << "\n----------" << std::endl;
+	std::cerr << "    Sending this body substr to the CGI that has a length of " << body_substr.length() << " bytes:\n----------\n" << body_substr << "\n----------\n" << std::endl;
 
 	// TODO: Don't ignore errors
 	write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length());
@@ -780,7 +781,7 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	client.response_index += response_substr_len;
 
-	std::cerr << "    Sending this response substr that has a len of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------" << std::endl;
+	std::cerr << "    Sending this response substr that has a length of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------\n" << std::endl;
 
 	// TODO: Don't ignore errors
 	write(fd, response_substr.c_str(), response_substr.length());
