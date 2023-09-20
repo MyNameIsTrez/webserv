@@ -35,8 +35,6 @@ private:
 	void writeServerToCGI(Client &client, nfds_t pfd_index);
 	void writeToClient(Client &client, int fd, nfds_t pfd_index);
 
-	bool shutting_down_gracefully; // TODO: Consider removing this
-
 	int server_fd;
 
 	std::unordered_map<pid_t, int> cgi_pid_to_client_fd;

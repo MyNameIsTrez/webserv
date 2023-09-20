@@ -1,14 +1,6 @@
 #include "Server.hpp"
 
 #include <cstdlib>
-// #include <iostream>
-
-// TODO: Remove this?
-// static void sigIntHandler(int signum)
-// {
-// 	(void)signum;
-// 	shutting_down_gracefully = true;
-// }
 
 int main(void)
 {

@@ -56,3 +56,5 @@ This will print localhost's response: (by search-and-replacing example.com)
 - POST with newline trimming: `curl -d @tests/hello.txt localhost:18000`
 - DELETE: `curl -X DELETE localhost:18000`
 - Nonexistent header type: `curl -X FOO localhost:18000`
+- Check whether the CGI is still running with `ps -aux | grep print.py`
+- Check who is causing "Address already in use" with `netstat -tulpn | grep 18000`

@@ -25,9 +25,16 @@ const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
 
 /*	Constructors */
 
+bool shutting_down_gracefully = false;
+
+static void sigIntHandler(int signum)
+{
+	(void)signum;
+	shutting_down_gracefully = true;
+}
+
 Server::Server(void)
-	: shutting_down_gracefully(false),
-	  server_fd(-1),
+	: server_fd(-1),
 	  cgi_pid_to_client_fd(),
 	  fd_to_client_index(),
 	  fd_to_pfd_index(),
@@ -45,14 +52,9 @@ Server::Server(void)
 		exit(EXIT_FAILURE);
 	}
 
-	// TODO: This can *still* cause "Address already in use",
-	// as described by the "Strategies for Avoidance" section here:
-	// https://hea-www.harvard.edu/~fine/Tech/addrinuse.html
-	// Which was linked here: https://stackoverflow.com/a/41490982/13279557
-	// Enables local address reuse
-	// This prevents socket() calls from possibly returning an error on server restart
-	// "the parameter should be non-zero to enable a boolean option"
-	int option = 1;
+	// Prevents "bind: Address already in use" error after:
+	// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
+	int option = 1; // "the parameter should be non-zero to enable a boolean option"
 	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
 	sockaddr_in servaddr{};
@@ -83,8 +85,7 @@ Server::Server(void)
 
 	fd_to_fd_type.emplace(server_fd, FdType::SERVER);
 
-	// TODO: Decide what to do with this global state bullshit
-	// signal(SIGINT, sigIntHandler);
+	signal(SIGINT, sigIntHandler);
 }
 
 Server::Server(const std::string &configuration_path)
@@ -102,35 +103,36 @@ Server::~Server(void)
 
 void Server::run(void)
 {
-	// bool servers_active = true;
+	// TODO: Handle multiple servers
+	bool servers_active = true;
+
 	while (true)
 	{
-		// TODO: Decide what to do with this global state bullshit
-		// if (shutting_down_gracefully && servers_active)
-		// {
-		// 	std::cerr << "Shutting down gracefully..." << std::endl;
+		if (shutting_down_gracefully && servers_active)
+		{
+			std::cerr << "Shutting down gracefully..." << std::endl;
 
-		// 	// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
-		// 	size_t server_pfd_index = 0;
-		// 	fd_to_pfd_index[pfds.back().fd] = server_pfd_index;
-		// 	swapRemove(pfds, server_pfd_index);
+			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
+			size_t server_pfd_index = 0;
+			fd_to_pfd_index[pfds.back().fd] = server_pfd_index;
+			swapRemove(pfds, server_pfd_index);
 
-		// 	servers_active = false;
-		// }
+			servers_active = false;
+		}
 
 		if (pfds.empty())
 		{
 			break;
 		}
-		// TODO: Decide what to do with this global state bullshit
-		// else if (shutting_down_gracefully) {
-		// 	std::cerr << "Waiting on " << pfds.size() << " fds..." << std::endl;
+		else if (shutting_down_gracefully) {
+			std::cerr << "Waiting on " << pfds.size() << " fds..." << std::endl;
 
-		// 	// TODO: Do we want to use : iteration in other spots too?
-		// 	for (pollfd pfd : pfds) {
-		// 		std::cerr << "	Waiting on poll fd " << pfd.fd << std::endl;
-		// 	}
-		// }
+			// TODO: Do we want to use : iteration in other spots too?
+			for (pollfd pfd : pfds)
+			{
+				std::cerr << "	Waiting on poll fd " << pfd.fd << std::endl;
+			}
+		}
 
 		std::cerr << "Waiting on an event..." << std::endl;
 		int event_count = poll(pfds.data(), pfds.size(), -1);
@@ -375,9 +377,10 @@ void Server::removeClient(int fd)
 
 	if (client.cgi_pid != -1)
 	{
+		kill(client.cgi_pid, SIGTERM);
+
 		cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
-		// TODO: Should we kill()/signal() the child CGI process to prevent them being zombies?
 	}
 
 	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
