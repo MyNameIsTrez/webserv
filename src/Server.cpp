@@ -110,7 +110,7 @@ void Server::run(void)
 	{
 		if (shutting_down_gracefully && servers_active)
 		{
-			std::cerr << "Shutting down gracefully..." << std::endl;
+			std::cerr << std::endl << "Shutting down gracefully..." << std::endl;
 
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
@@ -125,12 +125,10 @@ void Server::run(void)
 			break;
 		}
 		else if (shutting_down_gracefully) {
-			std::cerr << "Waiting on " << pfds.size() << " fds..." << std::endl;
-
 			// TODO: Do we want to use : iteration in other spots too?
 			for (pollfd pfd : pfds)
 			{
-				std::cerr << "	Waiting on poll fd " << pfd.fd << std::endl;
+				std::cerr << "  Waiting on poll fd " << pfd.fd << std::endl;
 			}
 		}
 
