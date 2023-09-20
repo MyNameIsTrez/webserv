@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/29 11:52:13 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/18 15:38:44 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/20 16:02:46 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -196,7 +196,7 @@ void Parse::save_error_pages(std::string line, ServerData *new_server)
 	}
 }
 
-void Parse::save_page(std::string line, ServerData *new_server)
+PageData Parse::save_page(std::string line, std::ifstream &config)
 {
 	std::cout << "LOCATION BEGINNING" << std::endl;
 	int page_start = line.find('/');
@@ -209,8 +209,46 @@ void Parse::save_page(std::string line, ServerData *new_server)
 	{
 		// error
 	}
-	std::string page_path = line.substr(page_start, page_end - page_start);
-	std::cout << "LOCATION: " << page_path << std::endl;
+	PageData new_page;
+	new_page.page_path = line.substr(page_start, page_end - page_start);
+	while (getline(config, line))
+	{
+		if (line[0] != '\0')
+		{
+			std::string type = line.substr(0, line.find('='));
+			std::string value = line.substr(line.find('=') + 1);
+			if (type == "allowed_methods")
+			{
+				// vector vullen
+			}
+			else if (type == "autoindex")
+			{
+				if (value == "on")
+					new_page.autoindex = true;
+				else
+					new_page.autoindex = false; // wordt nu ook op false gezet bij gibberish
+			}
+			else if (type == "index_file")
+			{
+				new_page.index_file = value;
+			}
+			else if (type == "root")
+			{
+				new_page.root = value;
+			}
+			else if (type == "cgi_path")
+			{
+				// vector vullen
+			}
+			else if (type == "cgi_ext")
+			{
+				// vector vullen
+			}
+		}
+		break;
+	}
+	std::cout << "LOCATION: " << new_page.page_path << std::endl;
+	return (new_page);
 }
 
 // "new_server" zou ik kunnen rewriten zodat het meteen in de "_serverdata" gezet wordt
@@ -237,14 +275,14 @@ void Parse::new_server(std::string line, std::ifstream &config)
 			else if (line.find('{') != line.npos)
 				unclosed++;
 			if (line.find("location") != line.npos)
-				save_page(line, &new_server);
+				save_page(line, config);
 			if (line.find('=') != line.npos)
 			{
 				if (line.find("error_page") != line.npos) // is nog niet beschermd
 					save_error_pages(line, &new_server);
-				std::string type = line.substr(0, line.find('='));
 				line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-				// std::cout << type << std::endl;
+				std::string type = line.substr(0, line.find('='));
+				std::cout << type << std::endl;
 				std::string value = line.substr(line.find('=') + 1);
 				// std::cout << "value of " << type << ": " << value << std::endl;
 				if (value == "")

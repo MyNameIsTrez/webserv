@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/28 17:04:16 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/18 15:24:13 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/20 15:16:10 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -51,7 +51,7 @@ public:
 	// void save_index_file(std::string line);
 	void new_server(std::string line, std::ifstream &config);
 	void save_error_pages(std::string line, ServerData *new_server);
-	void save_page(std::string line, ServerData *new_server);
+	PageData save_page(std::string line, std::ifstream &config);
 	int check_line(std::string line);
 	void print_server_info(size_t index);
 };
