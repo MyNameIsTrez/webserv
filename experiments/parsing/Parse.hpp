@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/28 17:04:16 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/20 15:16:10 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/21 15:56:12 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -18,6 +18,8 @@
 #include <vector>
 #include <iostream>
 #include <fstream>
+#include <sstream>
+#include <iterator>
 #include <exception>
 #include <algorithm>
 #include "ServerData.hpp"

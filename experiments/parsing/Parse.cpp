@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/29 11:52:13 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/20 16:02:46 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/09/21 15:59:04 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -189,11 +189,21 @@ void Parse::save_error_pages(std::string line, ServerData *new_server)
 					i++;
 					// std::cout << "error_page: " << page << std::endl;
 				}
-				new_server->error_pages.insert(std::pair<int, std::string>(page, line.substr(line.find('=') + 2)));
+				new_server->_error_pages.insert(std::pair<int, std::string>(page, line.substr(line.find('=') + 2)));
 			}
 			i++;
 		}
 	}
+}
+
+void print_vector(std::string prefix, std::vector<std::string> nums)
+{
+	std::cout << prefix;
+	for (int i = 0; i < nums.size(); i++)
+	{
+		std::cout << " " << nums.at(i);
+	}
+	std::cout << std::endl;
 }
 
 PageData Parse::save_page(std::string line, std::ifstream &config)
@@ -213,13 +223,22 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 	new_page.page_path = line.substr(page_start, page_end - page_start);
 	while (getline(config, line))
 	{
+		if (line.find('}') != line.npos)
+			break;
 		if (line[0] != '\0')
 		{
-			std::string type = line.substr(0, line.find('='));
 			std::string value = line.substr(line.find('=') + 1);
-			if (type == "allowed_methods")
+			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+			std::string type = line.substr(0, line.find('='));
+			std::cout << type << " = " << value << std::endl;
+			if (type == "allow_methods")
 			{
-				// vector vullen
+				std::stringstream ss(value);
+				std::istream_iterator<std::string> begin(ss);
+				std::istream_iterator<std::string> end;
+				std::vector<std::string> vstrings(begin, end);
+				new_page.allowed_methods = vstrings;
+				print_vector("allow_methods =", new_page.allowed_methods);
 			}
 			else if (type == "autoindex")
 			{
@@ -232,20 +251,29 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 			{
 				new_page.index_file = value;
 			}
-			else if (type == "root")
+			else if (type == "root_path")
 			{
 				new_page.root = value;
 			}
 			else if (type == "cgi_path")
 			{
-				// vector vullen
+				std::stringstream ss(value);
+				std::istream_iterator<std::string> begin(ss);
+				std::istream_iterator<std::string> end;
+				std::vector<std::string> vstrings(begin, end);
+				new_page.cgi_paths = vstrings;
+				print_vector("cgi_paths =", new_page.cgi_paths);
 			}
 			else if (type == "cgi_ext")
 			{
-				// vector vullen
+				std::stringstream ss(value);
+				std::istream_iterator<std::string> begin(ss);
+				std::istream_iterator<std::string> end;
+				std::vector<std::string> vstrings(begin, end);
+				new_page.cgi_ext = vstrings;
+				print_vector("cgi_extensions =", new_page.cgi_ext);
 			}
 		}
-		break;
 	}
 	std::cout << "LOCATION: " << new_page.page_path << std::endl;
 	return (new_page);
@@ -275,14 +303,17 @@ void Parse::new_server(std::string line, std::ifstream &config)
 			else if (line.find('{') != line.npos)
 				unclosed++;
 			if (line.find("location") != line.npos)
+			{
 				save_page(line, config);
-			if (line.find('=') != line.npos)
+				unclosed--;
+			}
+			else if (line.find('=') != line.npos)
 			{
 				if (line.find("error_page") != line.npos) // is nog niet beschermd
 					save_error_pages(line, &new_server);
 				line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
 				std::string type = line.substr(0, line.find('='));
-				std::cout << type << std::endl;
+				// std::cout << type << std::endl;
 				std::string value = line.substr(line.find('=') + 1);
 				// std::cout << "value of " << type << ": " << value << std::endl;
 				if (value == "")
@@ -328,7 +359,7 @@ void Parse::print_server_info(size_t index)
 	std::cout << std::endl;
 	std::cout << "root path: " << _serverdata.at(index)._root_path << std::endl;
 	std::cout << "index file: " << _serverdata.at(index)._index_file << std::endl;
-	for (std::map<int, std::string>::iterator it = _serverdata.at(index).error_pages.begin(); it != _serverdata.at(index).error_pages.end(); ++it)
+	for (std::map<int, std::string>::iterator it = _serverdata.at(index)._error_pages.begin(); it != _serverdata.at(index)._error_pages.end(); ++it)
 	{
 		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
 	}

@@ -8,12 +8,16 @@ server {
 
 	http_redirection=/
 
-	error_page 404 400 500 = /error/404.html
+
 
 	location /test {
+		allow_methods=GET POST DELETE
 		root_path=html
 		index_file=index.html
+		cgi_path=/usr/bin/python3 /bin/bash
+		cgi_ext=.py .sh
 	}
+	error_page 404 400 500 = /error/404.html
 }
 
 server {
@@ -34,6 +38,6 @@ server {
 
 
 
-allow_methods GET POST DELETE
+
 directory_listening=
 default_file=
