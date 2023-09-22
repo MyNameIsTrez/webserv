@@ -371,7 +371,9 @@ void Server::swapRemove(T &vector, size_t index)
 void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
 {
 	std::cerr
-		<< "  fd: " << pfd.fd << ", fd_type: " << fd_type
+		<< "  fd: " << pfd.fd
+		<< ", fd_type: " << fd_type
+		<< ", client_fd: " << (fd_type == FdType::SERVER ? -1 : clients.at(fd_to_client_index.at(pfd.fd)).client_fd)
 		<< ", revents:"
 		<< ((pfd.revents & POLLIN) ? " POLLIN" : "")
 		<< ((pfd.revents & POLLOUT) ? " POLLOUT" : "")
