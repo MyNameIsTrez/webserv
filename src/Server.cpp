@@ -8,16 +8,17 @@
 #include <poll.h>
 #include <sys/socket.h>
 #include <sys/wait.h>
+#include <unordered_set>
 
 // TODO: Move some/all of these defines to a config file
 #define SERVER_PORT 18000
 #define MAX_CONNECTION_QUEUE_LEN 10
-#define MAX_CGI_WRITE_LEN 3
+#define MAX_CGI_WRITE_LEN 100
 #define MAX_CLIENT_WRITE_LEN 100
 #define CHILD 0
 #define PIPE_READ_INDEX 0
 #define PIPE_WRITE_INDEX 1
-#define MAX_RECEIVED_LEN 2
+#define MAX_RECEIVED_LEN 100
 
 // TODO: Turn these into static ints inside of a class?
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
@@ -46,7 +47,7 @@ Server::Server(void)
 
 	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0)
+	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 	{
 		perror("socket");
 		exit(EXIT_FAILURE);
@@ -55,26 +56,30 @@ Server::Server(void)
 	// Prevents "bind: Address already in use" error after:
 	// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
-	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
+	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
+	{
+		perror("setsockopt");
+		exit(EXIT_FAILURE);
+	}
 
 	sockaddr_in servaddr{};
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
 
-	if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) < 0)
+	if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1)
 	{
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
 
-	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) < 0)
+	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1)
 	{
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 
-	// fd_to_pfd_index.emplace(server_fd, pfds.size());
+	fd_to_pfd_index.emplace(server_fd, pfds.size());
 
 	pollfd server_pfd;
 	server_pfd.fd = server_fd;
@@ -105,6 +110,8 @@ void Server::run(void)
 {
 	// TODO: Handle multiple servers
 	bool servers_active = true;
+
+	std::unordered_set<int> seen_fds;
 
 	while (true)
 	{
@@ -149,42 +156,64 @@ void Server::run(void)
 		// 	std::cerr << "poll() timed out" << std::endl;
 		// }
 
+		seen_fds.clear();
+
 		for (nfds_t pfd_index = pfds.size(); pfd_index > 0;)
 		{
 			pfd_index--;
 
+			// If we were on pfd_index 2 the previous loop, and it removed pfds[2] and pds[1],
+			// then this loop should have pfd_index be 0
+			// TODO: The problem is that removeFd() swapRemove()s an already processed pfd from pfds.back() into our loop *again*
+			// pfd_index = std::min(pfd_index - 1, );
+
+			// std::cerr << "  pfd_index " << pfd_index << " with fd " << pfds[pfd_index].fd << " and pfds.size() " << pfds.size() << std::endl;
+
 			if (pfds[pfd_index].revents != 0)
 			{
 				int fd = pfds[pfd_index].fd;
+
+				// If this pfd got removed
+				if (fd_to_pfd_index.find(fd) == fd_to_pfd_index.end())
+				{
+					continue;
+				}
+
+				// If we've already iterated over this fd in this pfds loop
+				if (seen_fds.find(fd) != seen_fds.end())
+				{
+					assert(false); // TODO: REMOVE
+					continue;
+				}
+				seen_fds.emplace(fd);
+
 				FdType::FdType fd_type = fd_to_fd_type.at(fd);
 
-				printEvents(pfds[pfd_index]);
+				printEvents(pfds[pfd_index], fd_type);
 
-				// This can be reached by commenting out a line that removes a closed fd from pfds
 				if (pfds[pfd_index].revents & POLLNVAL)
 				{
-					// TODO: Should the server exit, or should the client be removed?
+					// TODO: Remove the client?
+					// TODO: Try to reach this by commenting out a line that removes a closed fd from pfds
 					assert(false);
 				}
 
 				// If there was an error, remove the client, and close all its file descriptors
+				// TODO: Sometimes caused by 10k_lines.txt, but how to handle this?
+				// "This  bit  is also set for a file descriptor referring to the write end of a pipe when the read end has been closed."
 				if (pfds[pfd_index].revents & POLLERR)
 				{
-					removeClient(fd);
+					Client &client = getClient(fd);
+					client.cgi_write_state = CGIWriteState::DONE;
+					removeFd(client.server_to_cgi_fd);
 					continue;
 				}
 
 				// If the other end hung up (closed)
 				if (pfds[pfd_index].revents & POLLHUP)
 				{
-					// If the Python script closed its stdin
-					if (fd_type == FdType::SERVER_TO_CGI)
-					{
-						pollhupServerToCGI();
-						continue;
-					}
 					// If the Python script closed its stdout
-					else if (fd_type == FdType::CGI_TO_SERVER)
+					if (fd_type == FdType::CGI_TO_SERVER)
 					{
 						// If the server has read everything from the Python script
 						if (!(pfds[pfd_index].revents & POLLIN))
@@ -339,21 +368,21 @@ void Server::swapRemove(T &vector, size_t index)
 	vector.pop_back();
 }
 
-void Server::printEvents(const pollfd &pfd)
+void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
 {
 	std::cerr
-		<< "  fd=" << pfd.fd << "; "
-		<< "Events: "
-		<< ((pfd.revents & POLLIN) ? "POLLIN " : "")
-		<< ((pfd.revents & POLLOUT) ? "POLLOUT " : "")
-		<< ((pfd.revents & POLLHUP) ? "POLLHUP " : "")
-		<< ((pfd.revents & POLLNVAL) ? "POLLNVAL " : "")
-		<< ((pfd.revents & POLLPRI) ? "POLLPRI " : "")
-		<< ((pfd.revents & POLLRDBAND) ? "POLLRDBAND " : "")
-		<< ((pfd.revents & POLLRDNORM) ? "POLLRDNORM " : "")
-		<< ((pfd.revents & POLLWRBAND) ? "POLLWRBAND " : "")
-		<< ((pfd.revents & POLLWRNORM) ? "POLLWRNORM " : "")
-		<< ((pfd.revents & POLLERR) ? "POLLERR " : "")
+		<< "  fd: " << pfd.fd << ", fd_type: " << fd_type
+		<< ", revents:"
+		<< ((pfd.revents & POLLIN) ? " POLLIN" : "")
+		<< ((pfd.revents & POLLOUT) ? " POLLOUT" : "")
+		<< ((pfd.revents & POLLHUP) ? " POLLHUP" : "")
+		<< ((pfd.revents & POLLNVAL) ? " POLLNVAL" : "")
+		<< ((pfd.revents & POLLPRI) ? " POLLPRI" : "")
+		<< ((pfd.revents & POLLRDBAND) ? " POLLRDBAND" : "")
+		<< ((pfd.revents & POLLRDNORM) ? " POLLRDNORM" : "")
+		<< ((pfd.revents & POLLWRBAND) ? " POLLWRBAND" : "")
+		<< ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "")
+		<< ((pfd.revents & POLLERR) ? " POLLERR" : "")
 		<< std::endl;
 }
 
@@ -425,14 +454,6 @@ void Server::removeFd(int &fd)
 	fd = -1;
 }
 
-void Server::pollhupServerToCGI()
-{
-	std::cerr << "  In pollhupServerToCGI()" << std::endl;
-
-	// TODO: ?? Test this by having a Python script close its stdin
-	assert(false);
-}
-
 void Server::pollhupCGIToServer(int fd)
 {
 	std::cerr << "  In pollhupCGIToServer()" << std::endl;
@@ -441,40 +462,18 @@ void Server::pollhupCGIToServer(int fd)
 
 	// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 
-	// Disable client POLLIN
-	// We don't care that we could've read some more of the client's body
-	if (client.client_read_state != ClientReadState::DONE)
-	{
-		client.client_read_state = ClientReadState::DONE;
+	client.client_read_state = ClientReadState::DONE;
 
-		size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-		std::cerr << "    Disabling client POLLIN" << std::endl;
-		pfds[client_pfd_index].events &= ~POLLIN;
-		pfds[client_pfd_index].revents &= ~POLLIN;
-	}
-
-	// Close and remove server_to_cgi
-	// We don't care that we could've written some more of the client's body
 	if (client.server_to_cgi_fd != -1)
 	{
-		removeServerToCGI(client);
+		client.cgi_write_state = CGIWriteState::DONE;
+		removeFd(client.server_to_cgi_fd);
 	}
 
 	// Close and remove cgi_to_server
-	{
-		assert(client.cgi_to_server_fd != -1);
-		client.cgi_read_state = CGIReadState::DONE;
-
-		removeFd(client.cgi_to_server_fd);
-		client.cgi_to_server_fd = -1;
-	}
-}
-
-void Server::removeServerToCGI(Client &client)
-{
-	client.cgi_write_state = CGIWriteState::DONE;
-
-	removeFd(client.server_to_cgi_fd);
+	assert(client.cgi_to_server_fd != -1);
+	removeFd(client.cgi_to_server_fd);
+	client.cgi_read_state = CGIReadState::DONE;
 }
 
 void Server::pollhupCGIExitDetector(int fd)
@@ -537,12 +536,14 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 		}
 		else if (fd_type == FdType::CGI_TO_SERVER)
 		{
-			client.cgi_read_state = CGIReadState::DONE;
+			assert(false); // TODO: This is checking if this code is ever reached
 
-			size_t cgi_to_server_pfds_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
-			std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
-			pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
-			pfds[cgi_to_server_pfds_index].revents &= ~POLLIN;
+			// client.cgi_read_state = CGIReadState::DONE;
+
+			// size_t cgi_to_server_pfds_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
+			// std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
+			// pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
+			// pfds[cgi_to_server_pfds_index].revents &= ~POLLIN;
 
 			// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 		}
@@ -550,7 +551,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 		return true;
 	}
 
-	assert(client.cgi_read_state != CGIReadState::DONE);
+	// assert(client.cgi_read_state != CGIReadState::DONE);
 	assert(client.client_write_state != ClientWriteState::DONE);
 
 	std::cerr << "    Read " << bytes_read << " bytes:\n----------\n" << std::string(received, bytes_read) << "\n----------\n" << std::endl;
@@ -575,7 +576,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 			}
 		}
 
-		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty())
+		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_read_state != CGIReadState::DONE)
 		{
 			size_t server_to_cgi_pfds_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
 			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
@@ -684,7 +685,7 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
-	// TODO: If this is a GET or a POST (can they have a body?)
+	// TODO: If this is a GET or a DELETE (can they have a body?)
 	if (client.client_read_state == ClientReadState::DONE && client.body.empty())
 	{
 		std::cerr << "    Closing server_to_cgi fd immediately, since there is no body" << std::endl;
@@ -755,7 +756,9 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 
 		if (client.client_read_state == ClientReadState::DONE)
 		{
-			removeServerToCGI(client);
+			client.cgi_write_state = CGIWriteState::DONE;
+
+			removeFd(client.server_to_cgi_fd);
 		}
 	}
 }

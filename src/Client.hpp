@@ -19,6 +19,7 @@ size_t for sent characters (i)
 // Ignore chunked request doody for now (will be my part probably)
 */
 
+// TODO: Use class enums?
 namespace ClientReadState
 {
 	enum ClientReadState

@@ -11,7 +11,7 @@
 #include <vector>
 
 // TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN Server.cpp!
-#define MAX_RECEIVED_LEN 2
+#define MAX_RECEIVED_LEN 100
 
 /*	Orthodox Canonical Form */
 
@@ -169,8 +169,9 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 	}
 	else
 	{
-		// TODO: Should be unreachable
-		assert(false);
+		// We keep reading regardless of whether we saw the end of the body,
+		// so we can still read the EOF any disconnected client sent
+		return true;
 	}
 
 	// std::cerr << "Hex body:\n----------\n" << to_hex(this->body) << "\n----------\n" << std::endl;
@@ -178,7 +179,7 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 	// TODO: Replace this with Victor's parsed content length value
 	// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
 	// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
-	if (this->body == "hello world" || this->body == "hello world\n" || (this->client_read_state == ClientReadState::BODY && (this->_header.substr(0, 3) == "GET" || this->_header.substr(0, 6) == "DELETE")))
+	if (this->body.find("hello world") != std::string::npos || (this->client_read_state == ClientReadState::BODY && (this->_header.substr(0, 3) == "GET" || this->_header.substr(0, 6) == "DELETE")))
 	{
 		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------\n" << std::endl;
 

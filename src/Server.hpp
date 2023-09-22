@@ -20,13 +20,11 @@ private:
 	void swapRemove(T &vector, size_t index);
 
 	// TODO: Enact some sort of ordering both in these declarations and the definitions
-	void printEvents(const pollfd &pfd);
+	void printEvents(const pollfd &pfd, FdType::FdType fd_type);
 	void removeClient(int fd);
 	Client &getClient(int fd);
 	void removeFd(int &fd);
-	void pollhupServerToCGI();
 	void pollhupCGIToServer(int fd);
-	void removeServerToCGI(Client &client);
 	void pollhupCGIExitDetector(int fd);
 	void acceptClient();
 	bool readFd(Client &client, int fd, FdType::FdType fd_type, bool &removed_client);
