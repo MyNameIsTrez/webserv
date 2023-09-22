@@ -26,6 +26,7 @@
 - [ ] Test if the "client" reference can be set directly where the fd is set, cause I'm not sure whether it can still dangle with the way we push-swap and loop over pfds backwards
 - [ ] Make sure that having two clients POSTing/GETing the server at the same time works
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
+- [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
 
 ## Victor
 

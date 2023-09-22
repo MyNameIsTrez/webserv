@@ -240,20 +240,30 @@ void Server::run(void)
 						{
 							if (WIFEXITED(child_exit_status))
 							{
-								std::cerr << "    PID " << child_pid << " exit status: " << WEXITSTATUS(child_exit_status) << std::endl;
+								std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
 							}
 							else if (WIFSTOPPED(child_exit_status))
 							{
 								std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
+								assert(false); // TODO: What to do here?
 							}
 							else if (WIFSIGNALED(child_exit_status))
 							{
 								std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
+
+								// TODO: What to do if it receives SIGKILL?:
+								// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
+
+								if (WTERMSIG(child_exit_status) == SIGTERM)
+								{
+									// TODO: Should we do anything if its client still exists?
+									continue;
+								}
 							}
 							else
 							{
 								// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-								assert(false);
+								assert(false); // TODO: What to do here?
 							}
 
 							int client_fd = cgi_pid_to_client_fd.at(child_pid);
@@ -373,6 +383,8 @@ void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
 	std::cerr
 		<< "  fd: " << pfd.fd
 		<< ", fd_type: " << fd_type
+		<< ", client_index: " << (fd_type == FdType::SERVER ? -1 : fd_to_client_index.at(pfd.fd))
+		<< " (with clients.size() being " << clients.size() << ")"
 		<< ", client_fd: " << (fd_type == FdType::SERVER ? -1 : clients.at(fd_to_client_index.at(pfd.fd)).client_fd)
 		<< ", revents:"
 		<< ((pfd.revents & POLLIN) ? " POLLIN" : "")
@@ -390,6 +402,7 @@ void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
 
 void Server::removeClient(int fd)
 {
+	assert(fd != -1);
 	std::cerr << "  Removing client with fd " << fd << std::endl;
 
 	Client &client = getClient(fd);
@@ -411,6 +424,7 @@ void Server::removeClient(int fd)
 
 	if (client.cgi_pid != -1)
 	{
+		std::cerr << "    Killing this client's CGI PID " << client.cgi_pid << " with SIGTERM" << std::endl;
 		kill(client.cgi_pid, SIGTERM);
 
 		cgi_pid_to_client_fd.erase(client.cgi_pid);
@@ -419,10 +433,14 @@ void Server::removeClient(int fd)
 
 	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
 	size_t client_index = fd_to_client_index.at(client.client_fd);
+
 	fd_to_client_index[clients.back().client_fd] = client_index;
-	swapRemove(clients, client_index);
+	fd_to_client_index[clients.back().server_to_cgi_fd] = client_index;
+	fd_to_client_index[clients.back().cgi_to_server_fd] = client_index;
+	fd_to_client_index[clients.back().cgi_exit_detector_fd] = client_index;
 
 	removeFd(client.client_fd);
+	swapRemove(clients, client_index);
 }
 
 // TODO: Don't let fd_to_client_index nor clients be passed in, by just getting it from the member variable;
@@ -529,20 +547,14 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 		std::cerr << "    Read 0 bytes" << std::endl;
 
 		// TODO: Assert that we reached content_length
+		// TODO: Probably need to send the client a response like "expected more body bytes" if it's less than content_length
 
-		if (fd_type == FdType::CLIENT)
-		{
-			// TODO: Probably need to send the client a response like "expected more body bytes" if it's less than content_length
+		// Always true, since cgi_to_server is the only other read() caller,
+		// and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
+		assert(fd_type == FdType::CLIENT);
 
-			removeClient(client.client_fd);
-			removed_client = true;
-		}
-		else
-		{
-			// Unreachable, since cgi_to_server is the only other read() caller,
-			// and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
-			assert(false);
-		}
+		removeClient(client.client_fd);
+		removed_client = true;
 
 		return true;
 	}
@@ -581,15 +593,9 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
 	{
-		if (client.cgi_read_state == CGIReadState::READING_FROM_CGI)
-		{
-			client.response += std::string(received, bytes_read);
-		}
-		else
-		{
-			// TODO: Should be unreachable
-			assert(false);
-		}
+		assert(client.cgi_read_state == CGIReadState::READING_FROM_CGI);
+		std::cerr << "    Adding this substr to the response:\n----------\n" << std::string(received, bytes_read) << "\n----------\n" << std::endl;
+		client.response += std::string(received, bytes_read);
 	}
 	else
 	{
@@ -763,9 +769,10 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 {
 	std::cerr << "  Writing to the client..." << std::endl;
 
+	assert(client.client_fd == fd);
 	assert(client.client_write_state == ClientWriteState::WRITING_TO_CLIENT);
 
-	size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config
+	size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config; HAS to be >= 1
 	size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
 
 	assert(response_substr_len > 0);
@@ -775,7 +782,7 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	client.response_index += response_substr_len;
 
-	std::cerr << "    Sending this response substr that has a length of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------\n" << std::endl;
+	std::cerr << "    Sending this response substr to the client that has a length of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------\n" << std::endl;
 
 	// TODO: Don't ignore errors
 	write(fd, response_substr.c_str(), response_substr.length());
