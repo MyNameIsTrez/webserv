@@ -23,6 +23,9 @@
 - [ ] Let Client hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
 - [ ] Make sure all error code pages are correctly sent: 3xx is redirect; 4xx is not available; 5xx is server error
+- [ ] Test if the "client" reference can be set directly where the fd is set, cause I'm not sure whether it can still dangle with the way we push-swap and loop over pfds backwards
+- [ ] Make sure that having two clients POSTing/GETing the server at the same time works
+- [ ] Make sure the maps and vectors aren't growing over time with Siege
 
 ## Victor
 
@@ -50,6 +53,8 @@
 - Do we want to support having multiple Server instances active at the same time? If so, test it thoroughly
 - Discuss removing Client's copy constructor and copy assignment operator, since it's a hazard that we won't even bother properly testing
 - Make sure DELETE is idempotent (sending a second time has no effect)
+- Consider using content_length to limit how many bytes of the body we'll try to read
+- Consider enforcing a [maximum header size](https://stackoverflow.com/a/686243/13279557)
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -108,3 +113,4 @@ http://f1r3s6.codam.nl:8080/
 - Are we allowed to use exit()? I think it depends on the interpretation of "Everything in C++ 98."? If not, replace all mentions of exit()
 - Make sure that even a length of 1 works for all the #defines, like MAX_CLIENT_WRITE_LEN
 - Remove all functions that aren't signal handler safe from the signal handlers
+- Make sure that a body in a GET or a DELETE *is* parsed, [but not handled further](https://stackoverflow.com/a/983458/13279557)
