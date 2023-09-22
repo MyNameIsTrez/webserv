@@ -5,8 +5,15 @@
 !experiments/*.[ch]pp
 !rfcs/*.pdf
 !src/*.[ch]pp
+!tests/1_line.txt
+!tests/1k_lines.txt
+!tests/1m_lines.txt
+!tests/2_lines.txt
+!tests/10_lines.txt
+!tests/10k_lines.txt
+!tests/100_lines.txt
+!tests/100k_lines.txt
 !tests/empty.txt
-!tests/hello.txt
 !YoupiBanane/**
 !.gitignore
 !fn_descriptions.c
