@@ -49,7 +49,7 @@ Client::Client(Client const &src)
 	  header_map(src.header_map),
 	  body(src.body),
 	  body_index(src.body_index),
-	  response(src.body),
+	  response(src.response),
 	  response_index(src.response_index),
 	  client_fd(src.client_fd),
 	  server_to_cgi_fd(src.server_to_cgi_fd),
