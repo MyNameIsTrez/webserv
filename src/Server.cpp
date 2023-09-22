@@ -444,6 +444,7 @@ void Server::removeFd(int &fd)
 
 	fd_to_pfd_index.erase(fd);
 	fd_to_client_index.erase(fd);
+	fd_to_fd_type.erase(fd);
 
 	if (close(fd) == -1)
 	{
