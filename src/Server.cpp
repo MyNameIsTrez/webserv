@@ -535,18 +535,11 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 			removeClient(client.client_fd);
 			removed_client = true;
 		}
-		else if (fd_type == FdType::CGI_TO_SERVER)
+		else
 		{
-			assert(false); // TODO: This is checking if this code is ever reached
-
-			// client.cgi_read_state = CGIReadState::DONE;
-
-			// size_t cgi_to_server_pfds_index = fd_to_pfd_index.at(client.cgi_to_server_fd);
-			// std::cerr << "    Disabling cgi_to_server POLLIN" << std::endl;
-			// pfds[cgi_to_server_pfds_index].events &= ~POLLIN;
-			// pfds[cgi_to_server_pfds_index].revents &= ~POLLIN;
-
-			// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
+			// Unreachable, since cgi_to_server is the only other read() caller,
+			// and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
+			assert(false);
 		}
 
 		return true;
