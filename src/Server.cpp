@@ -194,8 +194,7 @@ void Server::run(void)
 				handlePollnval();
 			}
 
-			// TODO: Previously caused by 10k_lines.txt, but how to reproduce nowadays?:
-			// "This  bit  is also set for a file descriptor referring to the write end of a pipe when the read end has been closed."
+			// If we are trying to write to a CGI script that closed its stdin
 			if (pfds[pfd_index].revents & POLLERR)
 			{
 				handlePollerr(fd);
@@ -316,13 +315,9 @@ void Server::handlePollnval(void)
 
 void Server::handlePollerr(int fd)
 {
-	// TODO: Remove the client?
-	assert(false);
-
-	(void)fd;
-	// Client &client = getClient(fd);
-	// client.cgi_write_state = CGIWriteState::DONE;
-	// removeFd(client.server_to_cgi_fd);
+	Client &client = getClient(fd);
+	client.cgi_write_state = CGIWriteState::DONE;
+	removeFd(client.server_to_cgi_fd);
 }
 
 void Server::handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
