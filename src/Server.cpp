@@ -549,11 +549,12 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should
 			}
 		}
 
-		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_read_state != CGIReadState::DONE)
+		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_write_state != CGIWriteState::DONE)
 		{
-			size_t server_to_cgi_pfds_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+			assert(client.server_to_cgi_fd != -1);
+			size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
 			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			pfds[server_to_cgi_pfds_index].events |= POLLOUT;
+			pfds[server_to_cgi_pfd_index].events |= POLLOUT;
 		}
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
@@ -596,6 +597,7 @@ void Server::removeClient(int fd)
 	if (client.cgi_pid != -1)
 	{
 		std::cerr << "    Killing this client's CGI PID " << client.cgi_pid << " with SIGTERM" << std::endl;
+		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
 		kill(client.cgi_pid, SIGTERM);
 
 		cgi_pid_to_client_fd.erase(client.cgi_pid);
@@ -786,7 +788,6 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 		if (client.client_read_state == ClientReadState::DONE)
 		{
 			client.cgi_write_state = CGIWriteState::DONE;
-
 			removeFd(client.server_to_cgi_fd);
 		}
 	}
