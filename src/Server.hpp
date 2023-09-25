@@ -21,13 +21,18 @@ private:
 
 	// TODO: Enact some sort of ordering both in these declarations and the definitions
 	void printEvents(const pollfd &pfd, FdType::FdType fd_type);
+	void handlePollnval(void);
+	void handlePollerr(int fd);
+	void handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue);
+	void handlePollin(int fd, FdType::FdType fd_type, bool &should_continue);
+	void handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
 	void removeClient(int fd);
 	Client &getClient(int fd);
 	void removeFd(int &fd);
 	void pollhupCGIToServer(int fd);
 	void pollhupCGIExitDetector(int fd);
 	void acceptClient();
-	bool readFd(Client &client, int fd, FdType::FdType fd_type, bool &removed_client);
+	bool readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	bool startCGI(Client &client, int fd, FdType::FdType fd_type);
 	void addCGIFd(int cgi_fd, size_t client_index, FdType::FdType fd_type, short int events);
 	void writeServerToCGI(Client &client, nfds_t pfd_index);

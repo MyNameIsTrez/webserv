@@ -162,197 +162,72 @@ void Server::run(void)
 		{
 			pfd_index--;
 
-			// If we were on pfd_index 2 the previous loop, and it removed pfds[2] and pds[1],
-			// then this loop should have pfd_index be 0
-			// TODO: The problem is that removeFd() swapRemove()s an already processed pfd from pfds.back() into our loop *again*
-			// pfd_index = std::min(pfd_index - 1, );
-
-			// std::cerr << "  pfd_index " << pfd_index << " with fd " << pfds[pfd_index].fd << " and pfds.size() " << pfds.size() << std::endl;
-
-			if (pfds[pfd_index].revents != 0)
+			// If this pfd didn't have any event
+			if (pfds[pfd_index].revents == 0)
 			{
-				int fd = pfds[pfd_index].fd;
+				continue;
+			}
 
-				// If this pfd got removed
-				if (fd_to_pfd_index.find(fd) == fd_to_pfd_index.end())
+			int fd = pfds[pfd_index].fd;
+
+			// If this pfd got removed
+			if (fd_to_pfd_index.find(fd) == fd_to_pfd_index.end())
+			{
+				continue;
+			}
+
+			// If we've already iterated over this fd in this pfds loop
+			if (seen_fds.find(fd) != seen_fds.end())
+			{
+				assert(false); // TODO: REMOVE! This is just here because I'm curious whether it happens
+				continue;
+			}
+			seen_fds.emplace(fd);
+
+			FdType::FdType fd_type = fd_to_fd_type.at(fd);
+
+			printEvents(pfds[pfd_index], fd_type);
+
+			// TODO: Try to reach this by commenting out a line that removes a closed fd from pfds
+			if (pfds[pfd_index].revents & POLLNVAL)
+			{
+				handlePollnval();
+			}
+
+			// TODO: Previously caused by 10k_lines.txt, but how to reproduce nowadays?:
+			// "This  bit  is also set for a file descriptor referring to the write end of a pipe when the read end has been closed."
+			if (pfds[pfd_index].revents & POLLERR)
+			{
+				handlePollerr(fd);
+				continue;
+			}
+
+			bool should_continue = false;
+
+			// If the client disconnected
+			if (pfds[pfd_index].revents & POLLHUP)
+			{
+				handlePollhup(fd, fd_type, pfd_index, should_continue);
+				if (should_continue)
 				{
 					continue;
 				}
+			}
 
-				// If we've already iterated over this fd in this pfds loop
-				if (seen_fds.find(fd) != seen_fds.end())
+			// If we can read
+			if (pfds[pfd_index].revents & POLLIN_ANY)
+			{
+				handlePollin(fd, fd_type, should_continue);
+				if (should_continue)
 				{
-					assert(false); // TODO: REMOVE
 					continue;
 				}
-				seen_fds.emplace(fd);
+			}
 
-				FdType::FdType fd_type = fd_to_fd_type.at(fd);
-
-				printEvents(pfds[pfd_index], fd_type);
-
-				if (pfds[pfd_index].revents & POLLNVAL)
-				{
-					// TODO: Remove the client?
-					// TODO: Try to reach this by commenting out a line that removes a closed fd from pfds
-					assert(false);
-				}
-
-				// If there was an error, remove the client, and close all its file descriptors
-				// TODO: Sometimes caused by 10k_lines.txt, but how to handle this?
-				// "This  bit  is also set for a file descriptor referring to the write end of a pipe when the read end has been closed."
-				if (pfds[pfd_index].revents & POLLERR)
-				{
-					Client &client = getClient(fd);
-					client.cgi_write_state = CGIWriteState::DONE;
-					removeFd(client.server_to_cgi_fd);
-					continue;
-				}
-
-				// If the other end hung up (closed)
-				if (pfds[pfd_index].revents & POLLHUP)
-				{
-					// If the Python script closed its stdout
-					if (fd_type == FdType::CGI_TO_SERVER)
-					{
-						// If the server has read everything from the Python script
-						if (!(pfds[pfd_index].revents & POLLIN))
-						{
-							pollhupCGIToServer(fd);
-							continue;
-						}
-					}
-					else if (fd_type == FdType::CGI_EXIT_DETECTOR)
-					{
-						// We use a pipe-generating-POLLHUP-based approach, rather than signal(SIGCHLD, handler),
-						// as the signal approach is what we did first and required a mess of global state
-						// Suggested here as "Approach 1": https://stackoverflow.com/a/8976461/13279557
-
-						pid_t child_pid;
-						int child_exit_status;
-
-						// Reaps all children that have exited
-						// waitpid() returns 0 if no more children can be reaped right now
-						// WNOHANG guarantees that this call doesn't block
-						// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
-						// TODO: Are there other options we should use?
-						while ((child_pid = waitpid(-1, &child_exit_status, WNOHANG)) > 0)
-						{
-							if (WIFEXITED(child_exit_status))
-							{
-								std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
-							}
-							else if (WIFSTOPPED(child_exit_status))
-							{
-								std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
-								assert(false); // TODO: What to do here?
-							}
-							else if (WIFSIGNALED(child_exit_status))
-							{
-								std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
-
-								// TODO: What to do if it receives SIGKILL?:
-								// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
-
-								if (WTERMSIG(child_exit_status) == SIGTERM)
-								{
-									// TODO: Should we do anything if its client still exists?
-									continue;
-								}
-							}
-							else
-							{
-								// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-								assert(false); // TODO: What to do here?
-							}
-
-							int client_fd = cgi_pid_to_client_fd.at(child_pid);
-							size_t client_index = fd_to_client_index.at(client_fd);
-							Client &client = clients.at(client_index);
-
-							assert(client.client_read_state == ClientReadState::DONE);
-							assert(client.cgi_write_state == CGIWriteState::DONE);
-							assert(client.cgi_read_state == CGIReadState::DONE);
-							assert(client.client_write_state != ClientWriteState::DONE);
-
-							size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-							std::cerr << "    Enabling client POLLOUT" << std::endl;
-							pfds[client_pfd_index].events |= POLLOUT;
-
-							client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
-
-							client.prependResponseHeader(child_exit_status);
-						}
-
-						// TODO: Decide what to do when errno is EINTR
-						// errno is set to ECHILD when there are no children left to wait for
-						if (child_pid == -1 && errno != ECHILD)
-						{
-							perror("waitpid");
-							exit(EXIT_FAILURE);
-						}
-
-						pollhupCGIExitDetector(fd);
-
-						// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
-
-						continue;
-					}
-					else
-					{
-						// TODO: Should be unreachable
-						assert(false);
-					}
-				}
-
-				// If we can read
-				if (pfds[pfd_index].revents & POLLIN_ANY)
-				{
-					if (fd_type == FdType::SERVER)
-					{
-						acceptClient();
-					}
-					else
-					{
-						assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
-
-						Client &client = getClient(fd);
-
-						// TODO: Consider replacing all "continue"s with this bool
-						bool removed_client = false;
-
-						if (!readFd(client, fd, fd_type, removed_client))
-						{
-							// TODO: Print error
-							exit(EXIT_FAILURE);
-						}
-
-						if (removed_client)
-						{
-							continue;
-						}
-					}
-				}
-
-				// If we can write
-				if (pfds[pfd_index].revents & POLLOUT_ANY)
-				{
-					Client &client = getClient(fd);
-
-					if (fd_type == FdType::SERVER_TO_CGI)
-					{
-						writeServerToCGI(client, pfd_index);
-					}
-					else if (fd_type == FdType::CLIENT)
-					{
-						writeToClient(client, fd, pfd_index);
-					}
-					else
-					{
-						// TODO: Should be unreachable
-						assert(false);
-					}
-				}
+			// If we can write
+			if (pfds[pfd_index].revents & POLLOUT_ANY)
+			{
+				handlePollout(fd, fd_type, pfd_index);
 			}
 		}
 	}
@@ -360,7 +235,7 @@ void Server::run(void)
 
 /*	Private member functions */
 
-// TODO: Use this on every function that can fail
+// TODO: Use this on every function that can fail?
 // static void die()
 // {
 // 	// TODO: Loop over all fds and close them
@@ -398,6 +273,164 @@ void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
 		<< ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "")
 		<< ((pfd.revents & POLLERR) ? " POLLERR" : "")
 		<< std::endl;
+}
+
+void Server::handlePollnval(void)
+{
+	// TODO: Remove the client?
+	// TODO: Try to reach this by commenting out a line that removes a closed fd from pfds
+	assert(false);
+}
+
+void Server::handlePollerr(int fd)
+{
+	Client &client = getClient(fd);
+	client.cgi_write_state = CGIWriteState::DONE;
+	removeFd(client.server_to_cgi_fd);
+}
+
+void Server::handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
+{
+	// If the Python script closed its stdout
+	if (fd_type == FdType::CGI_TO_SERVER)
+	{
+		// If the server has read everything from the Python script
+		if (!(pfds[pfd_index].revents & POLLIN))
+		{
+			// TODO: REMOVE THIS!!
+			// std::cerr << "Swapping pfd 1 and 2" << std::endl;
+			// fd_to_pfd_index[pfds[1].fd] = 2;
+			// fd_to_pfd_index[pfds[2].fd] = 1;
+
+			// pollfd tmp = pfds[2];
+			// pfds[2] = pfds[1];
+			// pfds[1] = tmp;
+
+			pollhupCGIToServer(fd);
+			should_continue = true;
+		}
+	}
+	else if (fd_type == FdType::CGI_EXIT_DETECTOR)
+	{
+		// We use a pipe-generating-POLLHUP-based approach, rather than signal(SIGCHLD, handler),
+		// as the signal approach is what we did first and required a mess of global state
+		// Suggested here as "Approach 1": https://stackoverflow.com/a/8976461/13279557
+
+		pid_t child_pid;
+		int child_exit_status;
+
+		// Reaps all children that have exited
+		// waitpid() returns 0 if no more children can be reaped right now
+		// WNOHANG guarantees that this call doesn't block
+		// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
+		// TODO: Are there other options we should use?
+		while ((child_pid = waitpid(-1, &child_exit_status, WNOHANG)) > 0)
+		{
+			if (WIFEXITED(child_exit_status))
+			{
+				std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
+			}
+			else if (WIFSTOPPED(child_exit_status))
+			{
+				std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
+				assert(false); // TODO: What to do here?
+			}
+			else if (WIFSIGNALED(child_exit_status))
+			{
+				std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
+
+				// TODO: What to do if it receives SIGKILL?:
+				// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
+
+				if (WTERMSIG(child_exit_status) == SIGTERM)
+				{
+					// TODO: Should we do anything if its client still exists?
+					should_continue = true;
+					return;
+				}
+			}
+			else
+			{
+				// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
+				assert(false); // TODO: What to do here?
+			}
+
+			int client_fd = cgi_pid_to_client_fd.at(child_pid);
+			size_t client_index = fd_to_client_index.at(client_fd);
+			Client &client = clients.at(client_index);
+
+			assert(client.client_read_state == ClientReadState::DONE);
+			assert(client.cgi_write_state == CGIWriteState::DONE);
+			assert(client.cgi_read_state == CGIReadState::DONE);
+			assert(client.client_write_state != ClientWriteState::DONE);
+
+			size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
+			std::cerr << "    Enabling client POLLOUT" << std::endl;
+			pfds[client_pfd_index].events |= POLLOUT;
+
+			client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+
+			client.prependResponseHeader(child_exit_status);
+		}
+
+		// TODO: Decide what to do when errno is EINTR
+		// errno is set to ECHILD when there are no children left to wait for
+		if (child_pid == -1 && errno != ECHILD)
+		{
+			perror("waitpid");
+			exit(EXIT_FAILURE);
+		}
+
+		pollhupCGIExitDetector(fd);
+
+		// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
+
+		should_continue = true;
+	}
+	else
+	{
+		// TODO: Should be unreachable
+		assert(false);
+	}
+}
+
+void Server::handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
+{
+	if (fd_type == FdType::SERVER)
+	{
+		acceptClient();
+	}
+	else
+	{
+		assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
+
+		Client &client = getClient(fd);
+
+		if (!readFd(client, fd, fd_type, should_continue))
+		{
+			// TODO: Print error
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
+void Server::handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
+{
+	Client &client = getClient(fd);
+
+	if (fd_type == FdType::SERVER_TO_CGI)
+	{
+		writeServerToCGI(client, pfd_index);
+	}
+	else if (fd_type == FdType::CLIENT)
+	{
+		writeToClient(client, fd, pfd_index);
+	}
+	else
+	{
+		// TODO: Should be unreachable
+		assert(false);
+	}
 }
 
 void Server::removeClient(int fd)
@@ -529,7 +562,7 @@ void Server::acceptClient()
 	fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
 }
 
-bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &removed_client)
+bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
@@ -554,7 +587,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &remove
 		assert(fd_type == FdType::CLIENT);
 
 		removeClient(client.client_fd);
-		removed_client = true;
+		should_continue = true;
 
 		return true;
 	}
