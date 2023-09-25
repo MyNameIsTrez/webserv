@@ -291,10 +291,10 @@ void Server::handlePollerr(int fd)
 
 void Server::handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
 {
-	// If the Python script closed its stdout
+	// If the CGI script closed its stdout
 	if (fd_type == FdType::CGI_TO_SERVER)
 	{
-		// If the server has read everything from the Python script
+		// If the server has read everything from the CGI script
 		if (!(pfds[pfd_index].revents & POLLIN))
 		{
 			// TODO: REMOVE THIS!!
@@ -693,8 +693,8 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 		}
 		close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
 
-		std::cerr << "    Child is going to exec Python" << std::endl;
-		// TODO: Define Python path in configuration file?
+		std::cerr << "    The child is going to start the CGI script" << std::endl;
+		// TODO: Define CGI script path in the configuration file?
 		const char *path = "/usr/bin/python3";
 		char *const argv[] = {(char *)"python3", (char *)"cgi-bin/print.py", NULL};
 
