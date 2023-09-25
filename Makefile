@@ -42,6 +42,7 @@ $(NAME): $(OBJFILES)
 
 .PHONY: run
 run: all
+	clear
 	./webserv
 
 .PHONY: drun
