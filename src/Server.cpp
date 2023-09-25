@@ -136,11 +136,11 @@ void Server::run(void)
 			// TODO: Do we want to use : iteration in other spots too?
 			for (pollfd pfd : pfds)
 			{
-				std::cerr << "  Waiting on poll fd " << pfd.fd << std::endl;
+				std::cerr << "  Waiting for poll fd " << pfd.fd << std::endl;
 			}
 		}
 
-		std::cerr << "Waiting on an event..." << std::endl;
+		std::cerr << "Waiting for an event..." << std::endl;
 		// TODO: Consider having a timeout of 5000 ms or something again
 		int event_count = poll(pfds.data(), pfds.size(), -1);
 		if (event_count == -1)
@@ -776,11 +776,16 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 
 	std::cerr << "    Sending this body substr to the CGI that has a length of " << body_substr.length() << " bytes:\n----------\n" << body_substr << "\n----------\n" << std::endl;
 
-	// TODO: Don't ignore errors
 	if (write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length()) == -1)
 	{
-		perror("write");
-		exit(EXIT_FAILURE);
+		std::cerr << "    write() detected 'Broken pipe'" << std::endl;
+
+		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
+		pfds[pfd_index].events &= ~POLLOUT;
+		pfds[pfd_index].revents &= ~POLLOUT;
+
+		client.cgi_write_state = CGIWriteState::DONE;
+		removeFd(client.server_to_cgi_fd);
 	}
 
 	// If we don't have anything left to write at the moment
@@ -819,11 +824,12 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
-		perror("write");
+		// TODO: Remove the client immediately? Happens every once in a while with 10k_lines.txt
+		perror("write in writeToClient");
 		exit(EXIT_FAILURE);
 	}
 
-	// TODO: Close the client at some point
+	// TODO: Close the client once we've written all we wanted to write?
 	// std::cerr << "    Closing client fd " << fd << std::endl;
 
 	// If we don't have anything left to write at the moment
