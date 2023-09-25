@@ -13,13 +13,13 @@ def main():
 
     # TODO: Make separate test for closing stdin
     # TODO: This previously caused "Broken pipe", but doesn't anymore. How to get it to do it again? Can this error can happen when this script exits and the C++ code immediately writes to it?
-    # os.close(sys.stdin.fileno())
-    # sys.stdin.close()
-    # print("Disabled stdin in print.py", file=sys.stderr)
+    os.close(sys.stdin.fileno())
+    sys.stdin.close()
+    print("Disabled stdin in print.py", file=sys.stderr)
 
-    print("Before reading stdin", file=sys.stderr)
-    print(f"stdin: {sys.stdin.readlines()}")
-    print("After reading stdin", file=sys.stderr)
+    # print("Before reading stdin", file=sys.stderr)
+    # print(f"stdin: {sys.stdin.readlines()}")
+    # print("After reading stdin", file=sys.stderr)
 
     print(f"env: {json.dumps(dict(os.environ), sort_keys=True, indent=4)}")
 

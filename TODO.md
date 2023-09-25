@@ -27,6 +27,7 @@
 - [ ] Make sure that having two clients POSTing/GETing the server at the same time works
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
+- [ ] Make sure the server doesn't crash if the CGI script crashed
 
 ## Victor
 

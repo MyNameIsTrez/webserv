@@ -91,6 +91,7 @@ Server::Server(void)
 	fd_to_fd_type.emplace(server_fd, FdType::SERVER);
 
 	signal(SIGINT, sigIntHandler);
+	signal(SIGPIPE, SIG_IGN);
 }
 
 Server::Server(const std::string &configuration_path)
@@ -776,7 +777,11 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 	std::cerr << "    Sending this body substr to the CGI that has a length of " << body_substr.length() << " bytes:\n----------\n" << body_substr << "\n----------\n" << std::endl;
 
 	// TODO: Don't ignore errors
-	write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length());
+	if (write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length()) == -1)
+	{
+		perror("write");
+		exit(EXIT_FAILURE);
+	}
 
 	// If we don't have anything left to write at the moment
 	if (client.body_index == client.body.length())
@@ -812,8 +817,11 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	std::cerr << "    Sending this response substr to the client that has a length of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------\n" << std::endl;
 
-	// TODO: Don't ignore errors
-	write(fd, response_substr.c_str(), response_substr.length());
+	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
+	{
+		perror("write");
+		exit(EXIT_FAILURE);
+	}
 
 	// TODO: Close the client at some point
 	// std::cerr << "    Closing client fd " << fd << std::endl;
