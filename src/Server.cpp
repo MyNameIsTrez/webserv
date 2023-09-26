@@ -437,6 +437,10 @@ void Server::reapChildren(int fd)
 		client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
 
 		client.prependResponseHeader(child_exit_status);
+
+		// TODO: Erase our client from all vectors and maps
+		cgi_pid_to_client_fd.erase(client.cgi_pid);
+		client.cgi_pid = -1;
 	}
 
 	// TODO: Decide what to do when errno is EINTR
@@ -597,7 +601,7 @@ void Server::removeClient(int fd)
 
 	if (client.cgi_pid != -1)
 	{
-		std::cerr << "    Killing this client's CGI PID " << client.cgi_pid << " with SIGTERM" << std::endl;
+		std::cerr << "    Sending SIGTERM to this client's CGI script with PID " << client.cgi_pid << std::endl;
 		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
 		kill(client.cgi_pid, SIGTERM);
 
