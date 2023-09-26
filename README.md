@@ -53,6 +53,7 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 - GET: `curl localhost:18000`
 - POST: `curl --data-binary @tests/1_line.txt localhost:18000`
+- POST chunked: `curl -H "Transfer-Encoding: chunked" --data-binary @tests/1_line.txt localhost:18000`
 - POST with newline trimming: `curl -d @tests/1_line.txt localhost:18000`
 - DELETE: `curl -X DELETE localhost:18000`
 - Nonexistent header type: `curl -X FOO localhost:18000`

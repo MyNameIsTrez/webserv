@@ -96,8 +96,22 @@ private:
 
 	bool _parseHeaders(void);
 	bool _parseStartLine(std::string line);
+	bool _parseBodyAppend(char const *received, size_t len);
+	void _generateEnv();
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
 
-	std::string _header;
 	size_t _content_length;
+	std::string _header;
+
+	bool _is_chunked;
+	size_t _chunked_remaining_content_length;
+	std::string _chunked_body_buffer;
+	// TODO: Put in namespace?
+	enum ChunkedReadState
+	{
+		READING_CONTENT_LEN,
+		READING_BODY,
+		READING_CONTENT_LEN_ENDLINE,
+		READING_BODY_ENDLINE
+	} _chunked_read_state;
 };

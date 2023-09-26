@@ -35,6 +35,7 @@
 - [ ] Incoming request body parsing (using class that caches reading/writing progress?)
 - [ ] Parse content_length from header
 - [ ] Parse request methods GET/POST/DELETE from header into a string/enum
+- [ ] Does Transfer-Encoding need to accept capitalized "chunked" value?
 
 ## Milan
 

@@ -18,14 +18,14 @@ def main():
 
     # TODO: Make this a separate test for closing stdin
     # TODO: RFC 3875, section 4.2: "Therefore, the script MUST NOT attempt to read more than CONTENT_LENGTH bytes, even if more data is available. However, it is not obliged to read any of the data."
-    os.close(sys.stdin.fileno())
-    sys.stdin.close()
-    print("Disabled stdin in print.py", file=sys.stderr)
+    # os.close(sys.stdin.fileno())
+    # sys.stdin.close()
+    # print("Disabled stdin in print.py", file=sys.stderr)
 
     # TODO: Handle the error when sys.stdin.readlines() is done after stdin is closed
-    # print("Before reading stdin", file=sys.stderr)
-    # print(f"stdin: {sys.stdin.readlines()}")
-    # print("After reading stdin", file=sys.stderr)
+    print("Before reading stdin", file=sys.stderr)
+    print(f"stdin: {sys.stdin.readlines()}")
+    print("After reading stdin", file=sys.stderr)
 
     # print("xd" * 1000000)
 
