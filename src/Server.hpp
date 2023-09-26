@@ -20,6 +20,7 @@ private:
 	void swapRemove(T &vector, size_t index);
 
 	// UTILS
+	void printContainerSizes(void);
 	void printEvents(const pollfd &pfd, FdType::FdType fd_type);
 	Client &getClient(int fd);
 	void removeFd(int &fd);

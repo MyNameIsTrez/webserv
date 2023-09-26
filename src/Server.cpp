@@ -157,6 +157,8 @@ void Server::run(void)
 		// 	std::cerr << "poll() timed out" << std::endl;
 		// }
 
+		printContainerSizes();
+
 		seen_fds.clear();
 
 		for (nfds_t pfd_index = pfds.size(); pfd_index > 0;)
@@ -251,6 +253,20 @@ void Server::swapRemove(T &vector, size_t index)
 {
 	vector[index] = vector.back();
 	vector.pop_back();
+}
+
+void Server::printContainerSizes(void)
+{
+	std::cerr
+		<< "MAPS: "
+		<< "cgi_pid_to_client_fd=" << cgi_pid_to_client_fd.size()
+		<< ", fd_to_client_index=" << fd_to_client_index.size()
+		<< ", fd_to_pfd_index=" << fd_to_pfd_index.size()
+		<< ", fd_to_fd_type=" << fd_to_fd_type.size()
+		<< " | VECTORS: "
+		<< "clients=" << clients.size()
+		<< ", pfds=" << pfds.size()
+		<< std::endl;
 }
 
 void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
