@@ -49,6 +49,15 @@ This will print localhost's response: (by search-and-replacing example.com)
 - First run `export REQUEST_METHOD="GET" SERVER_PROTOCOL="HTTP/1.1" PATH_INFO="/foo/bar"`
 - Then run `./cgi_tester`, and press Enter once
 
-## Using curl for POST request
+## Using curl
 
-- `curl -XPOST localhost:18000 --data-binary "@we"`
+- GET: `curl localhost:18000`
+- POST: `curl --data-binary @tests/1_line.txt localhost:18000`
+- POST chunked: `curl -H "Transfer-Encoding: chunked" --data-binary @tests/1_line.txt localhost:18000`
+- POST with newline trimming: `curl -d @tests/1_line.txt localhost:18000`
+- DELETE: `curl -X DELETE localhost:18000`
+- Nonexistent header type: `curl -X FOO localhost:18000`
+- Check whether the CGI is still running: `ps -aux | grep print.py`
+- Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
+- Create a `foo.txt` file containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
+- POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:18000`

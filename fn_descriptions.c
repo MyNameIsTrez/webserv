@@ -53,13 +53,6 @@ uint32_t ntohl(uint32_t netlong);
 ////////////////////////////////////////////////////////////////////////////////
 // Event handling functions
 
-// Waits until some of the passed read, write, or error file descriptors should be handled
-// Afterwards one has to loop from 0 to nfds and use FD_ISSET() to know which file descriptors should be handled
-// Instead, it's also possible to only iterate over our own vector of the file descriptors we know
-int select(int nfds, fd_set *restrict readfds, fd_set *restrict writefds,
-           fd_set *restrict errorfds, struct timeval *restrict timeout);
-
-
 // Like select(), but receives an array of pollfds (use Variable Length Array)
 // It can listen to more types of events than just read/write/error
 int poll(struct pollfd fds[], nfds_t nfds, int timeout);
@@ -198,6 +191,12 @@ ssize_t recv(int socket, void *buffer, size_t length, int flags);
 
 ////////////////////////////////////////////////////////////////////////////////
 // We're not using these ones
+
+// Waits until some of the passed read, write, or error file descriptors should be handled
+// Afterwards one has to loop from 0 to nfds and use FD_ISSET() to know which file descriptors should be handled
+// Instead, it's also possible to only iterate over our own vector of the file descriptors we know
+int select(int nfds, fd_set *restrict readfds, fd_set *restrict writefds,
+           fd_set *restrict errorfds, struct timeval *restrict timeout);
 
 // NOT ON MAC
 // Like poll(), but object-oriented

@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 
-// c++ fcntl.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g && ./a.out 2 && ./a.out 3
+// c++ fcntl.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 2 && ./a.out 3
 int main(int argc, char *argv[])
 {
 	if (argc != 2)

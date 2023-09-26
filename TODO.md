@@ -13,21 +13,51 @@
 - [x] Set up clang format
 - [ ] Run Codam tester on NGINX server
 - [ ] CGI without creating child zombie processes
+- [ ] Set up Docker that has Valgrind
+- [ ] Verify that Valgrind detects uninitialized member variables
+- [ ] Fuzz the config
+- [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
+- [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
+- [ ] Can GET and DELETE ever launch the CGI?
+- [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
+- [ ] Let Client hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
+- [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
+- [ ] Make sure all error code pages are correctly sent: 3xx is redirect; 4xx is not available; 5xx is server error
+- [ ] Test if the "client" reference can be set directly where the fd is set, cause I'm not sure whether it can still dangle with the way we push-swap and loop over pfds backwards
+- [ ] Make sure that having two clients POSTing/GETing the server at the same time works
+- [ ] Make sure the maps and vectors aren't growing over time with Siege
+- [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
+- [ ] Make sure the server doesn't crash if the CGI script crashed
 
 ## Victor
 
 - [ ] Incoming request header parsing (using class that caches reading/writing progress?)
 - [ ] Incoming request body parsing (using class that caches reading/writing progress?)
+- [ ] Parse content_length from header
+- [ ] Parse request methods GET/POST/DELETE from header into a string/enum
+- [ ] Does Transfer-Encoding need to accept capitalized "chunked" value?
 
 ## Milan
 
 - [x] Main webserv while-loop that uses poll()
 - [ ] NGINX's configuration format parser
+- [ ] Sanitize the config fields, like the port not being -1, for example
 
 # General code TODOs
 - Decide whether we want to do stuff like fd closing whenever a stdlib function fails.
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
-- Rename ClientData to Client?
+- Move all defines to the config
+- Do we want to be fully C++98 compliant just cause?
+- Do we want to EXIT_FAILURE when read() returns -1, or do we want to try and keep going?
+- Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
+- Right now we stop reading the client if we've read everything from the CGI. Is this correct, according to the nginx behavior in practice/the HTTP 1.1 RFC? Same goes for how we stop writing to the CGI if we've read everything from the CGI.
+- Multi-part form requests
+- Do we want to support non-parsed headers? See https://docstore.mik.ua/orelly/linux/cgi/ch03_03.htm#ch03-10-fm2xml
+- Do we want to support having multiple Server instances active at the same time? If so, test it thoroughly
+- Discuss removing Client's copy constructor and copy assignment operator, since it's a hazard that we won't even bother properly testing
+- Make sure DELETE is idempotent (sending a second time has no effect)
+- Consider using content_length to limit how many bytes of the body we'll try to read
+- Consider enforcing a [maximum header size](https://stackoverflow.com/a/686243/13279557)
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -72,5 +102,21 @@ http://f1r3s6.codam.nl:8080/
 - Test read and write sizes 1, 2, 3, 4, 5
 - "Search for all read/recv/write/send and check if the returned value is correctly checked (checking only -1 or 0 values is not enough, both should be checked)." - Eval sheet
 - Make sure we're not using the errno global directly: "If errno is checked after read/recv/write/send, the grade is 0 and the evaluation process ends now."
-- Decide whether all of ClientData's copied member variables in the copy constructor and copy assignment operator make sense to be copied, or whether they should be initialized to the starting state
+- Decide whether all of Client's copied member variables in the copy constructor and copy assignment operator make sense to be copied, or whether they should be initialized to the starting state
 - Double-check that the C++ classes' initializer lists aren't forgetting to initialize a member variable
+- Double-check that all the OCF methods we added work correctly in a test
+- Replace as many "#include <foo.h>" with "#include <foo>" or "#include <cfoo>"
+- Make sure the server socket is closed at the end of the program, along with its fds
+- Make sure that maps don't grow in memory usage over time; in other words, make sure stuff is always erased
+- Check for ***EVERY*** function call that its returned error value is handled properly
+- Manually try crash the server by using Ctrl+C on the curl client at random intervals
+- Make sure all instances of unordered_map and vector [] indexing are replaced by .at() or .emplace() or .find(); see [this](https://devblogs.microsoft.com/oldnewthing/20190227-00/?p=101072) blog post on why [] is evil in C++.
+- Consider letting the `make all` turn off asserts, turning them on when the user does `make all DEBUG=1`
+- Replace any .insert(std::make_pair()) with .emplace()
+- Are we allowed to use exit()? I think it depends on the interpretation of "Everything in C++ 98."? If not, replace all mentions of exit()
+- Make sure that even a length of 1 works for all the #defines, like MAX_CLIENT_WRITE_LEN
+- Remove all functions that aren't signal handler safe from the signal handlers
+- Make sure that a body in a GET or a DELETE *is* parsed, [but not handled further](https://stackoverflow.com/a/983458/13279557)
+- Make sure `printContainerSizes()` prints *every* Server map and vector, and that none of them grow over time
+- Make sure no async-unsafe calls like printing are done in any signal handlers (including `Server::sigChldHandler()`)
+- Replace all perror() and exit() calls with proper exiting logic

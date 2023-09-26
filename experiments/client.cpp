@@ -51,7 +51,7 @@ ssize_t write_fully(int fd, const char *buf, size_t len)
 	return 0;
 }
 
-// c++ client.cpp -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 127.0.0.1
+// c++ client.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out 127.0.0.1
 // Code stolen from https://youtu.be/bdIiTxtMaKA
 int main(int argc, char *argv[])
 {
