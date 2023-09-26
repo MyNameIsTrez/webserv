@@ -33,6 +33,7 @@ Client::Client(int client_fd)
 	  cgi_to_server_fd(-1),
 	  cgi_exit_detector_fd(-1),
 	  cgi_pid(-1),
+	  cgi_exit_status(-1),
 	  _header(),
 	  _content_length(0)
 {
@@ -56,6 +57,7 @@ Client::Client(Client const &src)
 	  cgi_to_server_fd(src.cgi_to_server_fd),
 	  cgi_exit_detector_fd(src.cgi_exit_detector_fd),
 	  cgi_pid(src.cgi_pid),
+	  cgi_exit_status(src.cgi_exit_status),
 	  _header(src._header),
 	  _content_length(src._content_length)
 {
@@ -86,6 +88,7 @@ Client &Client::operator=(Client const &src)
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
 	this->cgi_exit_detector_fd = src.cgi_exit_detector_fd;
 	this->cgi_pid = src.cgi_pid;
+	this->cgi_exit_status = src.cgi_exit_status;
 	this->_header = src._header;
 	this->_content_length = src._content_length;
 	return *this;
@@ -189,14 +192,17 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 	return true;
 }
 
-// TODO: Don't hardcode the header
-void Client::prependResponseHeader(int cgi_exit_status)
+// This method assumes the client has read all bytes from the reaped cgi's stdout
+void Client::prependResponseHeader()
 {
-	(void)cgi_exit_status;
+	// TODO: Don't hardcode the header
+	// TODO: Use cgi_exit_status
+
 	std::stringstream len_ss;
 	len_ss << this->response.length();
 	// TODO: Use _replace_all(str, "\n", "\r\n"):
 	// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
+
 	this->response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + len_ss.str() + "\r\n\r\n" + this->response;
 }
 

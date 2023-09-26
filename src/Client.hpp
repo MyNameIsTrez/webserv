@@ -82,7 +82,7 @@ public:
 
 	bool appendReadString(char *received, ssize_t bytes_read);
 
-	void prependResponseHeader(int cgi_exit_status);
+	void prependResponseHeader();
 
 	ClientReadState::ClientReadState client_read_state;
 	CGIWriteState::CGIWriteState cgi_write_state;
@@ -102,6 +102,7 @@ public:
 	int cgi_to_server_fd;
 	int cgi_exit_detector_fd;
 	pid_t cgi_pid;
+	int cgi_exit_status;
 
 private:
 	Client(void);

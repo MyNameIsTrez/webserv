@@ -325,6 +325,17 @@ void Server::removeFd(int &fd)
 	fd = -1;
 }
 
+void Server::enableWritingToClient(Client &client)
+{
+	std::cerr << "    In enableWritingToClient()" << std::endl;
+	size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
+	pfds[client_pfd_index].events |= POLLOUT;
+
+	client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+
+	client.prependResponseHeader();
+}
+
 void Server::handlePollnval(void)
 {
 	// TODO: Remove the client?
@@ -407,6 +418,11 @@ void Server::pollhupCGIToServer(int fd)
 	assert(client.cgi_to_server_fd != -1);
 	removeFd(client.cgi_to_server_fd);
 	client.cgi_read_state = CGIReadState::DONE;
+
+	if (client.cgi_exit_status != -1)
+	{
+		enableWritingToClient(client);
+	}
 }
 
 void Server::reapChildren(int fd)
@@ -436,14 +452,15 @@ void Server::reapChildren(int fd)
 		{
 			std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
 
-			// TODO: What to do if it receives SIGKILL?:
-			// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
-
 			if (WTERMSIG(child_exit_status) == SIGTERM)
 			{
 				// TODO: Should we do anything if its client still exists?
 				continue;
 			}
+
+			// TODO: What to do if it receives for example SIGKILL?:
+			// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
+			assert(false);
 		}
 		else
 		{
@@ -455,22 +472,25 @@ void Server::reapChildren(int fd)
 		size_t client_index = fd_to_client_index.at(client_fd);
 		Client &client = clients.at(client_index);
 
-		assert(client.client_read_state == ClientReadState::DONE);
-		assert(client.cgi_write_state == CGIWriteState::DONE);
-		assert(client.cgi_read_state == CGIReadState::DONE);
-		assert(client.client_write_state != ClientWriteState::DONE);
-
-		size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-		std::cerr << "    Enabling client POLLOUT" << std::endl;
-		pfds[client_pfd_index].events |= POLLOUT;
-
-		client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
-
-		client.prependResponseHeader(child_exit_status);
-
-		// TODO: Erase our client from all vectors and maps
 		cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
+
+		assert(client.client_read_state == ClientReadState::DONE);
+		assert(client.cgi_write_state == CGIWriteState::DONE);
+		assert(client.cgi_read_state != CGIReadState::NOT_READING);
+		assert(client.client_write_state != ClientWriteState::DONE);
+
+		if (WIFEXITED(child_exit_status))
+		{
+			client.cgi_exit_status = WEXITSTATUS(child_exit_status);
+		}
+
+		if (client.cgi_read_state == CGIReadState::DONE)
+		{
+			enableWritingToClient(client);
+		}
+	}
+
 	}
 
 	// TODO: Decide what to do when errno is EINTR
@@ -779,7 +799,7 @@ void Server::handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
 
 	if (fd_type == FdType::SERVER_TO_CGI)
 	{
-		writeServerToCGI(client, pfd_index);
+		writeToCGI(client, pfd_index);
 	}
 	else if (fd_type == FdType::CLIENT)
 	{
@@ -792,7 +812,7 @@ void Server::handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
 	}
 }
 
-void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
+void Server::writeToCGI(Client &client, nfds_t pfd_index)
 {
 	std::cerr << "  Writing from the server to the CGI..." << std::endl;
 
@@ -812,6 +832,7 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 
 	if (write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length()) == -1)
 	{
+		// Happens when the CGI script closed its stdin
 		std::cerr << "    write() detected 'Broken pipe'" << std::endl;
 
 		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
@@ -820,6 +841,8 @@ void Server::writeServerToCGI(Client &client, nfds_t pfd_index)
 
 		client.cgi_write_state = CGIWriteState::DONE;
 		removeFd(client.server_to_cgi_fd);
+
+		return;
 	}
 
 	// If we don't have anything left to write at the moment
@@ -856,11 +879,11 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	std::cerr << "    Sending this response substr to the client that has a length of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------\n" << std::endl;
 
-	sleep(5); // TODO: REMOVE
+	// sleep(5); // TODO: REMOVE
 
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
-		// TODO: Remove the client immediately? I don't know how to reach this
+		// TODO: Remove the client immediately? Reached when the time.sleep(5) in print.py is commented out
 		perror("write in writeToClient");
 		exit(EXIT_FAILURE);
 	}

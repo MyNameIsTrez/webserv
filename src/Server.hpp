@@ -24,6 +24,7 @@ private:
 	void printEvents(const pollfd &pfd, FdType::FdType fd_type);
 	Client &getClient(int fd);
 	void removeFd(int &fd);
+	void enableWritingToClient(Client &client);
 
 	// POLLNVAL
 	void handlePollnval(void);
@@ -46,7 +47,7 @@ private:
 
 	// POLLOUT
 	void handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
-	void writeServerToCGI(Client &client, nfds_t pfd_index);
+	void writeToCGI(Client &client, nfds_t pfd_index);
 	void writeToClient(Client &client, int fd, nfds_t pfd_index);
 
 	int server_fd;
