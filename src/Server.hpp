@@ -29,7 +29,7 @@ private:
 	void handlePollnval(void);
 
 	// POLLERR
-	void handlePollerr(int fd);
+	void handlePollerr(int fd, FdType::FdType fd_type);
 
 	// POLLHUP
 	void handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue);
