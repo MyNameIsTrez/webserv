@@ -197,10 +197,11 @@ void Server::run(void)
 				handlePollnval();
 			}
 
-			// If we are trying to write to a CGI script that closed its stdin
+			// If we are trying to write to a CGI script that closed its stdin,
+			// or we are trying to write to a disconnected client
 			if (pfds[pfd_index].revents & POLLERR)
 			{
-				handlePollerr(fd);
+				handlePollerr(fd, fd_type);
 				continue;
 			}
 
@@ -304,6 +305,7 @@ Client &Server::getClient(int fd)
 
 void Server::removeFd(int &fd)
 {
+	assert(fd != -1);
 	std::cerr << "    Removing fd " << fd << std::endl;
 
 	size_t pfd_index = fd_to_pfd_index.at(fd);
@@ -330,11 +332,23 @@ void Server::handlePollnval(void)
 	assert(false);
 }
 
-void Server::handlePollerr(int fd)
+void Server::handlePollerr(int fd, FdType::FdType fd_type)
 {
-	Client &client = getClient(fd);
-	client.cgi_write_state = CGIWriteState::DONE;
-	removeFd(client.server_to_cgi_fd);
+	if (fd_type == FdType::SERVER_TO_CGI)
+	{
+		Client &client = getClient(fd);
+		client.cgi_write_state = CGIWriteState::DONE;
+		removeFd(client.server_to_cgi_fd);
+	}
+	else if (fd_type == FdType::CLIENT)
+	{
+		removeClient(fd);
+	}
+	else
+	{
+		// TODO: Should be unreachable
+		assert(false);
+	}
 }
 
 void Server::handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
@@ -842,12 +856,16 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	std::cerr << "    Sending this response substr to the client that has a length of " << response_substr.length() << " bytes:\n----------\n" << response_substr << "\n----------\n" << std::endl;
 
+	sleep(5); // TODO: REMOVE
+
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
-		// TODO: Remove the client immediately? Happens every once in a while with 10k_lines.txt
+		// TODO: Remove the client immediately? I don't know how to reach this
 		perror("write in writeToClient");
 		exit(EXIT_FAILURE);
 	}
+
+	// sleep(5); // TODO: REMOVE
 
 	// TODO: Close the client once we've written all we wanted to write?
 	// std::cerr << "    Closing client fd " << fd << std::endl;
