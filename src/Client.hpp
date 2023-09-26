@@ -60,18 +60,6 @@ namespace ClientWriteState
 	};
 }
 
-namespace FdType
-{
-	enum FdType
-	{
-		SERVER,
-		CLIENT,
-		SERVER_TO_CGI,
-		CGI_TO_SERVER,
-		CGI_EXIT_DETECTOR
-	};
-}
-
 class Client
 {
 public:
@@ -100,7 +88,6 @@ public:
 	int client_fd;
 	int server_to_cgi_fd;
 	int cgi_to_server_fd;
-	int cgi_exit_detector_fd;
 	pid_t cgi_pid;
 	int cgi_exit_status;
 

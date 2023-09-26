@@ -31,7 +31,6 @@ Client::Client(int client_fd)
 	  client_fd(client_fd),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
-	  cgi_exit_detector_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
 	  _header(),
@@ -55,7 +54,6 @@ Client::Client(Client const &src)
 	  client_fd(src.client_fd),
 	  server_to_cgi_fd(src.server_to_cgi_fd),
 	  cgi_to_server_fd(src.cgi_to_server_fd),
-	  cgi_exit_detector_fd(src.cgi_exit_detector_fd),
 	  cgi_pid(src.cgi_pid),
 	  cgi_exit_status(src.cgi_exit_status),
 	  _header(src._header),
@@ -86,7 +84,6 @@ Client &Client::operator=(Client const &src)
 	this->client_fd = src.client_fd;
 	this->server_to_cgi_fd = src.server_to_cgi_fd;
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
-	this->cgi_exit_detector_fd = src.cgi_exit_detector_fd;
 	this->cgi_pid = src.cgi_pid;
 	this->cgi_exit_status = src.cgi_exit_status;
 	this->_header = src._header;

@@ -116,3 +116,6 @@ http://f1r3s6.codam.nl:8080/
 - Make sure that even a length of 1 works for all the #defines, like MAX_CLIENT_WRITE_LEN
 - Remove all functions that aren't signal handler safe from the signal handlers
 - Make sure that a body in a GET or a DELETE *is* parsed, [but not handled further](https://stackoverflow.com/a/983458/13279557)
+- Make sure `printContainerSizes()` prints *every* Server map and vector, and that none of them grow over time
+- Make sure no async-unsafe calls like printing are done in any signal handlers (including `Server::sigChldHandler()`)
+- Replace all perror() and exit() calls with proper exiting logic
