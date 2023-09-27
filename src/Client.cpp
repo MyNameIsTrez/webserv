@@ -33,7 +33,7 @@ Client::Client(int client_fd)
 	  cgi_to_server_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
-	  _content_length(SIZE_MAX),
+	  _content_length(0),
 	  _header(),
 	  _is_chunked(false),
 	  _chunked_remaining_content_length(0),
@@ -212,12 +212,21 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 			std::cerr << "Request method: '" << this->request_method << "'" << std::endl;
 			if (this->request_method == "POST")
 			{
-				this->client_read_state = ClientReadState::BODY;
-
-				// Add body bytes to _body
-				if (extra_body.size() > 0 && !this->_parseBodyAppend(extra_body))
+				// If no content_length was given
+				if (this->_content_length == 0)
 				{
-					return false;
+					this->client_read_state = ClientReadState::DONE;
+				}
+				// If content_length was given
+				else
+				{
+					this->client_read_state = ClientReadState::BODY;
+
+					// Add body bytes to _body
+					if (extra_body.size() > 0 && !this->_parseBodyAppend(extra_body))
+					{
+						return false;
+					}
 				}
 			}
 			else
@@ -329,7 +338,7 @@ bool Client::_parseHeaders(void)
 		if (key == "TRANSFER_ENCODING" && value == "chunked")
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
-			if (this->_content_length != SIZE_MAX)
+			if (this->header_map.find("CONTENT_LENGTH") != this->header_map.end())
 				return false;
 			this->_is_chunked = true;
 		}

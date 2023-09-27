@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>webserv</title>
+		<script>
+			function postData() {
+				const freeform = document.getElementById("freeform");
+				const filename = document.getElementById("filename");
+				const response = fetch(`http://localhost:18000/${filename.value}`, {
+					method: "POST",
+					mode: "no-cors", // TODO: try to remove when actually on server
+					body: freeform.value,
+				}).then((value) => {
+					console.log(value);
+				});
+			}
+		</script>
+	</head>
+	<body style="background-color: gray;">
+		<label for="info">info:</label><br>
+		<textarea id="freeform" name="freeform" rows="4" cols="50"></textarea><br>
+		Filename: <input id="filename" type="text"/><button type="submit" onclick="postData()">POST</button><br>
+		<!-- Under here all the links to the files accessable -->
+		<a href="foo.txt">foo</a><br>
+		<a href="bar.txt">bar</a><br>
+		<a href="bee.txt">bee</a><br>
+	</body>
+</html>
