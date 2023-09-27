@@ -81,17 +81,10 @@ Server::Server(void)
 		exit(EXIT_FAILURE);
 	}
 
-	fd_to_pfd_index.emplace(server_fd, pfds.size());
-
-	pollfd server_pfd;
-	server_pfd.fd = server_fd;
-	server_pfd.events = POLLIN;
-	pfds.push_back(server_pfd);
+	addFd(server_fd, FdType::SERVER, POLLIN);
 	std::cerr << "Added server fd " << server_fd << std::endl;
 
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
-
-	fd_to_fd_type.emplace(server_fd, FdType::SERVER);
 
 	signal(SIGINT, sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
@@ -582,18 +575,9 @@ void Server::acceptClient()
 
 	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
 
-	fd_to_pfd_index.emplace(client_fd, pfds.size());
-
-	fd_to_client_index.emplace(client_fd, clients.size());
-
-	pollfd client_pfd;
-	client_pfd.fd = client_fd;
-	client_pfd.events = POLLIN;
-	pfds.push_back(client_pfd);
+	addClientFd(client_fd, clients.size(), FdType::CLIENT, POLLIN);
 
 	clients.push_back(Client(client_fd));
-
-	fd_to_fd_type.emplace(client_fd, FdType::CLIENT);
 }
 
 bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
