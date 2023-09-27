@@ -643,7 +643,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should
 		// If we've just started reading/entirely read this client's body, start a CGI script
 		if (previous_read_state == ClientReadState::HEADER && client.client_read_state != ClientReadState::HEADER)
 		{
-			// TODO: Only run the below code if the request wants to start the CGI
+			// TODO: Only run the below code if the request wants to start the CGI AND it is a POST request
 
 			if (!startCGI(client, fd, fd_type))
 			{

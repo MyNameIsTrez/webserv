@@ -7,6 +7,7 @@ def main():
     if os.environ.get('CONTENT_LENGTH'):
         print(f"CONTENT_LENGTH: {os.environ.get('CONTENT_LENGTH')}", file=sys.stderr)
     else:
+        # TODO: Should this be unreachable? It's always reached rn
         print("CONTENT_LENGTH is not in env", file=sys.stderr)
 
     # TODO: Test that the server doesn't crash if the script crashes

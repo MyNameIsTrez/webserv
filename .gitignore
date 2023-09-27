@@ -3,6 +3,8 @@
 !.vscode/settings.json
 !cgi-bin/*.py
 !experiments/*.[ch]pp
+!experiments/cgi.py
+!experiments/in.txt
 !rfcs/*.pdf
 !src/*.[ch]pp
 !tests/1_line.txt
