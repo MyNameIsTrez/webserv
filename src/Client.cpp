@@ -183,7 +183,7 @@ static bool strict_stoul(std::string &line, size_t &num)
 // {
 // 	std::stringstream ret;
 
-// 	for (std::string::size_type i = 0; i < s.length(); ++i)
+// 	for (std::string::size_type i = 0; i < s.size(); ++i)
 // 	{
 // 		ret << std::hex << std::setfill('0') << std::setw(2) << (upper_case ? std::uppercase : std::nouppercase) << (int)s[i];
 // 	}
@@ -195,62 +195,43 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 {
 	if (this->client_read_state == ClientReadState::HEADER)
 	{
-		// "\r\n\r" + "\n"
-		if (this->_header.size() >= 3 && this->_header[this->_header.size() - 3] == '\r' && this->_header[this->_header.size() - 2] == '\n' && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n')
-		{
-			this->_header.append(received, received + 1);
-			if (!_parseHeaders())
-				return false;
-			if (!this->_parseBodyAppend(received + 1, bytes_read - 1))
-				return false;
-			this->client_read_state = ClientReadState::BODY;
-		}
-		// "\r\n" + "\r\n"
-		else if (this->_header.size() >= 2 && bytes_read >= 2 && MAX_RECEIVED_LEN >= 2 && this->_header[this->_header.size() - 2] == '\r' && this->_header[this->_header.size() - 1] == '\n' && received[0] == '\r' && received[1] == '\n')
-		{
-			this->_header.append(received, received + 2);
-			if (!_parseHeaders())
-				return false;
-			if (!this->_parseBodyAppend(received + 2, bytes_read - 2))
-				return false;
-			this->client_read_state = ClientReadState::BODY;
-		}
-		// "\r" + "\n\r\n"
-		else if (this->_header.size() >= 1 && bytes_read >= 3 && MAX_RECEIVED_LEN >= 3 && this->_header[this->_header.size() - 1] == '\r' && received[0] == '\n' && received[1] == '\r' && received[2] == '\n')
-		{
-			this->_header.append(received, received + 3);
-			if (!_parseHeaders())
-				return false;
-			if (!this->_parseBodyAppend(received + 3, bytes_read - 3))
-				return false;
-			this->client_read_state = ClientReadState::BODY;
-		}
-		else
-		{
-			char const rnrn[] = "\r\n\r\n";
-			char *received_end = received + bytes_read; // TODO: Remove?
-			char *ptr = std::search(received, received_end, rnrn, rnrn + sizeof(rnrn) - 1);
+		this->_header.append(received, bytes_read);
 
-			// If "\r\n\r\n" isn't found in received
-			if (ptr == received_end)
+		size_t found_index = this->_header.find("\r\n\r\n");
+		if (found_index != std::string::npos)
+		{
+			std::string body_copy = std::string(this->_header.begin() + found_index + 4, this->_header.end());
+
+			// Erase temporarily appended body bytes from _header
+			this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
+
+			// Sets this->request_method
+			if (!_parseHeaders())
+				return false;
+
+			std::cerr << "Request method: '" << this->request_method << "'" << std::endl;
+			if (this->request_method == "POST")
 			{
-				this->_header.append(received, received + bytes_read);
+				this->client_read_state = ClientReadState::BODY;
+
+				// Add body bytes to _body
+				if (body_copy.size() > 0 && !this->_parseBodyAppend(body_copy))
+				{
+					return false;
+				}
 			}
-			// If "\r\n\r\n" is found in received
 			else
 			{
-				this->_header.append(received, ptr + 4); // Include "\r\n\r\n"
-				if (!_parseHeaders())
-					return false;
-				if (!this->_parseBodyAppend(ptr + 4, bytes_read - (ptr + 4 - received))) // Skip "\r\n\r\n"
-					return false;
-				this->client_read_state = ClientReadState::BODY;
+				this->client_read_state = ClientReadState::DONE;
+
+				// GET and DELETE requests have no body
+				return true;
 			}
 		}
 	}
 	else if (this->client_read_state == ClientReadState::BODY)
 	{
-		if (!this->_parseBodyAppend(received, bytes_read))
+		if (!this->_parseBodyAppend(std::string(received, received + bytes_read)))
 			return false;
 	}
 	else
@@ -258,18 +239,6 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 		// We keep reading regardless of whether we saw the end of the body,
 		// so we can still read the EOF any disconnected client sent
 		return true;
-	}
-
-	// std::cerr << "Hex body:\n----------\n" << to_hex(this->body) << "\n----------\n" << std::endl;
-
-	// TODO: Replace this with Victor's parsed content length value
-	// TODO: Move this block to be the first thing that happens below the "if (fd_type == FdType::CLIENT)",
-	// TODO: because we want to set the read state to DONE as soon as possible for cleanliness
-	if (this->body.find("hello world") != std::string::npos || (this->client_read_state == ClientReadState::BODY && (this->_header.substr(0, 3) == "GET" || this->_header.substr(0, 6) == "DELETE")))
-	{
-		std::cerr << "    Read the entire client's body:\n----------\n" << this->body << "\n----------\n" << std::endl;
-
-		this->client_read_state = ClientReadState::DONE;
 	}
 
 	return true;
@@ -282,7 +251,7 @@ void Client::prependResponseHeader()
 	// TODO: Use cgi_exit_status
 
 	std::stringstream len_ss;
-	len_ss << this->response.length();
+	len_ss << this->response.size();
 	// TODO: Use _replace_all(str, "\n", "\r\n"):
 	// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
 
@@ -425,19 +394,16 @@ bool Client::_parseStartLine(std::string line)
 	return true;
 }
 
-bool Client::_parseBodyAppend(char const *received, size_t len)
+bool Client::_parseBodyAppend(const std::string &received)
 {
-	if (len == 0)
-		return true;
 	if (this->_is_chunked)
 	{
-		std::cerr << "Parsing chunked substring" << std::endl;
-		this->_chunked_body_buffer.append(received, received + len);
+		std::cerr << "Parsing chunked body substring" << std::endl;
+		this->_chunked_body_buffer.append(received);
 		while (true)
 		{
 			if (this->_chunked_read_state == READING_CONTENT_LEN)
 			{
-				std::cerr << "_chunked_read_state == READING_CONTENT_LEN " << this->_chunked_body_buffer << std::endl;
 				// Check if current buffer has anything else than a hexadecimal character
 				if (this->_chunked_body_buffer.find_first_not_of("1234567890abcdefABCDEF") == std::string::npos)
 					break;
@@ -446,13 +412,11 @@ bool Client::_parseBodyAppend(char const *received, size_t len)
 				if (!hex_to_num(this->_chunked_body_buffer, this->_chunked_remaining_content_length))
 					return false;
 
-				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but is nice to just update it as appropriate (Maybe want do delete because it isn't needed)
+				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but is nice to just update it as appropriate (Maybe want to delete because it isn't needed)
 				this->_chunked_read_state = READING_CONTENT_LEN_ENDLINE;
 			}
 			if (this->_chunked_read_state == READING_BODY)
 			{
-				std::cerr << "_chunked_read_state == READING_BODY " << this->_chunked_body_buffer << std::endl;
-				// std::cerr << "Reading body" << std::endl;
 				// If not all of received should fit into the body
 				if (this->_chunked_body_buffer.size() >= this->_chunked_remaining_content_length)
 				{
@@ -473,7 +437,6 @@ bool Client::_parseBodyAppend(char const *received, size_t len)
 			// If state is any _ENDLINE state
 			if (this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE || this->_chunked_read_state == READING_BODY_ENDLINE)
 			{
-				std::cerr << "_chunked_read_state == READING_CONTENT_LEN_ENDLINE || _chunked_read_state == READING_BODY_ENDLINE " << this->_chunked_body_buffer << std::endl;
 				if (this->_chunked_body_buffer.size() < 2)
 					break;
 
@@ -512,17 +475,18 @@ bool Client::_parseBodyAppend(char const *received, size_t len)
 	// If request is not chunked
 	else
 	{
-		std::cerr << "Parsing non-chunked substring" << std::endl;
+		std::cerr << "Parsing non-chunked body substring" << std::endl;
 		// If not all of received should fit into the body
-		if (this->body.size() + len >= this->_content_length)
+		if (this->body.size() + received.size() >= this->_content_length)
 		{
-			this->body.append(received, received + len - (this->_content_length - this->body.size()));
+			size_t needed = this->_content_length - this->body.size();
+			this->body.append(received.begin(), received.begin() + needed);
 			this->client_read_state = ClientReadState::DONE;
 		}
 		// If all of received should fit into the body
 		else
 		{
-			this->body.append(received, received + len);
+			this->body.append(received);
 		}
 	}
 	return true;
@@ -539,8 +503,8 @@ void Client::_generateEnv()
 // 	size_t start_pos = 0;
 // 	while((start_pos = input.find(needle, start_pos)) != std::string::npos)
 // 	{
-// 		input.replace(start_pos, needle.length(), replacement);
-// 		start_pos += replacement.length(); // Handles case where 'replacement' is a substring of 'needle'
+// 		input.replace(start_pos, needle.size(), replacement);
+// 		start_pos += replacement.size(); // Handles case where 'replacement' is a substring of 'needle'
 // 	}
 // 	return input;
 // }
