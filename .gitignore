@@ -5,6 +5,7 @@
 !experiments/*.[ch]pp
 !experiments/cgi.py
 !experiments/in.txt
+!public/index.html
 !rfcs/*.pdf
 !src/*.[ch]pp
 !tests/1_line.txt
@@ -18,8 +19,10 @@
 !tests/empty.txt
 !YoupiBanane/**
 !.gitignore
+!Dockerfile
 !fn_descriptions.c
 !Makefile
+!nginx.conf
 !README.md
 !subject.pdf
 !TODO.md

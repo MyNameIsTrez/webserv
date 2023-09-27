@@ -96,7 +96,7 @@ private:
 
 	bool _parseHeaders(void);
 	bool _parseStartLine(std::string line);
-	bool _parseBodyAppend(const std::string &received);
+	bool _parseBodyAppend(const std::string &extra_body);
 	void _generateEnv();
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
 

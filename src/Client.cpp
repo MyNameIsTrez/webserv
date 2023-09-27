@@ -200,7 +200,7 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 		size_t found_index = this->_header.find("\r\n\r\n");
 		if (found_index != std::string::npos)
 		{
-			std::string body_copy = std::string(this->_header.begin() + found_index + 4, this->_header.end());
+			std::string extra_body = std::string(this->_header.begin() + found_index + 4, this->_header.end());
 
 			// Erase temporarily appended body bytes from _header
 			this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
@@ -215,7 +215,7 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 				this->client_read_state = ClientReadState::BODY;
 
 				// Add body bytes to _body
-				if (body_copy.size() > 0 && !this->_parseBodyAppend(body_copy))
+				if (extra_body.size() > 0 && !this->_parseBodyAppend(extra_body))
 				{
 					return false;
 				}
@@ -394,12 +394,12 @@ bool Client::_parseStartLine(std::string line)
 	return true;
 }
 
-bool Client::_parseBodyAppend(const std::string &received)
+bool Client::_parseBodyAppend(const std::string &extra_body)
 {
 	if (this->_is_chunked)
 	{
 		std::cerr << "Parsing chunked body substring" << std::endl;
-		this->_chunked_body_buffer.append(received);
+		this->_chunked_body_buffer.append(extra_body);
 		while (true)
 		{
 			if (this->_chunked_read_state == READING_CONTENT_LEN)
@@ -417,7 +417,7 @@ bool Client::_parseBodyAppend(const std::string &received)
 			}
 			if (this->_chunked_read_state == READING_BODY)
 			{
-				// If not all of received should fit into the body
+				// If not all of extra_body should fit into the body
 				if (this->_chunked_body_buffer.size() >= this->_chunked_remaining_content_length)
 				{
 					this->body.append(this->_chunked_body_buffer, 0, this->_chunked_remaining_content_length);
@@ -425,7 +425,7 @@ bool Client::_parseBodyAppend(const std::string &received)
 					this->_chunked_remaining_content_length = 0;
 					this->_chunked_read_state = READING_BODY_ENDLINE;
 				}
-				// If all of received should fit into the body
+				// If all of extra_body should fit into the body
 				else
 				{
 					this->body.append(this->_chunked_body_buffer);
@@ -476,17 +476,17 @@ bool Client::_parseBodyAppend(const std::string &received)
 	else
 	{
 		std::cerr << "Parsing non-chunked body substring" << std::endl;
-		// If not all of received should fit into the body
-		if (this->body.size() + received.size() >= this->_content_length)
+		// If not all of extra_body should fit into the body
+		if (this->body.size() + extra_body.size() >= this->_content_length)
 		{
 			size_t needed = this->_content_length - this->body.size();
-			this->body.append(received.begin(), received.begin() + needed);
+			this->body.append(extra_body.begin(), extra_body.begin() + needed);
 			this->client_read_state = ClientReadState::DONE;
 		}
-		// If all of received should fit into the body
+		// If all of extra_body should fit into the body
 		else
 		{
-			this->body.append(received);
+			this->body.append(extra_body);
 		}
 	}
 	return true;
