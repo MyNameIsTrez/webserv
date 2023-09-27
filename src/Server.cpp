@@ -37,19 +37,19 @@ static void sigIntHandler(int signum)
 int Server::_sig_chld_tube[2];
 
 Server::Server(void)
-	: server_fd(-1),
-	  cgi_pid_to_client_fd(),
-	  fd_to_client_index(),
-	  fd_to_pfd_index(),
-	  fd_to_fd_type(),
-	  clients(),
-	  pfds()
+	: _server_fd(-1),
+	  _cgi_pid_to_client_fd(),
+	  _fd_to_client_index(),
+	  _fd_to_pfd_index(),
+	  _fd_to_fd_type(),
+	  _clients(),
+	  _pfds()
 {
 	// TODO: Parse config
 
 	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-	if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
+	if ((_server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 	{
 		perror("socket");
 		exit(EXIT_FAILURE);
@@ -58,7 +58,7 @@ Server::Server(void)
 	// Prevents "bind: Address already in use" error after:
 	// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
-	if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
+	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
 	{
 		perror("setsockopt");
 		exit(EXIT_FAILURE);
@@ -69,20 +69,20 @@ Server::Server(void)
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
 
-	if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1)
+	if ((bind(_server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1)
 	{
 		perror("bind");
 		exit(EXIT_FAILURE);
 	}
 
-	if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1)
+	if ((listen(_server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1)
 	{
 		perror("listen");
 		exit(EXIT_FAILURE);
 	}
 
-	addFd(server_fd, FdType::SERVER, POLLIN);
-	std::cerr << "Added server fd " << server_fd << std::endl;
+	_addFd(_server_fd, FdType::SERVER, POLLIN);
+	std::cerr << "Added server fd " << _server_fd << std::endl;
 
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
 
@@ -94,9 +94,9 @@ Server::Server(void)
 		perror("pipe");
 		exit(EXIT_FAILURE);
 	}
-	addFd(_sig_chld_tube[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
+	_addFd(_sig_chld_tube[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
 	std::cerr << "Added _sig_chld_tube[PIPE_READ_INDEX] fd " << _sig_chld_tube[PIPE_READ_INDEX] << std::endl;
-	signal(SIGCHLD, sigChldHandler);
+	signal(SIGCHLD, _sigChldHandler);
 }
 
 Server::Server(const std::string &configuration_path)
@@ -132,19 +132,19 @@ void Server::run(void)
 
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
-			fd_to_pfd_index[pfds.back().fd] = server_pfd_index;
-			swapRemove(pfds, server_pfd_index);
+			_fd_to_pfd_index[_pfds.back().fd] = server_pfd_index;
+			_swapRemove(_pfds, server_pfd_index);
 
 			servers_active = false;
 		}
 
-		if (pfds.empty())
+		if (_pfds.empty())
 		{
 			break;
 		}
 		else if (shutting_down_gracefully) {
 			// TODO: Do we want to use : iteration in other spots too?
-			for (pollfd pfd : pfds)
+			for (pollfd pfd : _pfds)
 			{
 				std::cerr << "  Waiting for poll fd " << pfd.fd << std::endl;
 			}
@@ -152,7 +152,7 @@ void Server::run(void)
 
 		std::cerr << "Waiting for an event..." << std::endl;
 		// TODO: Consider having a timeout of 5000 ms or something again
-		int event_count = poll(pfds.data(), pfds.size(), -1);
+		int event_count = poll(_pfds.data(), _pfds.size(), -1);
 		if (event_count == -1)
 		{
 			if (errno == EINTR)
@@ -168,29 +168,29 @@ void Server::run(void)
 		// 	std::cerr << "poll() timed out" << std::endl;
 		// }
 
-		printContainerSizes();
+		_printContainerSizes();
 
 		seen_fds.clear();
 
-		for (nfds_t pfd_index = pfds.size(); pfd_index > 0;)
+		for (nfds_t pfd_index = _pfds.size(); pfd_index > 0;)
 		{
 			pfd_index--;
 
 			// If this pfd didn't have any event
-			if (pfds[pfd_index].revents == 0)
+			if (_pfds[pfd_index].revents == 0)
 			{
 				continue;
 			}
 
-			int fd = pfds[pfd_index].fd;
+			int fd = _pfds[pfd_index].fd;
 
 			// If this pfd got removed
-			if (fd_to_pfd_index.find(fd) == fd_to_pfd_index.end())
+			if (_fd_to_pfd_index.find(fd) == _fd_to_pfd_index.end())
 			{
 				continue;
 			}
 
-			// If we've already iterated over this fd in this pfds loop
+			// If we've already iterated over this fd in this _pfds loop
 			if (seen_fds.find(fd) != seen_fds.end())
 			{
 				assert(false); // TODO: REMOVE! This is just here because I'm curious whether it happens
@@ -198,30 +198,30 @@ void Server::run(void)
 			}
 			seen_fds.emplace(fd);
 
-			FdType::FdType fd_type = fd_to_fd_type.at(fd);
+			FdType::FdType fd_type = _fd_to_fd_type.at(fd);
 
-			printEvents(pfds[pfd_index], fd_type);
+			_printEvents(_pfds[pfd_index], fd_type);
 
-			// TODO: Try to reach this by commenting out a line that removes a closed fd from pfds
-			if (pfds[pfd_index].revents & POLLNVAL)
+			// TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
+			if (_pfds[pfd_index].revents & POLLNVAL)
 			{
-				handlePollnval();
+				_handlePollnval();
 			}
 
 			// If we are trying to write to a CGI script that closed its stdin,
 			// or we are trying to write to a disconnected client
-			if (pfds[pfd_index].revents & POLLERR)
+			if (_pfds[pfd_index].revents & POLLERR)
 			{
-				handlePollerr(fd, fd_type);
+				_handlePollerr(fd, fd_type);
 				continue;
 			}
 
 			bool should_continue = false;
 
 			// If the client disconnected
-			if (pfds[pfd_index].revents & POLLHUP)
+			if (_pfds[pfd_index].revents & POLLHUP)
 			{
-				handlePollhup(fd, fd_type, pfd_index, should_continue);
+				_handlePollhup(fd, fd_type, pfd_index, should_continue);
 				if (should_continue)
 				{
 					continue;
@@ -229,9 +229,9 @@ void Server::run(void)
 			}
 
 			// If we can read
-			if (pfds[pfd_index].revents & POLLIN_ANY)
+			if (_pfds[pfd_index].revents & POLLIN_ANY)
 			{
-				handlePollin(fd, fd_type, should_continue);
+				_handlePollin(fd, fd_type, should_continue);
 				if (should_continue)
 				{
 					continue;
@@ -239,9 +239,9 @@ void Server::run(void)
 			}
 
 			// If we can write
-			if (pfds[pfd_index].revents & POLLOUT_ANY)
+			if (_pfds[pfd_index].revents & POLLOUT_ANY)
 			{
-				handlePollout(fd, fd_type, pfd_index);
+				_handlePollout(fd, fd_type, pfd_index);
 			}
 		}
 	}
@@ -261,33 +261,33 @@ void Server::run(void)
 
 // vector=[ A, B, C, D ] with index=1 results in [ A, D, C ]
 template <typename T>
-void Server::swapRemove(T &vector, size_t index)
+void Server::_swapRemove(T &vector, size_t index)
 {
 	vector[index] = vector.back();
 	vector.pop_back();
 }
 
-void Server::printContainerSizes(void)
+void Server::_printContainerSizes(void)
 {
 	std::cerr
 		<< "MAPS: "
-		<< "cgi_pid_to_client_fd=" << cgi_pid_to_client_fd.size()
-		<< ", fd_to_client_index=" << fd_to_client_index.size()
-		<< ", fd_to_pfd_index=" << fd_to_pfd_index.size()
-		<< ", fd_to_fd_type=" << fd_to_fd_type.size()
+		<< "_cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
+		<< ", _fd_to_client_index=" << _fd_to_client_index.size()
+		<< ", _fd_to_pfd_index=" << _fd_to_pfd_index.size()
+		<< ", _fd_to_fd_type=" << _fd_to_fd_type.size()
 		<< " | VECTORS: "
-		<< "clients=" << clients.size()
-		<< ", pfds=" << pfds.size()
+		<< "_clients=" << _clients.size()
+		<< ", _pfds=" << _pfds.size()
 		<< std::endl;
 }
 
-void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
+void Server::_printEvents(const pollfd &pfd, FdType::FdType fd_type)
 {
 	std::cerr
 		<< "  fd: " << pfd.fd
 		<< ", fd_type: " << fd_type
-		<< ", client_index: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : fd_to_client_index.at(pfd.fd))
-		<< ", client_fd: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : clients.at(fd_to_client_index.at(pfd.fd)).client_fd)
+		<< ", client_index: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
+		<< ", client_fd: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd)
 		<< ", revents:"
 		<< ((pfd.revents & POLLIN) ? " POLLIN" : "")
 		<< ((pfd.revents & POLLOUT) ? " POLLOUT" : "")
@@ -302,29 +302,29 @@ void Server::printEvents(const pollfd &pfd, FdType::FdType fd_type)
 		<< std::endl;
 }
 
-// TODO: Don't let fd_to_client_index nor clients be passed in, by just getting it from the member variable;
+// TODO: Don't let _fd_to_client_index nor _clients be passed in, by just getting it from the member variable;
 // TODO: Do the same for other methods that are getting useless args!
 // This is called in many spots
 // due to the fact that client pointer can dangle
-// whenever the clients vector resizes
-Client &Server::getClient(int fd)
+// whenever the _clients vector resizes
+Client &Server::_getClient(int fd)
 {
-	size_t client_index = fd_to_client_index.at(fd);
-	return clients[client_index];
+	size_t client_index = _fd_to_client_index.at(fd);
+	return _clients[client_index];
 }
 
-void Server::removeFd(int &fd)
+void Server::_removeFd(int &fd)
 {
 	assert(fd != -1);
 	std::cerr << "    Removing fd " << fd << std::endl;
 
-	size_t pfd_index = fd_to_pfd_index.at(fd);
-	fd_to_pfd_index[pfds.back().fd] = pfd_index;
-	swapRemove(pfds, pfd_index);
+	size_t pfd_index = _fd_to_pfd_index.at(fd);
+	_fd_to_pfd_index[_pfds.back().fd] = pfd_index;
+	_swapRemove(_pfds, pfd_index);
 
-	fd_to_pfd_index.erase(fd);
-	fd_to_client_index.erase(fd);
-	fd_to_fd_type.erase(fd);
+	_fd_to_pfd_index.erase(fd);
+	_fd_to_client_index.erase(fd);
+	_fd_to_fd_type.erase(fd);
 
 	if (close(fd) == -1)
 	{
@@ -335,38 +335,38 @@ void Server::removeFd(int &fd)
 	fd = -1;
 }
 
-void Server::enableWritingToClient(Client &client)
+void Server::_enableWritingToClient(Client &client)
 {
-	std::cerr << "    In enableWritingToClient()" << std::endl;
-	size_t client_pfd_index = fd_to_pfd_index.at(client.client_fd);
-	pfds[client_pfd_index].events |= POLLOUT;
+	std::cerr << "    In _enableWritingToClient()" << std::endl;
+	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
+	_pfds[client_pfd_index].events |= POLLOUT;
 
 	client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
 
 	client.prependResponseHeader();
 }
 
-void Server::addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events)
+void Server::_addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events)
 {
-	fd_to_client_index.emplace(fd, client_index);
+	_fd_to_client_index.emplace(fd, client_index);
 
-	addFd(fd, fd_type, events);
+	_addFd(fd, fd_type, events);
 }
 
-void Server::addFd(int fd, FdType::FdType fd_type, short int events)
+void Server::_addFd(int fd, FdType::FdType fd_type, short int events)
 {
-	fd_to_fd_type.emplace(fd, fd_type);
-	fd_to_pfd_index.emplace(fd, pfds.size());
+	_fd_to_fd_type.emplace(fd, fd_type);
+	_fd_to_pfd_index.emplace(fd, _pfds.size());
 
 	pollfd pfd;
 	pfd.fd = fd;
 	pfd.events = events;
-	pfds.push_back(pfd);
+	_pfds.push_back(pfd);
 }
 
-void Server::sigChldHandler(int signum)
+void Server::_sigChldHandler(int signum)
 {
-	std::cerr << "In sigChldHandler()" << std::endl;
+	std::cerr << "In _sigChldHandler()" << std::endl;
 	(void)signum;
 
 	char dummy = '!';
@@ -377,24 +377,24 @@ void Server::sigChldHandler(int signum)
 	}
 }
 
-void Server::handlePollnval(void)
+void Server::_handlePollnval(void)
 {
 	// TODO: Remove the client?
-	// TODO: Try to reach this by commenting out a line that removes a closed fd from pfds
+	// TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
 	assert(false);
 }
 
-void Server::handlePollerr(int fd, FdType::FdType fd_type)
+void Server::_handlePollerr(int fd, FdType::FdType fd_type)
 {
 	if (fd_type == FdType::SERVER_TO_CGI)
 	{
-		Client &client = getClient(fd);
+		Client &client = _getClient(fd);
 		client.cgi_write_state = CGIWriteState::DONE;
-		removeFd(client.server_to_cgi_fd);
+		_removeFd(client.server_to_cgi_fd);
 	}
 	else if (fd_type == FdType::CLIENT)
 	{
-		removeClient(fd);
+		_removeClient(fd);
 	}
 	else
 	{
@@ -403,24 +403,24 @@ void Server::handlePollerr(int fd, FdType::FdType fd_type)
 	}
 }
 
-void Server::handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
+void Server::_handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
 {
 	// If the CGI script closed its stdout
 	if (fd_type == FdType::CGI_TO_SERVER)
 	{
 		// If the server has read everything from the CGI script
-		if (!(pfds[pfd_index].revents & POLLIN))
+		if (!(_pfds[pfd_index].revents & POLLIN))
 		{
 			// TODO: REMOVE THIS!!
 			// std::cerr << "Swapping pfd 1 and 2" << std::endl;
-			// fd_to_pfd_index[pfds[1].fd] = 2;
-			// fd_to_pfd_index[pfds[2].fd] = 1;
+			// _fd_to_pfd_index[_pfds[1].fd] = 2;
+			// _fd_to_pfd_index[_pfds[2].fd] = 1;
 
-			// pollfd tmp = pfds[2];
-			// pfds[2] = pfds[1];
-			// pfds[1] = tmp;
+			// pollfd tmp = _pfds[2];
+			// _pfds[2] = _pfds[1];
+			// _pfds[1] = tmp;
 
-			pollhupCGIToServer(fd);
+			_pollhupCGIToServer(fd);
 			should_continue = true;
 		}
 	}
@@ -431,11 +431,11 @@ void Server::handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, boo
 	}
 }
 
-void Server::pollhupCGIToServer(int fd)
+void Server::_pollhupCGIToServer(int fd)
 {
-	std::cerr << "  In pollhupCGIToServer()" << std::endl;
+	std::cerr << "  In _pollhupCGIToServer()" << std::endl;
 
-	Client &client = getClient(fd);
+	Client &client = _getClient(fd);
 
 	// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 
@@ -444,23 +444,23 @@ void Server::pollhupCGIToServer(int fd)
 	if (client.server_to_cgi_fd != -1)
 	{
 		client.cgi_write_state = CGIWriteState::DONE;
-		removeFd(client.server_to_cgi_fd);
+		_removeFd(client.server_to_cgi_fd);
 	}
 
 	// Close and remove cgi_to_server
 	assert(client.cgi_to_server_fd != -1);
-	removeFd(client.cgi_to_server_fd);
+	_removeFd(client.cgi_to_server_fd);
 	client.cgi_read_state = CGIReadState::DONE;
 
 	if (client.cgi_exit_status != -1)
 	{
-		enableWritingToClient(client);
+		_enableWritingToClient(client);
 	}
 }
 
-void Server::reapChild(void)
+void Server::_reapChild(void)
 {
-	std::cerr << "    In reapChild()" << std::endl;
+	std::cerr << "    In _reapChild()" << std::endl;
 
 	char dummy;
 	read(_sig_chld_tube[PIPE_READ_INDEX], &dummy, 1);
@@ -511,11 +511,11 @@ void Server::reapChild(void)
 			assert(false); // TODO: What to do here?
 		}
 
-		int client_fd = cgi_pid_to_client_fd.at(child_pid);
-		size_t client_index = fd_to_client_index.at(client_fd);
-		Client &client = clients.at(client_index);
+		int client_fd = _cgi_pid_to_client_fd.at(child_pid);
+		size_t client_index = _fd_to_client_index.at(client_fd);
+		Client &client = _clients.at(client_index);
 
-		cgi_pid_to_client_fd.erase(client.cgi_pid);
+		_cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
 
 		assert(client.client_read_state == ClientReadState::DONE);
@@ -530,7 +530,7 @@ void Server::reapChild(void)
 
 		if (client.cgi_read_state == CGIReadState::DONE)
 		{
-			enableWritingToClient(client);
+			_enableWritingToClient(client);
 		}
 	}
 	else
@@ -540,15 +540,15 @@ void Server::reapChild(void)
 	}
 }
 
-void Server::handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
+void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
 {
 	if (fd_type == FdType::SERVER)
 	{
-		acceptClient();
+		_acceptClient();
 	}
 	else if (fd_type == FdType::SIG_CHLD)
 	{
-		reapChild();
+		_reapChild();
 
 		// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
 
@@ -558,9 +558,9 @@ void Server::handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
 	{
 		assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
 
-		Client &client = getClient(fd);
+		Client &client = _getClient(fd);
 
-		if (!readFd(client, fd, fd_type, should_continue))
+		if (!_readFd(client, fd, fd_type, should_continue))
 		{
 			// TODO: Print error
 			exit(EXIT_FAILURE);
@@ -568,19 +568,19 @@ void Server::handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
 	}
 }
 
-void Server::acceptClient()
+void Server::_acceptClient()
 {
-	int client_fd = accept(server_fd, NULL, NULL);
+	int client_fd = accept(_server_fd, NULL, NULL);
 	std::cerr << "    Accepted client fd " << client_fd << std::endl;
 
 	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
 
-	addClientFd(client_fd, clients.size(), FdType::CLIENT, POLLIN);
+	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
-	clients.push_back(Client(client_fd));
+	_clients.push_back(Client(client_fd));
 }
 
-bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
+bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
@@ -604,7 +604,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should
 		// and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
 		assert(fd_type == FdType::CLIENT);
 
-		removeClient(client.client_fd);
+		_removeClient(client.client_fd);
 		should_continue = true;
 
 		return true;
@@ -629,7 +629,7 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should
 		{
 			// TODO: Only run the below code if the request wants to start the CGI AND it is a POST request
 
-			if (!startCGI(client, fd, fd_type))
+			if (!_startCGI(client, fd, fd_type))
 			{
 				return false;
 			}
@@ -638,9 +638,9 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should
 		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_write_state != CGIWriteState::DONE)
 		{
 			assert(client.server_to_cgi_fd != -1);
-			size_t server_to_cgi_pfd_index = fd_to_pfd_index.at(client.server_to_cgi_fd);
+			size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
 			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			pfds[server_to_cgi_pfd_index].events |= POLLOUT;
+			_pfds[server_to_cgi_pfd_index].events |= POLLOUT;
 		}
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
@@ -658,21 +658,21 @@ bool Server::readFd(Client &client, int fd, FdType::FdType fd_type, bool &should
 	return true;
 }
 
-void Server::removeClient(int fd)
+void Server::_removeClient(int fd)
 {
 	assert(fd != -1);
 	std::cerr << "  Removing client with fd " << fd << std::endl;
 
-	Client &client = getClient(fd);
+	Client &client = _getClient(fd);
 
 	if (client.server_to_cgi_fd != -1)
 	{
-		removeFd(client.server_to_cgi_fd);
+		_removeFd(client.server_to_cgi_fd);
 	}
 
 	if (client.cgi_to_server_fd != -1)
 	{
-		removeFd(client.cgi_to_server_fd);
+		_removeFd(client.cgi_to_server_fd);
 	}
 
 	if (client.cgi_pid != -1)
@@ -681,22 +681,22 @@ void Server::removeClient(int fd)
 		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
 		kill(client.cgi_pid, SIGTERM);
 
-		cgi_pid_to_client_fd.erase(client.cgi_pid);
+		_cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
 	}
 
 	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
-	size_t client_index = fd_to_client_index.at(client.client_fd);
+	size_t client_index = _fd_to_client_index.at(client.client_fd);
 
-	fd_to_client_index[clients.back().client_fd] = client_index;
-	fd_to_client_index[clients.back().server_to_cgi_fd] = client_index;
-	fd_to_client_index[clients.back().cgi_to_server_fd] = client_index;
+	_fd_to_client_index[_clients.back().client_fd] = client_index;
+	_fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
+	_fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
 
-	removeFd(client.client_fd);
-	swapRemove(clients, client_index);
+	_removeFd(client.client_fd);
+	_swapRemove(_clients, client_index);
 }
 
-bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
+bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 {
 	std::cerr << "  Starting CGI..." << std::endl;
 
@@ -761,9 +761,9 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	client.cgi_pid = forked_pid;
 
-	cgi_pid_to_client_fd.emplace(forked_pid, fd);
+	_cgi_pid_to_client_fd.emplace(forked_pid, fd);
 
-	size_t client_index = fd_to_client_index.at(fd);
+	size_t client_index = _fd_to_client_index.at(fd);
 
 	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
 
@@ -776,14 +776,14 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 	}
 	else
 	{
-		addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
+		_addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
 		client.server_to_cgi_fd = server_to_cgi_fd;
 		client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 		std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
 	}
 
 	int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
-	addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
+	_addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 	std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
@@ -791,17 +791,17 @@ bool Server::startCGI(Client &client, int fd, FdType::FdType fd_type)
 	return true;
 }
 
-void Server::handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
+void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
 {
-	Client &client = getClient(fd);
+	Client &client = _getClient(fd);
 
 	if (fd_type == FdType::SERVER_TO_CGI)
 	{
-		writeToCGI(client, pfd_index);
+		_writeToCGI(client, pfd_index);
 	}
 	else if (fd_type == FdType::CLIENT)
 	{
-		writeToClient(client, fd, pfd_index);
+		_writeToClient(client, fd, pfd_index);
 	}
 	else
 	{
@@ -810,7 +810,7 @@ void Server::handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
 	}
 }
 
-void Server::writeToCGI(Client &client, nfds_t pfd_index)
+void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 {
 	std::cerr << "  Writing from the server to the CGI..." << std::endl;
 
@@ -834,11 +834,11 @@ void Server::writeToCGI(Client &client, nfds_t pfd_index)
 		std::cerr << "    write() detected 'Broken pipe'" << std::endl;
 
 		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
-		pfds[pfd_index].events &= ~POLLOUT;
-		pfds[pfd_index].revents &= ~POLLOUT;
+		_pfds[pfd_index].events &= ~POLLOUT;
+		_pfds[pfd_index].revents &= ~POLLOUT;
 
 		client.cgi_write_state = CGIWriteState::DONE;
-		removeFd(client.server_to_cgi_fd);
+		_removeFd(client.server_to_cgi_fd);
 
 		return;
 	}
@@ -847,18 +847,18 @@ void Server::writeToCGI(Client &client, nfds_t pfd_index)
 	if (client.body_index == client.body.length())
 	{
 		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
-		pfds[pfd_index].events &= ~POLLOUT;
-		pfds[pfd_index].revents &= ~POLLOUT;
+		_pfds[pfd_index].events &= ~POLLOUT;
+		_pfds[pfd_index].revents &= ~POLLOUT;
 
 		if (client.client_read_state == ClientReadState::DONE)
 		{
 			client.cgi_write_state = CGIWriteState::DONE;
-			removeFd(client.server_to_cgi_fd);
+			_removeFd(client.server_to_cgi_fd);
 		}
 	}
 }
 
-void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
+void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
 {
 	std::cerr << "  Writing to the client..." << std::endl;
 
@@ -882,7 +882,7 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
 		// TODO: Remove the client immediately? Reached when the time.sleep(5) in print.py is commented out
-		perror("write in writeToClient");
+		perror("write in _writeToClient");
 		exit(EXIT_FAILURE);
 	}
 
@@ -895,7 +895,7 @@ void Server::writeToClient(Client &client, int fd, nfds_t pfd_index)
 	if (client.response_index == client.response.length())
 	{
 		std::cerr << "    Disabling client POLLOUT" << std::endl;
-		pfds[pfd_index].events &= ~POLLOUT;
-		pfds[pfd_index].revents &= ~POLLOUT;
+		_pfds[pfd_index].events &= ~POLLOUT;
+		_pfds[pfd_index].revents &= ~POLLOUT;
 	}
 }

@@ -20,10 +20,8 @@
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
 - [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
-- [ ] Let Client hold two read_states and two write_states, so we don't need up to 4 "clients" per *real* client
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
 - [ ] Make sure all error code pages are correctly sent: 3xx is redirect; 4xx is not available; 5xx is server error
-- [ ] Test if the "client" reference can be set directly where the fd is set, cause I'm not sure whether it can still dangle with the way we push-swap and loop over pfds backwards
 - [ ] Make sure that having two clients POSTing/GETing the server at the same time works
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
@@ -117,6 +115,6 @@ http://f1r3s6.codam.nl:8080/
 - Make sure that even a length of 1 works for all the #defines, like MAX_CLIENT_WRITE_LEN
 - Remove all functions that aren't signal handler safe from the signal handlers
 - Make sure that a body in a GET or a DELETE *is* parsed, [but not handled further](https://stackoverflow.com/a/983458/13279557)
-- Make sure `printContainerSizes()` prints *every* Server map and vector, and that none of them grow over time
-- Make sure no async-unsafe calls like printing are done in any signal handlers (including `Server::sigChldHandler()`)
+- Make sure `_printContainerSizes()` prints *every* Server map and vector, and that none of them grow over time
+- Make sure no async-unsafe calls like printing are done in any signal handlers (including `Server::_sigChldHandler()`)
 - Replace all perror() and exit() calls with proper exiting logic
