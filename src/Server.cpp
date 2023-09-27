@@ -130,12 +130,14 @@ void Server::run(void)
 		{
 			std::cerr << std::endl << "Shutting down gracefully..." << std::endl;
 
+			servers_active = false;
+
+			_removeFd(_sig_chld_tube[PIPE_READ_INDEX]);
+
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
 			_fd_to_pfd_index[_pfds.back().fd] = server_pfd_index;
 			_swapRemove(_pfds, server_pfd_index);
-
-			servers_active = false;
 		}
 
 		if (_pfds.empty())
@@ -313,9 +315,19 @@ Client &Server::_getClient(int fd)
 	return _clients[client_index];
 }
 
+void Server::_removeClientFd(int &fd)
+{
+	assert(fd != -1);
+
+	_fd_to_client_index.erase(fd);
+
+	_removeFd(fd);
+}
+
 void Server::_removeFd(int &fd)
 {
 	assert(fd != -1);
+
 	std::cerr << "    Removing fd " << fd << std::endl;
 
 	size_t pfd_index = _fd_to_pfd_index.at(fd);
@@ -323,7 +335,6 @@ void Server::_removeFd(int &fd)
 	_swapRemove(_pfds, pfd_index);
 
 	_fd_to_pfd_index.erase(fd);
-	_fd_to_client_index.erase(fd);
 	_fd_to_fd_type.erase(fd);
 
 	if (close(fd) == -1)
@@ -348,6 +359,8 @@ void Server::_enableWritingToClient(Client &client)
 
 void Server::_addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events)
 {
+	assert(fd != -1);
+
 	_fd_to_client_index.emplace(fd, client_index);
 
 	_addFd(fd, fd_type, events);
@@ -355,6 +368,10 @@ void Server::_addClientFd(int fd, size_t client_index, FdType::FdType fd_type, s
 
 void Server::_addFd(int fd, FdType::FdType fd_type, short int events)
 {
+	assert(fd != -1);
+
+	std::cerr << "    Adding fd " << fd << std::endl;
+
 	_fd_to_fd_type.emplace(fd, fd_type);
 	_fd_to_pfd_index.emplace(fd, _pfds.size());
 
@@ -390,7 +407,7 @@ void Server::_handlePollerr(int fd, FdType::FdType fd_type)
 	{
 		Client &client = _getClient(fd);
 		client.cgi_write_state = CGIWriteState::DONE;
-		_removeFd(client.server_to_cgi_fd);
+		_removeClientFd(client.server_to_cgi_fd);
 	}
 	else if (fd_type == FdType::CLIENT)
 	{
@@ -444,18 +461,58 @@ void Server::_pollhupCGIToServer(int fd)
 	if (client.server_to_cgi_fd != -1)
 	{
 		client.cgi_write_state = CGIWriteState::DONE;
-		_removeFd(client.server_to_cgi_fd);
+		_removeClientFd(client.server_to_cgi_fd);
 	}
 
 	// Close and remove cgi_to_server
 	assert(client.cgi_to_server_fd != -1);
-	_removeFd(client.cgi_to_server_fd);
+	_removeClientFd(client.cgi_to_server_fd);
 	client.cgi_read_state = CGIReadState::DONE;
 
 	if (client.cgi_exit_status != -1)
 	{
 		_enableWritingToClient(client);
 	}
+}
+
+void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
+{
+	if (fd_type == FdType::SERVER)
+	{
+		_acceptClient();
+	}
+	else if (fd_type == FdType::SIG_CHLD)
+	{
+		_reapChild();
+
+		// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
+
+		should_continue = true;
+	}
+	else
+	{
+		assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
+
+		Client &client = _getClient(fd);
+
+		if (!_readFd(client, fd, fd_type, should_continue))
+		{
+			// TODO: Print error
+			exit(EXIT_FAILURE);
+		}
+	}
+}
+
+void Server::_acceptClient()
+{
+	int client_fd = accept(_server_fd, NULL, NULL);
+	std::cerr << "    Accepted client fd " << client_fd << std::endl;
+
+	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
+
+	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
+
+	_clients.push_back(Client(client_fd));
 }
 
 void Server::_reapChild(void)
@@ -538,46 +595,6 @@ void Server::_reapChild(void)
 		// TODO: Should be unreachable
 		assert(false);
 	}
-}
-
-void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
-{
-	if (fd_type == FdType::SERVER)
-	{
-		_acceptClient();
-	}
-	else if (fd_type == FdType::SIG_CHLD)
-	{
-		_reapChild();
-
-		// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
-
-		should_continue = true;
-	}
-	else
-	{
-		assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
-
-		Client &client = _getClient(fd);
-
-		if (!_readFd(client, fd, fd_type, should_continue))
-		{
-			// TODO: Print error
-			exit(EXIT_FAILURE);
-		}
-	}
-}
-
-void Server::_acceptClient()
-{
-	int client_fd = accept(_server_fd, NULL, NULL);
-	std::cerr << "    Accepted client fd " << client_fd << std::endl;
-
-	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
-
-	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
-
-	_clients.push_back(Client(client_fd));
 }
 
 bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
@@ -667,12 +684,12 @@ void Server::_removeClient(int fd)
 
 	if (client.server_to_cgi_fd != -1)
 	{
-		_removeFd(client.server_to_cgi_fd);
+		_removeClientFd(client.server_to_cgi_fd);
 	}
 
 	if (client.cgi_to_server_fd != -1)
 	{
-		_removeFd(client.cgi_to_server_fd);
+		_removeClientFd(client.cgi_to_server_fd);
 	}
 
 	if (client.cgi_pid != -1)
@@ -692,7 +709,7 @@ void Server::_removeClient(int fd)
 	_fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
 	_fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
 
-	_removeFd(client.client_fd);
+	_removeClientFd(client.client_fd);
 	_swapRemove(_clients, client_index);
 }
 
@@ -838,7 +855,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 		_pfds[pfd_index].revents &= ~POLLOUT;
 
 		client.cgi_write_state = CGIWriteState::DONE;
-		_removeFd(client.server_to_cgi_fd);
+		_removeClientFd(client.server_to_cgi_fd);
 
 		return;
 	}
@@ -853,7 +870,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 		if (client.client_read_state == ClientReadState::DONE)
 		{
 			client.cgi_write_state = CGIWriteState::DONE;
-			_removeFd(client.server_to_cgi_fd);
+			_removeClientFd(client.server_to_cgi_fd);
 		}
 	}
 }

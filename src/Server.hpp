@@ -35,6 +35,7 @@ private:
 	void _printContainerSizes(void);
 	void _printEvents(const pollfd &pfd, FdType::FdType fd_type);
 	Client &_getClient(int fd);
+	void _removeClientFd(int &fd);
 	void _removeFd(int &fd);
 	void _enableWritingToClient(Client &client);
 	void _addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events);
@@ -49,11 +50,11 @@ private:
 	// POLLHUP
 	void _handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue);
 	void _pollhupCGIToServer(int fd);
-	void _reapChild(void);
 
 	// POLLIN
 	void _handlePollin(int fd, FdType::FdType fd_type, bool &should_continue);
 	void _acceptClient();
+	void _reapChild(void);
 	bool _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
 	bool _startCGI(Client &client, int fd, FdType::FdType fd_type);
