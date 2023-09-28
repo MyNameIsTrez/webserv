@@ -132,18 +132,17 @@ void Server::run(void)
 
 			servers_active = false;
 
-			// TODO: This crashes when the CGI has a sleep(5) and the server does Ctrl+C
-			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
-
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
 			_fd_to_pfd_index[_pfds.back().fd] = server_pfd_index;
 			_swapRemove(_pfds, server_pfd_index);
 		}
 
-		if (_pfds.empty())
+		// If the only fd left in _pfds is _sig_chld_pipe[PIPE_READ_INDEX], return
+		if (_pfds.size() == 1)
 		{
-			break;
+			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
+			return;
 		}
 		else if (shutting_down_gracefully) {
 			// TODO: Do we want to use : iteration in other spots too?
