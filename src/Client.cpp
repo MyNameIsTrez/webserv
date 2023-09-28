@@ -231,9 +231,9 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 			}
 			else
 			{
+				// GET and DELETE requests have no body
 				this->client_read_state = ClientReadState::DONE;
 
-				// GET and DELETE requests have no body
 				return true;
 			}
 		}

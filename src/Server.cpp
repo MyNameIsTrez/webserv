@@ -578,7 +578,7 @@ void Server::_reapChild(void)
 		assert(client.client_read_state == ClientReadState::DONE);
 		assert(client.cgi_write_state == CGIWriteState::DONE);
 		assert(client.cgi_read_state != CGIReadState::NOT_READING);
-		assert(client.client_write_state != ClientWriteState::DONE);
+		assert(client.client_write_state == ClientWriteState::NOT_WRITING);
 
 		if (WIFEXITED(child_exit_status))
 		{
@@ -818,7 +818,7 @@ void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
 	}
 	else if (fd_type == FdType::CLIENT)
 	{
-		_writeToClient(client, fd, pfd_index);
+		_writeToClient(client, fd);
 	}
 	else
 	{
@@ -875,7 +875,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 	}
 }
 
-void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
+void Server::_writeToClient(Client &client, int fd)
 {
 	std::cerr << "  Writing to the client..." << std::endl;
 
@@ -887,7 +887,6 @@ void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	assert(response_substr_len > 0);
 
-	// TODO: substr() can fail
 	std::string response_substr = client.response.substr(client.response_index, response_substr_len);
 
 	client.response_index += response_substr_len;
@@ -905,14 +904,30 @@ void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	// sleep(5); // TODO: REMOVE
 
-	// TODO: Close the client once we've written all we wanted to write?
-	// std::cerr << "    Closing client fd " << fd << std::endl;
-
-	// If we don't have anything left to write at the moment
 	if (client.response_index == client.response.length())
 	{
-		std::cerr << "    Disabling client POLLOUT" << std::endl;
-		_pfds[pfd_index].events &= ~POLLOUT;
-		_pfds[pfd_index].revents &= ~POLLOUT;
+		// TODO: Finish this commented out code
+		// If this is a CGI request
+		// if ()
+		// {
+			// Remove the client once we've sent the entire response
+			_removeClient(client.client_fd);
+		// }
+		// // If this isn't a CGI request
+		// else
+		// {
+		// 	// If TODO: ??
+		// 	if ()
+		// 	{
+		// 		// Remove the client once we've sent the entire response
+		// 		_removeClient(client.client_fd);
+		// 	}
+		// 	else
+		// 	{
+		// 		std::cerr << "    Disabling client POLLOUT" << std::endl;
+		// 		_pfds[pfd_index].events &= ~POLLOUT;
+		// 		_pfds[pfd_index].revents &= ~POLLOUT;
+		// 	}
+		// }
 	}
 }

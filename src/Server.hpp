@@ -62,7 +62,7 @@ private:
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
 	void _writeToCGI(Client &client, nfds_t pfd_index);
-	void _writeToClient(Client &client, int fd, nfds_t pfd_index);
+	void _writeToClient(Client &client, int fd);
 
 	// SIGCHLD
 	static void _sigChldHandler(int signum);
