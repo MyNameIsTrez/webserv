@@ -282,7 +282,6 @@ bool Client::_parseHeaders(void)
 	if (!this->_parseStartLine(split[0]))
 		return false;
 
-	// TODO: Look what to do with HTTP_ thingy (See page 11 & 19 in cgi rfc)
 	// Loop for every header
 	for (size_t i = 1; i < split.size(); i++)
 	{
@@ -294,10 +293,6 @@ bool Client::_parseHeaders(void)
 			return false;
 		std::string key = line.substr(0, pos);
 
-		// Check if key is a duplicate
-		if (this->header_map.find(key) != this->header_map.end())
-			return false;
-
 		// Capitalize letters and replace '-' with '_'
 		for (size_t j = 0; j < key.size(); j++)
 		{
@@ -305,6 +300,8 @@ bool Client::_parseHeaders(void)
 			if (key[j] == '-')
 				key[j] = '_';
 		}
+
+		key = "HTTP_" + key;
 
 		// Skip all leading spaces and tabs before value
 		pos++;
@@ -324,18 +321,20 @@ bool Client::_parseHeaders(void)
 			}
 		}
 
-		// Add key and value to the map
+		// Check if key is a duplicate
 		if (this->header_map.find(key) != this->header_map.end())
 			return false;
+
+		// Add key and value to the map
 		this->header_map.emplace(key, value);
-		if (key == "TRANSFER_ENCODING" && value == "chunked")
+		if (key == "HTTP_TRANSFER_ENCODING" && value == "chunked")
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
-			if (this->header_map.find("CONTENT_LENGTH") != this->header_map.end())
+			if (this->header_map.find("HTTP_CONTENT_LENGTH") != this->header_map.end())
 				return false;
 			this->_is_chunked = true;
 		}
-		else if (key == "CONTENT_LENGTH")
+		else if (key == "HTTP_CONTENT_LENGTH")
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
 			if (this->_is_chunked)
