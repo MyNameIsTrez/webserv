@@ -198,52 +198,45 @@ bool Client::appendReadString(char *received, ssize_t bytes_read)
 		this->_header.append(received, bytes_read);
 
 		size_t found_index = this->_header.find("\r\n\r\n");
-		if (found_index != std::string::npos)
+		if (found_index == std::string::npos)
 		{
-			std::string extra_body = std::string(this->_header.begin() + found_index + 4, this->_header.end());
+			return true;
+		}
 
-			// Erase temporarily appended body bytes from _header
-			this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
+		std::string extra_body = std::string(this->_header.begin() + found_index + 4, this->_header.end());
 
-			// Sets this->request_method
-			if (!_parseHeaders())
-				return false;
+		// Erase temporarily appended body bytes from _header
+		this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
 
-			std::cerr << "Request method: '" << this->request_method << "'" << std::endl;
-			if (this->request_method == "POST")
-			{
-				// If no content_length was given
-				if (this->_content_length == 0)
-				{
-					this->client_read_state = ClientReadState::DONE;
-				}
-				// If content_length was given
-				else
-				{
-					this->client_read_state = ClientReadState::BODY;
+		// Sets this->request_method and this->_content_length
+		if (!_parseHeaders())
+		{
+			return false;
+		}
 
-					// Add body bytes to _body
-					if (extra_body.size() > 0 && !this->_parseBodyAppend(extra_body))
-					{
-						return false;
-					}
-				}
-			}
-			else
-			{
-				// GET and DELETE requests have no body
-				this->client_read_state = ClientReadState::DONE;
+		// GET and DELETE requests have no body
+		if (this->request_method != "POST" || this->_content_length == 0)
+		{
+			this->client_read_state = ClientReadState::DONE;
+			return true;
+		}
 
-				return true;
-			}
+		this->client_read_state = ClientReadState::BODY;
+
+		// Add body bytes to _body
+		if (extra_body.size() > 0 && !this->_parseBodyAppend(extra_body))
+		{
+			return false;
 		}
 	}
 	else if (this->client_read_state == ClientReadState::BODY)
 	{
 		if (!this->_parseBodyAppend(std::string(received, received + bytes_read)))
+		{
 			return false;
+		}
 	}
-	else
+	else if (this->client_read_state == ClientReadState::DONE)
 	{
 		// We keep reading regardless of whether we saw the end of the body,
 		// so we can still read the EOF any disconnected client sent
@@ -365,12 +358,16 @@ bool Client::_parseStartLine(std::string line)
 	this->request_method = line.substr(0, request_method_end_pos);
 	request_method_end_pos++;
 
+	std::cerr << "Request method: '" << this->request_method << "'" << std::endl;
+
 	// Find and set the path
 	size_t path_end_pos = line.find_last_of(" ");
 	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1)
 		return false;
 	this->path = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	path_end_pos++;
+
+	std::cerr << "Path: '" << this->path << "'" << std::endl;
 
 	// Set and validate the protocol
 	// // Validate "HTTP/"
