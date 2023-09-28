@@ -218,14 +218,15 @@ void Server::run(void)
 				continue;
 			}
 
-			bool should_continue = false;
-
-			// If the client disconnected
+			// If the CGI script closed its stdout
 			if (_pfds[pfd_index].revents & POLLHUP)
 			{
-				_handlePollhup(fd, fd_type, pfd_index, should_continue);
-				if (should_continue)
+				assert(fd_type == FdType::CGI_TO_SERVER);
+
+				// If the server has not read everything from the CGI script
+				if (!(_pfds[pfd_index].revents & POLLIN))
 				{
+					_pollhupCGIToServer(fd);
 					continue;
 				}
 			}
@@ -233,6 +234,7 @@ void Server::run(void)
 			// If we can read
 			if (_pfds[pfd_index].revents & POLLIN_ANY)
 			{
+				bool should_continue = false;
 				_handlePollin(fd, fd_type, should_continue);
 				if (should_continue)
 				{
@@ -412,34 +414,6 @@ void Server::_handlePollerr(int fd, FdType::FdType fd_type)
 	else if (fd_type == FdType::CLIENT)
 	{
 		_removeClient(fd);
-	}
-	else
-	{
-		// TODO: Should be unreachable
-		assert(false);
-	}
-}
-
-void Server::_handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
-{
-	// If the CGI script closed its stdout
-	if (fd_type == FdType::CGI_TO_SERVER)
-	{
-		// If the server has read everything from the CGI script
-		if (!(_pfds[pfd_index].revents & POLLIN))
-		{
-			// TODO: REMOVE THIS!!
-			// std::cerr << "Swapping pfd 1 and 2" << std::endl;
-			// _fd_to_pfd_index[_pfds[1].fd] = 2;
-			// _fd_to_pfd_index[_pfds[2].fd] = 1;
-
-			// pollfd tmp = _pfds[2];
-			// _pfds[2] = _pfds[1];
-			// _pfds[1] = tmp;
-
-			_pollhupCGIToServer(fd);
-			should_continue = true;
-		}
 	}
 	else
 	{

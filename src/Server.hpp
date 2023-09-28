@@ -48,7 +48,6 @@ private:
 	void _handlePollerr(int fd, FdType::FdType fd_type);
 
 	// POLLHUP
-	void _handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue);
 	void _pollhupCGIToServer(int fd);
 
 	// POLLIN
