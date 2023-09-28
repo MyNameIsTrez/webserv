@@ -56,6 +56,7 @@
 - Make sure DELETE is idempotent (sending a second time has no effect)
 - Consider using content_length to limit how many bytes of the body we'll try to read
 - Consider enforcing a [maximum header size](https://stackoverflow.com/a/686243/13279557)
+- Support custom cgi-bin directory name in the config (do we want an error or a default name if it isn't in the config?)
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?

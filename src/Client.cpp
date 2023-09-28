@@ -279,7 +279,10 @@ bool Client::_parseHeaders(void)
 		start = pos + 2;
 	}
 
-	if (!this->_parseStartLine(split[0]))
+	if (!this->_parseRequestLine(split[0]))
+		return false;
+
+	if (!this->_sanitizeRequestLine())
 		return false;
 
 	// Loop for every header
@@ -348,7 +351,7 @@ bool Client::_parseHeaders(void)
 	return true;
 }
 
-bool Client::_parseStartLine(std::string line)
+bool Client::_parseRequestLine(std::string line)
 {
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
@@ -368,13 +371,34 @@ bool Client::_parseStartLine(std::string line)
 
 	std::cerr << "Path: '" << this->path << "'" << std::endl;
 
-	// Set and validate the protocol
-	// // Validate "HTTP/"
 	this->protocol = line.substr(path_end_pos);
+
+	return true;
+}
+
+bool Client::_sanitizeRequestLine(void)
+{
+	return this->_sanitizeRequestMethod() && this->_sanitizePath() && this->_sanitizeProtocol();
+}
+
+bool Client::_sanitizeRequestMethod(void)
+{
+	return this->request_method == "GET" || this->request_method == "POST" || this->request_method == "DELETE";
+}
+
+bool Client::_sanitizePath(void)
+{
+	// TODO: Write this
+	return true;
+}
+
+bool Client::_sanitizeProtocol(void)
+{
+	// Validate "HTTP/"
 	if (this->protocol.find("HTTP/", 0, 5) == std::string::npos)
 		return false;
 
-	// // Validate major version
+	// Validate major version
 	size_t i;
 	for (i = 5; i < this->protocol.size(); i++)
 	{
@@ -382,11 +406,11 @@ bool Client::_parseStartLine(std::string line)
 			break;
 	}
 
-	// // Validate version seperator
+	// Validate version seperator
 	if (i == 5 || i == this->protocol.size() || this->protocol[i] != '.')
 		return false;
 
-	// // Validate minor version
+	// Validate minor version
 	i++;
 	size_t j = i;
 	for (; i < this->protocol.size(); i++)
@@ -396,6 +420,7 @@ bool Client::_parseStartLine(std::string line)
 	}
 	if (j == i || i != this->protocol.size())
 		return false;
+
 	return true;
 }
 
@@ -497,7 +522,7 @@ bool Client::_parseBodyAppend(const std::string &extra_body)
 	return true;
 }
 
-void Client::_generateEnv()
+void Client::_generateEnv(void)
 {
 	// TODO: Decide what variable to give the CGI, and if we have to put HTTP_ in front of all the keys
 	// See page 19, section 4.1.18 in CGI RFC 3875

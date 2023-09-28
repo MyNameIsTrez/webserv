@@ -95,9 +95,15 @@ private:
 	Client(void);
 
 	bool _parseHeaders(void);
-	bool _parseStartLine(std::string line);
+	bool _parseRequestLine(std::string line);
+
+	bool _sanitizeRequestLine(void);
+	bool _sanitizeRequestMethod(void);
+	bool _sanitizePath(void);
+	bool _sanitizeProtocol(void);
+
 	bool _parseBodyAppend(const std::string &extra_body);
-	void _generateEnv();
+	void _generateEnv(void);
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
 
 	size_t _content_length;
