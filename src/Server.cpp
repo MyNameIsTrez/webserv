@@ -34,7 +34,7 @@ static void sigIntHandler(int signum)
 	shutting_down_gracefully = true;
 }
 
-int Server::_sig_chld_tube[2];
+int Server::_sig_chld_pipe[2];
 
 Server::Server(void)
 	: _server_fd(-1),
@@ -89,13 +89,13 @@ Server::Server(void)
 	signal(SIGINT, sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
 
-	if (pipe(_sig_chld_tube) == -1)
+	if (pipe(_sig_chld_pipe) == -1)
 	{
 		perror("pipe");
 		exit(EXIT_FAILURE);
 	}
-	_addFd(_sig_chld_tube[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
-	std::cerr << "Added _sig_chld_tube[PIPE_READ_INDEX] fd " << _sig_chld_tube[PIPE_READ_INDEX] << std::endl;
+	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
+	std::cerr << "Added _sig_chld_pipe[PIPE_READ_INDEX] fd " << _sig_chld_pipe[PIPE_READ_INDEX] << std::endl;
 	signal(SIGCHLD, _sigChldHandler);
 }
 
@@ -110,7 +110,7 @@ Server::Server(const std::string &configuration_path)
 
 Server::~Server(void)
 {
-	// TODO: close() the two _sig_chld_tube fds and such
+	// TODO: close() the two _sig_chld_pipe fds and such
 
 	// TODO: close() the server socket
 
@@ -132,17 +132,17 @@ void Server::run(void)
 
 			servers_active = false;
 
-			_removeFd(_sig_chld_tube[PIPE_READ_INDEX]);
-
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
 			_fd_to_pfd_index[_pfds.back().fd] = server_pfd_index;
 			_swapRemove(_pfds, server_pfd_index);
 		}
 
-		if (_pfds.empty())
+		// If the only fd left in _pfds is _sig_chld_pipe[PIPE_READ_INDEX], return
+		if (_pfds.size() == 1)
 		{
-			break;
+			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
+			return;
 		}
 		else if (shutting_down_gracefully) {
 			// TODO: Do we want to use : iteration in other spots too?
@@ -218,14 +218,15 @@ void Server::run(void)
 				continue;
 			}
 
-			bool should_continue = false;
-
-			// If the client disconnected
+			// If the CGI script closed its stdout
 			if (_pfds[pfd_index].revents & POLLHUP)
 			{
-				_handlePollhup(fd, fd_type, pfd_index, should_continue);
-				if (should_continue)
+				assert(fd_type == FdType::CGI_TO_SERVER);
+
+				// If the server has not read everything from the CGI script
+				if (!(_pfds[pfd_index].revents & POLLIN))
 				{
+					_pollhupCGIToServer(fd);
 					continue;
 				}
 			}
@@ -233,6 +234,7 @@ void Server::run(void)
 			// If we can read
 			if (_pfds[pfd_index].revents & POLLIN_ANY)
 			{
+				bool should_continue = false;
 				_handlePollin(fd, fd_type, should_continue);
 				if (should_continue)
 				{
@@ -387,7 +389,7 @@ void Server::_sigChldHandler(int signum)
 	(void)signum;
 
 	char dummy = '!';
-	if (write(_sig_chld_tube[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1)
+	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1)
 	{
 		perror("write");
 		exit(EXIT_FAILURE);
@@ -412,34 +414,6 @@ void Server::_handlePollerr(int fd, FdType::FdType fd_type)
 	else if (fd_type == FdType::CLIENT)
 	{
 		_removeClient(fd);
-	}
-	else
-	{
-		// TODO: Should be unreachable
-		assert(false);
-	}
-}
-
-void Server::_handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue)
-{
-	// If the CGI script closed its stdout
-	if (fd_type == FdType::CGI_TO_SERVER)
-	{
-		// If the server has read everything from the CGI script
-		if (!(_pfds[pfd_index].revents & POLLIN))
-		{
-			// TODO: REMOVE THIS!!
-			// std::cerr << "Swapping pfd 1 and 2" << std::endl;
-			// _fd_to_pfd_index[_pfds[1].fd] = 2;
-			// _fd_to_pfd_index[_pfds[2].fd] = 1;
-
-			// pollfd tmp = _pfds[2];
-			// _pfds[2] = _pfds[1];
-			// _pfds[1] = tmp;
-
-			_pollhupCGIToServer(fd);
-			should_continue = true;
-		}
 	}
 	else
 	{
@@ -520,7 +494,7 @@ void Server::_reapChild(void)
 	std::cerr << "    In _reapChild()" << std::endl;
 
 	char dummy;
-	read(_sig_chld_tube[PIPE_READ_INDEX], &dummy, 1);
+	read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1);
 
 	// Reaps all children that have exited
 	// waitpid() returns 0 if no more children can be reaped right now
@@ -537,63 +511,59 @@ void Server::_reapChild(void)
 		perror("waitpid");
 		exit(EXIT_FAILURE);
 	}
-	else if (child_pid > 0)
+
+	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
+	assert(child_pid > 0);
+
+	if (WIFEXITED(child_exit_status))
 	{
-		if (WIFEXITED(child_exit_status))
-		{
-			std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
-		}
-		else if (WIFSTOPPED(child_exit_status))
-		{
-			std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
-			assert(false); // TODO: What to do here?
-		}
-		else if (WIFSIGNALED(child_exit_status))
-		{
-			std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
+		std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
+	}
+	else if (WIFSTOPPED(child_exit_status))
+	{
+		std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
+		assert(false); // TODO: What to do here?
+	}
+	else if (WIFSIGNALED(child_exit_status))
+	{
+		std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
 
-			if (WTERMSIG(child_exit_status) == SIGTERM)
-			{
-				// TODO: Should we do anything if its client still exists?
-				return;
-			}
-
-			// TODO: What to do if it receives for example SIGKILL?:
-			// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
-			assert(false);
-		}
-		else
+		if (WTERMSIG(child_exit_status) == SIGTERM)
 		{
-			// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-			assert(false); // TODO: What to do here?
+			// TODO: Should we do anything with its client if it still exists?
+			return;
 		}
 
-		int client_fd = _cgi_pid_to_client_fd.at(child_pid);
-		size_t client_index = _fd_to_client_index.at(client_fd);
-		Client &client = _clients.at(client_index);
-
-		_cgi_pid_to_client_fd.erase(client.cgi_pid);
-		client.cgi_pid = -1;
-
-		assert(client.client_read_state == ClientReadState::DONE);
-		assert(client.cgi_write_state == CGIWriteState::DONE);
-		assert(client.cgi_read_state != CGIReadState::NOT_READING);
-		assert(client.client_write_state != ClientWriteState::DONE);
-
-		if (WIFEXITED(child_exit_status))
-		{
-			client.cgi_exit_status = WEXITSTATUS(child_exit_status);
-		}
-
-		if (client.cgi_read_state == CGIReadState::DONE)
-		{
-			_enableWritingToClient(client);
-		}
+		// TODO: What to do if it receives for example SIGKILL?:
+		// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
+		assert(false);
 	}
 	else
 	{
-		// TODO: Should be unreachable
-		assert(false);
+		// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
+		assert(false); // TODO: What to do here?
+	}
+
+	int client_fd = _cgi_pid_to_client_fd.at(child_pid);
+	size_t client_index = _fd_to_client_index.at(client_fd);
+	Client &client = _clients.at(client_index);
+
+	_cgi_pid_to_client_fd.erase(client.cgi_pid);
+	client.cgi_pid = -1;
+
+	assert(client.client_read_state == ClientReadState::DONE);
+	assert(client.cgi_write_state == CGIWriteState::DONE);
+	assert(client.cgi_read_state != CGIReadState::NOT_READING);
+	assert(client.client_write_state == ClientWriteState::NOT_WRITING);
+
+	if (WIFEXITED(child_exit_status))
+	{
+		client.cgi_exit_status = WEXITSTATUS(child_exit_status);
+	}
+
+	if (client.cgi_read_state == CGIReadState::DONE)
+	{
+		_enableWritingToClient(client);
 	}
 }
 
@@ -719,15 +689,15 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	assert(fd_type == FdType::CLIENT);
 
-	int server_to_cgi_tube[2];
-	int cgi_to_server_tube[2];
+	int server_to_cgi_pipe[2];
+	int cgi_to_server_pipe[2];
 
-	if (pipe(server_to_cgi_tube) == -1)
+	if (pipe(server_to_cgi_pipe) == -1)
 	{
 		perror("pipe");
 		return false;
 	}
-	if (pipe(cgi_to_server_tube) == -1)
+	if (pipe(cgi_to_server_pipe) == -1)
 	{
 		perror("pipe");
 		return false;
@@ -743,22 +713,22 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	{
 		signal(SIGINT, SIG_IGN);
 
-		close(server_to_cgi_tube[PIPE_WRITE_INDEX]);
-		close(cgi_to_server_tube[PIPE_READ_INDEX]);
+		close(server_to_cgi_pipe[PIPE_WRITE_INDEX]);
+		close(cgi_to_server_pipe[PIPE_READ_INDEX]);
 
-		if (dup2(server_to_cgi_tube[PIPE_READ_INDEX], STDIN_FILENO) == -1)
+		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1)
 		{
 			perror("dup2");
 			return false;
 		}
-		close(server_to_cgi_tube[PIPE_READ_INDEX]);
+		close(server_to_cgi_pipe[PIPE_READ_INDEX]);
 
-		if (dup2(cgi_to_server_tube[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
+		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
 		{
 			perror("dup2");
 			return false;
 		}
-		close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+		close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
 
 		std::cerr << "    The child is going to start the CGI script" << std::endl;
 		// TODO: Define CGI script path in the configuration file?
@@ -773,8 +743,8 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		return false;
 	}
 
-	close(server_to_cgi_tube[PIPE_READ_INDEX]);
-	close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+	close(server_to_cgi_pipe[PIPE_READ_INDEX]);
+	close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
 
 	client.cgi_pid = forked_pid;
 
@@ -782,7 +752,7 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	size_t client_index = _fd_to_client_index.at(fd);
 
-	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
+	int server_to_cgi_fd = server_to_cgi_pipe[PIPE_WRITE_INDEX];
 
 	// TODO: If this is a GET or a DELETE (can they have a body?)
 	if (client.client_read_state == ClientReadState::DONE && client.body.empty())
@@ -799,7 +769,7 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
 	}
 
-	int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
+	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];
 	_addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
@@ -818,7 +788,7 @@ void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
 	}
 	else if (fd_type == FdType::CLIENT)
 	{
-		_writeToClient(client, fd, pfd_index);
+		_writeToClient(client, fd);
 	}
 	else
 	{
@@ -875,7 +845,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 	}
 }
 
-void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
+void Server::_writeToClient(Client &client, int fd)
 {
 	std::cerr << "  Writing to the client..." << std::endl;
 
@@ -887,7 +857,6 @@ void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	assert(response_substr_len > 0);
 
-	// TODO: substr() can fail
 	std::string response_substr = client.response.substr(client.response_index, response_substr_len);
 
 	client.response_index += response_substr_len;
@@ -905,14 +874,30 @@ void Server::_writeToClient(Client &client, int fd, nfds_t pfd_index)
 
 	// sleep(5); // TODO: REMOVE
 
-	// TODO: Close the client once we've written all we wanted to write?
-	// std::cerr << "    Closing client fd " << fd << std::endl;
-
-	// If we don't have anything left to write at the moment
 	if (client.response_index == client.response.length())
 	{
-		std::cerr << "    Disabling client POLLOUT" << std::endl;
-		_pfds[pfd_index].events &= ~POLLOUT;
-		_pfds[pfd_index].revents &= ~POLLOUT;
+		// TODO: Finish this commented out code
+		// If this is a CGI request
+		// if ()
+		// {
+			// Remove the client once we've sent the entire response
+			_removeClient(client.client_fd);
+		// }
+		// // If this isn't a CGI request
+		// else
+		// {
+		// 	// If TODO: ??
+		// 	if ()
+		// 	{
+		// 		// Remove the client once we've sent the entire response
+		// 		_removeClient(client.client_fd);
+		// 	}
+		// 	else
+		// 	{
+		// 		std::cerr << "    Disabling client POLLOUT" << std::endl;
+		// 		_pfds[pfd_index].events &= ~POLLOUT;
+		// 		_pfds[pfd_index].revents &= ~POLLOUT;
+		// 	}
+		// }
 	}
 }

@@ -48,7 +48,6 @@ private:
 	void _handlePollerr(int fd, FdType::FdType fd_type);
 
 	// POLLHUP
-	void _handlePollhup(int fd, FdType::FdType fd_type, nfds_t pfd_index, bool &should_continue);
 	void _pollhupCGIToServer(int fd);
 
 	// POLLIN
@@ -62,12 +61,12 @@ private:
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
 	void _writeToCGI(Client &client, nfds_t pfd_index);
-	void _writeToClient(Client &client, int fd, nfds_t pfd_index);
+	void _writeToClient(Client &client, int fd);
 
 	// SIGCHLD
 	static void _sigChldHandler(int signum);
 
-	static int _sig_chld_tube[2];
+	static int _sig_chld_pipe[2];
 
 	int _server_fd;
 

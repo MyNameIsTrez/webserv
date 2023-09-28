@@ -17,6 +17,7 @@
 !tests/100_lines.txt
 !tests/100k_lines.txt
 !tests/empty.txt
+!tests/null.txt
 !YoupiBanane/**
 !.gitignore
 !Dockerfile
