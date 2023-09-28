@@ -511,63 +511,59 @@ void Server::_reapChild(void)
 		perror("waitpid");
 		exit(EXIT_FAILURE);
 	}
-	else if (child_pid > 0)
+
+	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
+	assert(child_pid > 0);
+
+	if (WIFEXITED(child_exit_status))
 	{
-		if (WIFEXITED(child_exit_status))
-		{
-			std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
-		}
-		else if (WIFSTOPPED(child_exit_status))
-		{
-			std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
-			assert(false); // TODO: What to do here?
-		}
-		else if (WIFSIGNALED(child_exit_status))
-		{
-			std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
+		std::cerr << "    PID " << child_pid << " exit status is " << WEXITSTATUS(child_exit_status) << std::endl;
+	}
+	else if (WIFSTOPPED(child_exit_status))
+	{
+		std::cerr << "    PID " << child_pid << " was stopped by " << WSTOPSIG(child_exit_status) << std::endl;
+		assert(false); // TODO: What to do here?
+	}
+	else if (WIFSIGNALED(child_exit_status))
+	{
+		std::cerr << "    PID " << child_pid << " exited due to signal " << WTERMSIG(child_exit_status) << std::endl;
 
-			if (WTERMSIG(child_exit_status) == SIGTERM)
-			{
-				// TODO: Should we do anything if its client still exists?
-				return;
-			}
-
-			// TODO: What to do if it receives for example SIGKILL?:
-			// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
-			assert(false);
-		}
-		else
+		if (WTERMSIG(child_exit_status) == SIGTERM)
 		{
-			// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-			assert(false); // TODO: What to do here?
+			// TODO: Should we do anything with its client if it still exists?
+			return;
 		}
 
-		int client_fd = _cgi_pid_to_client_fd.at(child_pid);
-		size_t client_index = _fd_to_client_index.at(client_fd);
-		Client &client = _clients.at(client_index);
-
-		_cgi_pid_to_client_fd.erase(client.cgi_pid);
-		client.cgi_pid = -1;
-
-		assert(client.client_read_state == ClientReadState::DONE);
-		assert(client.cgi_write_state == CGIWriteState::DONE);
-		assert(client.cgi_read_state != CGIReadState::NOT_READING);
-		assert(client.client_write_state == ClientWriteState::NOT_WRITING);
-
-		if (WIFEXITED(child_exit_status))
-		{
-			client.cgi_exit_status = WEXITSTATUS(child_exit_status);
-		}
-
-		if (client.cgi_read_state == CGIReadState::DONE)
-		{
-			_enableWritingToClient(client);
-		}
+		// TODO: What to do if it receives for example SIGKILL?:
+		// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
+		assert(false);
 	}
 	else
 	{
-		// TODO: Should be unreachable
-		assert(false);
+		// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
+		assert(false); // TODO: What to do here?
+	}
+
+	int client_fd = _cgi_pid_to_client_fd.at(child_pid);
+	size_t client_index = _fd_to_client_index.at(client_fd);
+	Client &client = _clients.at(client_index);
+
+	_cgi_pid_to_client_fd.erase(client.cgi_pid);
+	client.cgi_pid = -1;
+
+	assert(client.client_read_state == ClientReadState::DONE);
+	assert(client.cgi_write_state == CGIWriteState::DONE);
+	assert(client.cgi_read_state != CGIReadState::NOT_READING);
+	assert(client.client_write_state == ClientWriteState::NOT_WRITING);
+
+	if (WIFEXITED(child_exit_status))
+	{
+		client.cgi_exit_status = WEXITSTATUS(child_exit_status);
+	}
+
+	if (client.cgi_read_state == CGIReadState::DONE)
+	{
+		_enableWritingToClient(client);
 	}
 }
 
