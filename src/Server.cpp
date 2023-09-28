@@ -34,7 +34,7 @@ static void sigIntHandler(int signum)
 	shutting_down_gracefully = true;
 }
 
-int Server::_sig_chld_tube[2];
+int Server::_sig_chld_pipe[2];
 
 Server::Server(void)
 	: _server_fd(-1),
@@ -89,13 +89,13 @@ Server::Server(void)
 	signal(SIGINT, sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
 
-	if (pipe(_sig_chld_tube) == -1)
+	if (pipe(_sig_chld_pipe) == -1)
 	{
 		perror("pipe");
 		exit(EXIT_FAILURE);
 	}
-	_addFd(_sig_chld_tube[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
-	std::cerr << "Added _sig_chld_tube[PIPE_READ_INDEX] fd " << _sig_chld_tube[PIPE_READ_INDEX] << std::endl;
+	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
+	std::cerr << "Added _sig_chld_pipe[PIPE_READ_INDEX] fd " << _sig_chld_pipe[PIPE_READ_INDEX] << std::endl;
 	signal(SIGCHLD, _sigChldHandler);
 }
 
@@ -110,7 +110,7 @@ Server::Server(const std::string &configuration_path)
 
 Server::~Server(void)
 {
-	// TODO: close() the two _sig_chld_tube fds and such
+	// TODO: close() the two _sig_chld_pipe fds and such
 
 	// TODO: close() the server socket
 
@@ -132,7 +132,8 @@ void Server::run(void)
 
 			servers_active = false;
 
-			_removeFd(_sig_chld_tube[PIPE_READ_INDEX]);
+			// TODO: This crashes when the CGI has a sleep(5) and the server does Ctrl+C
+			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
 
 			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
 			size_t server_pfd_index = 0;
@@ -389,7 +390,7 @@ void Server::_sigChldHandler(int signum)
 	(void)signum;
 
 	char dummy = '!';
-	if (write(_sig_chld_tube[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1)
+	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1)
 	{
 		perror("write");
 		exit(EXIT_FAILURE);
@@ -494,7 +495,7 @@ void Server::_reapChild(void)
 	std::cerr << "    In _reapChild()" << std::endl;
 
 	char dummy;
-	read(_sig_chld_tube[PIPE_READ_INDEX], &dummy, 1);
+	read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1);
 
 	// Reaps all children that have exited
 	// waitpid() returns 0 if no more children can be reaped right now
@@ -689,15 +690,15 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	assert(fd_type == FdType::CLIENT);
 
-	int server_to_cgi_tube[2];
-	int cgi_to_server_tube[2];
+	int server_to_cgi_pipe[2];
+	int cgi_to_server_pipe[2];
 
-	if (pipe(server_to_cgi_tube) == -1)
+	if (pipe(server_to_cgi_pipe) == -1)
 	{
 		perror("pipe");
 		return false;
 	}
-	if (pipe(cgi_to_server_tube) == -1)
+	if (pipe(cgi_to_server_pipe) == -1)
 	{
 		perror("pipe");
 		return false;
@@ -713,22 +714,22 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	{
 		signal(SIGINT, SIG_IGN);
 
-		close(server_to_cgi_tube[PIPE_WRITE_INDEX]);
-		close(cgi_to_server_tube[PIPE_READ_INDEX]);
+		close(server_to_cgi_pipe[PIPE_WRITE_INDEX]);
+		close(cgi_to_server_pipe[PIPE_READ_INDEX]);
 
-		if (dup2(server_to_cgi_tube[PIPE_READ_INDEX], STDIN_FILENO) == -1)
+		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1)
 		{
 			perror("dup2");
 			return false;
 		}
-		close(server_to_cgi_tube[PIPE_READ_INDEX]);
+		close(server_to_cgi_pipe[PIPE_READ_INDEX]);
 
-		if (dup2(cgi_to_server_tube[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
+		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
 		{
 			perror("dup2");
 			return false;
 		}
-		close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+		close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
 
 		std::cerr << "    The child is going to start the CGI script" << std::endl;
 		// TODO: Define CGI script path in the configuration file?
@@ -743,8 +744,8 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		return false;
 	}
 
-	close(server_to_cgi_tube[PIPE_READ_INDEX]);
-	close(cgi_to_server_tube[PIPE_WRITE_INDEX]);
+	close(server_to_cgi_pipe[PIPE_READ_INDEX]);
+	close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
 
 	client.cgi_pid = forked_pid;
 
@@ -752,7 +753,7 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	size_t client_index = _fd_to_client_index.at(fd);
 
-	int server_to_cgi_fd = server_to_cgi_tube[PIPE_WRITE_INDEX];
+	int server_to_cgi_fd = server_to_cgi_pipe[PIPE_WRITE_INDEX];
 
 	// TODO: If this is a GET or a DELETE (can they have a body?)
 	if (client.client_read_state == ClientReadState::DONE && client.body.empty())
@@ -769,7 +770,7 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
 	}
 
-	int cgi_to_server_fd = cgi_to_server_tube[PIPE_READ_INDEX];
+	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];
 	_addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;

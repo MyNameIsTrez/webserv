@@ -66,7 +66,7 @@ private:
 	// SIGCHLD
 	static void _sigChldHandler(int signum);
 
-	static int _sig_chld_tube[2];
+	static int _sig_chld_pipe[2];
 
 	int _server_fd;
 
