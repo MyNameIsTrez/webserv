@@ -463,11 +463,7 @@ void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue
 
 		try
 		{
-			if (!_readFd(client, fd, fd_type, should_continue))
-			{
-				// TODO: Print error
-				exit(EXIT_FAILURE);
-			}
+			_readFd(client, fd, fd_type, should_continue);
 		}
 		catch (const Client::ClientException &e)
 		{
@@ -577,7 +573,7 @@ void Server::_reapChild(void)
 	}
 }
 
-bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
+void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
@@ -600,7 +596,7 @@ bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 		_removeClient(client.client_fd);
 		should_continue = true;
 
-		return true;
+		return;
 	}
 
 	// assert(client.cgi_read_state != CGIReadState::DONE);
@@ -619,10 +615,7 @@ bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 		{
 			// TODO: Only run the below code if the request wants to start the CGI AND it is a POST request
 
-			if (!_startCGI(client, fd, fd_type))
-			{
-				return false;
-			}
+			_startCGI(client, fd, fd_type);
 		}
 
 		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_write_state != CGIWriteState::DONE)
@@ -644,8 +637,6 @@ bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 		// TODO: Should be unreachable
 		assert(false);
 	}
-
-	return true;
 }
 
 void Server::_removeClient(int fd)
@@ -697,7 +688,7 @@ void Server::_removeClientAttachments(int fd)
 	}
 }
 
-bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
+void Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 {
 	std::cerr << "  Starting CGI..." << std::endl;
 
@@ -767,8 +758,6 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 	std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
-
-	return true;
 }
 
 void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)

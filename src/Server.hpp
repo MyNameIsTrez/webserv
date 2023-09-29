@@ -62,10 +62,10 @@ private:
 	void _handlePollin(int fd, FdType::FdType fd_type, bool &should_continue);
 	void _acceptClient();
 	void _reapChild(void);
-	bool _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
+	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
-	bool _startCGI(Client &client, int fd, FdType::FdType fd_type);
+	void _startCGI(Client &client, int fd, FdType::FdType fd_type);
 
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
