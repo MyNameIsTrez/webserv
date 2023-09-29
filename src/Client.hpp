@@ -73,15 +73,6 @@ public:
 
 	void prependResponseHeader(void);
 
-	// struct SystemException : public std::runtime_error
-	// {
-	// public:
-	// 	SystemException(void)
-	// 		: runtime_error("System exception")
-	// 	{
-	// 	}
-	// };
-
 	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
 	enum Status
 	{

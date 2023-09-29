@@ -110,21 +110,6 @@ Client &Client::operator=(Client const &src)
 	return *this;
 }
 
-/*	Static functions */
-
-static bool strict_stoul(std::string &line, size_t &num)
-{
-	num = 0;
-	for (size_t i = 0; i < line.size(); i++)
-	{
-		if (line[i] < '0' || line[i] > '9')
-			return false;
-		num *= 10;
-		num += line[i] - '0';
-	}
-	return true;
-}
-
 /*	Public member functions */
 
 // TODO: Put in debug.cpp or smth?
@@ -234,8 +219,7 @@ void Client::_parseHeaders(void)
 
 	this->_parseRequestLine(split[0]);
 
-	if (!this->_isValidRequestLine())
-		throw ClientException(BAD_REQUEST);
+	if (!this->_isValidRequestLine()) throw ClientException(BAD_REQUEST);
 
 	// Loop for every header
 	for (size_t i = 1; i < split.size(); i++)
@@ -244,8 +228,7 @@ void Client::_parseHeaders(void)
 
 		// Assign key to everything before the ':' seperator
 		pos = line.find(":");
-		if (pos == std::string::npos)
-			throw ClientException(BAD_REQUEST);
+		if (pos == std::string::npos) throw ClientException(BAD_REQUEST);
 		std::string key = line.substr(0, pos);
 
 		// Capitalize letters and replace '-' with '_'
@@ -277,27 +260,29 @@ void Client::_parseHeaders(void)
 		}
 
 		// Check if key is a duplicate
-		if (this->header_map.find(key) != this->header_map.end())
-			throw ClientException(BAD_REQUEST);
+		if (this->header_map.find(key) != this->header_map.end()) throw ClientException(BAD_REQUEST);
 
 		// Add key and value to the map
 		this->header_map.emplace(key, value);
 		if (key == "HTTP_TRANSFER_ENCODING" && value == "chunked")
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
-			if (this->header_map.find("HTTP_CONTENT_LENGTH") != this->header_map.end())
-				throw ClientException(BAD_REQUEST);
+			if (this->header_map.find("HTTP_CONTENT_LENGTH") != this->header_map.end()) throw ClientException(BAD_REQUEST);
 			this->_is_chunked = true;
 		}
 		else if (key == "HTTP_CONTENT_LENGTH")
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
-			if (this->_is_chunked)
-				throw ClientException(BAD_REQUEST);
+			if (this->_is_chunked) throw ClientException(BAD_REQUEST);
 
-			// Check if value to content_length is a valid positive number
-			if (!strict_stoul(value, this->_content_length))
-				throw ClientException(BAD_REQUEST);
+			// Put value into content_length
+			for (size_t j = 0; j < value.size(); j++)
+			{
+				if (value[j] < '0' || value[j] > '9') throw ClientException(BAD_REQUEST);
+
+				this->_content_length *= 10;
+				this->_content_length += value[j] - '0';
+			}
 		}
 	}
 }
@@ -306,16 +291,14 @@ void Client::_parseRequestLine(std::string line)
 {
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
-	if (request_method_end_pos == std::string::npos)
-		throw ClientException(BAD_REQUEST);
+	if (request_method_end_pos == std::string::npos) throw ClientException(BAD_REQUEST);
 	this->request_method = line.substr(0, request_method_end_pos);
 	request_method_end_pos++;
 	std::cerr << "    Request method: '" << this->request_method << "'" << std::endl;
 
 	// Find and set the request target
 	size_t path_end_pos = line.find_last_of(" ");
-	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1)
-		throw ClientException(BAD_REQUEST);
+	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1) throw ClientException(BAD_REQUEST);
 	this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	path_end_pos++;
 	std::cerr << "    Request target: '" << this->request_target << "'" << std::endl;
@@ -425,8 +408,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					}
 				}
 				// If buffer doesn't start with "\r\n" (This means client sent incorrectly formatted data)
-				else
-					throw ClientException(BAD_REQUEST);
+				else throw ClientException(BAD_REQUEST);
 			}
 		}
 	}

@@ -27,6 +27,8 @@
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
 - [ ] Make sure the server doesn't crash if the CGI script crashed
 - [ ] Check that wrong request methods/request targets/protocols inputs are caught
+- [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
+- [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
 
 ## Victor
 
@@ -125,3 +127,4 @@ http://f1r3s6.codam.nl:8080/
 - Remove every reference to the transitionary `UNDECIDED` `Status` enum
 - Using `#pragma once` in every header
 - PLace `const` at the end of prototypes wherever possible to indicate `this` is `const`
+- Make sure *every* `Status` enum has an associated string in `status_text_table`

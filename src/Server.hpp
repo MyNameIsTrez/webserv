@@ -75,6 +75,16 @@ private:
 	// SIGCHLD
 	static void _sigChldHandler(int signum);
 
+	struct SystemException : public std::runtime_error
+	{
+	public:
+		// TODO: Use strerror(), since this is only thrown on C functions that set errno? (double-check that)
+		SystemException(const std::string &function_name)
+			: runtime_error("System exception in function '" + function_name + "'")
+		{
+		}
+	};
+
 	static int _sig_chld_pipe[2];
 
 	int _server_fd;

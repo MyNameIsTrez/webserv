@@ -24,8 +24,6 @@
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
 const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
 
-/*	Constructors */
-
 bool shutting_down_gracefully = false;
 
 static void sigIntHandler(int signum)
@@ -35,6 +33,8 @@ static void sigIntHandler(int signum)
 }
 
 int Server::_sig_chld_pipe[2];
+
+/*	Constructors */
 
 Server::Server(void)
 	: _server_fd(-1),
@@ -49,37 +49,21 @@ Server::Server(void)
 
 	// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-	if ((_server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
-	{
-		perror("socket");
-		exit(EXIT_FAILURE);
-	}
+	if ((_server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
 
 	// Prevents "bind: Address already in use" error after:
 	// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
-	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1)
-	{
-		perror("setsockopt");
-		exit(EXIT_FAILURE);
-	}
+	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
 	sockaddr_in servaddr{};
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
 
-	if ((bind(_server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1)
-	{
-		perror("bind");
-		exit(EXIT_FAILURE);
-	}
+	if ((bind(_server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
 
-	if ((listen(_server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1)
-	{
-		perror("listen");
-		exit(EXIT_FAILURE);
-	}
+	if ((listen(_server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
 
 	_addFd(_server_fd, FdType::SERVER, POLLIN);
 	std::cerr << "Added server fd " << _server_fd << std::endl;
@@ -89,11 +73,7 @@ Server::Server(void)
 	signal(SIGINT, sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
 
-	if (pipe(_sig_chld_pipe) == -1)
-	{
-		perror("pipe");
-		exit(EXIT_FAILURE);
-	}
+	if (pipe(_sig_chld_pipe) == -1) throw SystemException("pipe");
 	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
 	std::cerr << "Added _sig_chld_pipe[PIPE_READ_INDEX] fd " << _sig_chld_pipe[PIPE_READ_INDEX] << std::endl;
 	signal(SIGCHLD, _sigChldHandler);
@@ -162,8 +142,7 @@ void Server::run(void)
 				std::cerr << "  poll() got interrupted by a signal handler" << std::endl;
 				continue;
 			}
-			perror("poll");
-			exit(EXIT_FAILURE);
+			 throw SystemException("poll");
 		}
 		// else if (event_count == 0)
 		// {
@@ -339,22 +318,20 @@ void Server::_removeFd(int &fd)
 	_fd_to_pfd_index.erase(fd);
 	_fd_to_fd_type.erase(fd);
 
-	if (close(fd) == -1)
-	{
-		perror("close");
-		exit(EXIT_FAILURE);
-	}
+	if (close(fd) == -1) throw SystemException("close");
 
 	fd = -1;
 }
 
 void Server::_enableEvent(size_t pfd_index, short int event)
 {
+	std::cerr << "    Enabling event " << event << " on pfd_index " << pfd_index << std::endl;
 	_pfds[pfd_index].events |= event;
 }
 
 void Server::_disableEvent(size_t pfd_index, short int event)
 {
+	std::cerr << "    Disabling event " << event << " on pfd_index " << pfd_index << std::endl;
 	_pfds[pfd_index].events &= ~event;
 	_pfds[pfd_index].revents &= ~event;
 }
@@ -407,11 +384,7 @@ void Server::_sigChldHandler(int signum)
 	(void)signum;
 
 	char dummy = '!';
-	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1)
-	{
-		perror("write");
-		exit(EXIT_FAILURE);
-	}
+	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1) throw SystemException("write");
 }
 
 void Server::_handlePollnval(void)
@@ -534,7 +507,7 @@ void Server::_reapChild(void)
 	std::cerr << "    In _reapChild()" << std::endl;
 
 	char dummy;
-	read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1);
+	if (read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1) == -1) throw SystemException("read");
 
 	// Reaps all children that have exited
 	// waitpid() returns 0 if no more children can be reaped right now
@@ -546,11 +519,7 @@ void Server::_reapChild(void)
 
 	// TODO: Decide what to do when errno is EINTR
 	// TODO: errno is set to ECHILD when there are no children left to wait for: if (child_pid == -1 && errno != ECHILD)
-	if (child_pid == -1)
-	{
-		perror("waitpid");
-		exit(EXIT_FAILURE);
-	}
+	if (child_pid == -1) throw SystemException("waitpid");
 
 	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
 	assert(child_pid > 0);
@@ -616,11 +585,7 @@ bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 
 	// TODO: We should never read past the content_length of the BODY
 	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);
-	if (bytes_read == -1)
-	{
-		perror("read");
-		exit(EXIT_FAILURE);
-	}
+	if (bytes_read == -1) throw SystemException("read");
 	if (bytes_read == 0)
 	{
 		std::cerr << "    Read 0 bytes" << std::endl;
@@ -725,7 +690,7 @@ void Server::_removeClientAttachments(int fd)
 	{
 		std::cerr << "    Sending SIGTERM to this client's CGI script with PID " << client.cgi_pid << std::endl;
 		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
-		kill(client.cgi_pid, SIGTERM);
+		if (kill(client.cgi_pid, SIGTERM) == -1) throw SystemException("kill");
 
 		_cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
@@ -741,43 +706,23 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	int server_to_cgi_pipe[2];
 	int cgi_to_server_pipe[2];
 
-	if (pipe(server_to_cgi_pipe) == -1)
-	{
-		perror("pipe");
-		return false;
-	}
-	if (pipe(cgi_to_server_pipe) == -1)
-	{
-		perror("pipe");
-		return false;
-	}
+	if (pipe(server_to_cgi_pipe) == -1) throw SystemException("pipe");
+	if (pipe(cgi_to_server_pipe) == -1) throw SystemException("pipe");
 
 	pid_t forked_pid = fork();
-	if (forked_pid == -1)
-	{
-		perror("fork");
-		return false;
-	}
+	if (forked_pid == -1) throw SystemException("fork");
 	else if (forked_pid == CHILD)
 	{
-		signal(SIGINT, SIG_IGN);
+		if (signal(SIGINT, SIG_IGN) == SIG_ERR) throw SystemException("signal");
 
-		close(server_to_cgi_pipe[PIPE_WRITE_INDEX]);
-		close(cgi_to_server_pipe[PIPE_READ_INDEX]);
+		if (close(server_to_cgi_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
+		if (close(cgi_to_server_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
 
-		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1)
-		{
-			perror("dup2");
-			return false;
-		}
-		close(server_to_cgi_pipe[PIPE_READ_INDEX]);
+		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1) throw SystemException("dup2");
+		if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
 
-		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1)
-		{
-			perror("dup2");
-			return false;
-		}
-		close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
+		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw SystemException("dup2");
+		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX] == -1)) throw SystemException("close");
 
 		std::cerr << "    The child is going to start the CGI script" << std::endl;
 		// TODO: Define CGI script path in the configuration file?
@@ -788,12 +733,11 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		char *cgi_env[] = {NULL};
 		execve(path, argv, cgi_env);
 
-		perror("execve");
-		return false;
+		throw SystemException("execve");
 	}
 
-	close(server_to_cgi_pipe[PIPE_READ_INDEX]);
-	close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
+	if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
+	if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
 
 	client.cgi_pid = forked_pid;
 
@@ -814,7 +758,7 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	else
 	{
 		std::cerr << "    Closing server_to_cgi fd immediately, since there is no body" << std::endl;
-		close(server_to_cgi_fd);
+		if (close(server_to_cgi_fd) == -1) throw SystemException("close");
 		client.cgi_write_state = CGIWriteState::DONE;
 	}
 
@@ -914,9 +858,9 @@ void Server::_writeToClient(Client &client, int fd)
 
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
-		// TODO: Remove the client immediately? Reached when the time.sleep(5) in print.py is commented out
-		perror("write in _writeToClient");
-		exit(EXIT_FAILURE);
+		// TODO: Remove the client immediately?
+		// TODO: This should be reachable by commenting out the time.sleep(5) in print.py
+		assert(false);
 	}
 
 	// sleep(5); // TODO: REMOVE
