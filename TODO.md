@@ -26,6 +26,7 @@
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
 - [ ] Make sure the server doesn't crash if the CGI script crashed
+- [ ] Check that wrong request methods/request targets/protocols inputs are caught
 
 ## Victor
 
@@ -57,6 +58,7 @@
 - Consider using content_length to limit how many bytes of the body we'll try to read
 - Consider enforcing a [maximum header size](https://stackoverflow.com/a/686243/13279557)
 - Support custom cgi-bin directory name in the config (do we want an error or a default name if it isn't in the config?)
+- Let stuff be printed to Logger class
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -119,3 +121,7 @@ http://f1r3s6.codam.nl:8080/
 - Make sure `_printContainerSizes()` prints *every* Server map and vector, and that none of them grow over time
 - Make sure no async-unsafe calls like printing are done in any signal handlers (including `Server::_sigChldHandler()`)
 - Replace all perror() and exit() calls with proper exiting logic
+- Check that `curl -X POSTS --data-binary @tests/2_lines.txt localhost:18000` gives the client an error, due to the trailing `S` in `POSTS`
+- Remove every reference to the transitionary `UNDECIDED` `Status` enum
+- Using `#pragma once` in every header
+- PLace `const` at the end of prototypes wherever possible to indicate `this` is `const`

@@ -47,7 +47,7 @@ Server::Server(void)
 {
 	// TODO: Parse config
 
-	// The protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
+	// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
 	if ((_server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1)
 	{
@@ -606,10 +606,7 @@ bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 	{
 		ClientReadState::ClientReadState previous_read_state = client.client_read_state;
 
-		if (!client.appendReadString(received, bytes_read))
-		{
-			return false;
-		}
+		client.appendReadString(received, bytes_read);
 
 		// If we've just started reading/entirely read this client's body, start a CGI script
 		if (previous_read_state == ClientReadState::HEADER && client.client_read_state != ClientReadState::HEADER)
@@ -754,19 +751,19 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 
 	int server_to_cgi_fd = server_to_cgi_pipe[PIPE_WRITE_INDEX];
 
-	// TODO: If this is a GET or a DELETE (can they have a body?)
-	if (client.client_read_state == ClientReadState::DONE && client.body.empty())
-	{
-		std::cerr << "    Closing server_to_cgi fd immediately, since there is no body" << std::endl;
-		close(server_to_cgi_fd);
-		client.cgi_write_state = CGIWriteState::DONE;
-	}
-	else
+	if (client.request_method == "POST")
 	{
 		_addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
 		client.server_to_cgi_fd = server_to_cgi_fd;
 		client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 		std::cerr << "    Added server_to_cgi fd " << server_to_cgi_fd << std::endl;
+	}
+	// If this is a GET or a DELETE (TODO: can they have a body?)
+	else
+	{
+		std::cerr << "    Closing server_to_cgi fd immediately, since there is no body" << std::endl;
+		close(server_to_cgi_fd);
+		client.cgi_write_state = CGIWriteState::DONE;
 	}
 
 	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];

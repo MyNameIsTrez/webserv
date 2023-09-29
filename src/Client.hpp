@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <poll.h>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -68,9 +69,36 @@ public:
 	virtual ~Client(void);
 	Client &operator=(Client const &src);
 
-	bool appendReadString(char *received, ssize_t bytes_read);
+	void appendReadString(char *received, ssize_t bytes_read);
 
 	void prependResponseHeader();
+
+	struct SystemException : public std::runtime_error
+	{
+	public:
+		SystemException(void)
+			: runtime_error("System exception")
+		{
+		}
+	};
+
+	struct ClientException : public std::runtime_error
+	{
+	public:
+		enum Status
+		{
+			BAD_REQUEST = 400,
+		};
+
+	private:
+		static const char *status_text_table[];
+
+	public:
+		ClientException(Status status)
+			: runtime_error("Client exception " + std::to_string(status) + ": " + status_text_table[status])
+		{
+		}
+	};
 
 	ClientReadState::ClientReadState client_read_state;
 	CGIWriteState::CGIWriteState cgi_write_state;
@@ -78,7 +106,7 @@ public:
 	ClientWriteState::ClientWriteState client_write_state;
 
 	std::string request_method;
-	std::string path;
+	std::string request_target;
 	std::string protocol;
 	std::unordered_map<std::string, std::string> header_map;
 	std::string body;
@@ -94,15 +122,17 @@ public:
 private:
 	Client(void);
 
-	bool _parseHeaders(void);
-	bool _parseRequestLine(std::string line);
+	void _parseHeaders(void);
 
-	bool _sanitizeRequestLine(void);
-	bool _sanitizeRequestMethod(void);
-	bool _sanitizePath(void);
-	bool _sanitizeProtocol(void);
+	void _parseRequestLine(std::string line);
+	bool _isValidRequestLine(void);
+	bool _isValidRequestMethod(void);
+	bool _isValidRequestTarget(void);
+	bool _isValidProtocol(void);
 
-	bool _parseBodyAppend(const std::string &extra_body);
+	void _parseBodyAppend(const std::string &extra_body);
+	void _hex_to_num(std::string &line, size_t &num);
+
 	void _generateEnv(void);
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
 
