@@ -2,6 +2,8 @@
 
 #include "Client.hpp"
 
+#include <cstring>
+
 namespace FdType
 {
 	enum FdType
@@ -80,7 +82,7 @@ private:
 	public:
 		// TODO: Use strerror(), since this is only thrown on C functions that set errno? (double-check that)
 		SystemException(const std::string &function_name)
-			: runtime_error("System exception in function '" + function_name + "'")
+			: runtime_error("System exception in function '" + function_name + "': " + strerror(errno))
 		{
 		}
 	};

@@ -49,7 +49,6 @@
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
 - Move all defines to the config
 - Do we want to be fully C++98 compliant just cause?
-- Do we want to EXIT_FAILURE when read() returns -1, or do we want to try and keep going?
 - Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
 - Right now we stop reading the client if we've read everything from the CGI. Is this correct, according to the nginx behavior in practice/the HTTP 1.1 RFC? Same goes for how we stop writing to the CGI if we've read everything from the CGI.
 - Multi-part form requests

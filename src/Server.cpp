@@ -56,6 +56,10 @@ Server::Server(void)
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
 	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
+	// TODO: REMOVE
+	// Leave this commented out for evaluation demonstration purposes
+	if (write(-1, "", 0) == -1) throw SystemException("test");
+
 	sockaddr_in servaddr{};
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
@@ -231,16 +235,6 @@ void Server::run(void)
 }
 
 /*	Private member functions */
-
-// TODO: Use this on every function that can fail?
-// static void die()
-// {
-// 	// TODO: Loop over all fds and close them
-
-// 	// TODO: We are not allowed to use perror(), but we can use strerror()
-
-// 	exit(EXIT_FAILURE);
-// }
 
 // vector=[ A, B, C, D ] with index=1 results in [ A, D, C ]
 template <typename T>
