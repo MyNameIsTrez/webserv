@@ -74,7 +74,8 @@ private:
 	void _writeToCGI(Client &client, nfds_t pfd_index);
 	void _writeToClient(Client &client, int fd);
 
-	// SIGCHLD
+	// SIGNAL HANDLERS
+	static void _sigIntHandler(int signum);
 	static void _sigChldHandler(int signum);
 
 	struct SystemException : public std::runtime_error

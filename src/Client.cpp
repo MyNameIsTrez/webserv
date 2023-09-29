@@ -112,7 +112,7 @@ Client &Client::operator=(Client const &src)
 
 /*	Public member functions */
 
-// TODO: Put in debug.cpp or smth?
+// TODO: Remove
 // #include <sstream>
 // #include <iostream>
 // #include <iomanip>

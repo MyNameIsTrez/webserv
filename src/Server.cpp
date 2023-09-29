@@ -26,12 +26,6 @@ const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
 
 bool shutting_down_gracefully = false;
 
-static void sigIntHandler(int signum)
-{
-	(void)signum;
-	shutting_down_gracefully = true;
-}
-
 int Server::_sig_chld_pipe[2];
 
 /*	Constructors */
@@ -56,9 +50,8 @@ Server::Server(void)
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
 	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
-	// TODO: REMOVE
 	// Leave this commented out for evaluation demonstration purposes
-	if (write(-1, "", 0) == -1) throw SystemException("test");
+	// if (write(-1, "", 0) == -1) throw SystemException("test");
 
 	sockaddr_in servaddr{};
 	servaddr.sin_family = AF_INET;
@@ -74,7 +67,7 @@ Server::Server(void)
 
 	std::cerr << "Port is " << SERVER_PORT << std::endl;
 
-	signal(SIGINT, sigIntHandler);
+	signal(SIGINT, _sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
 
 	if (pipe(_sig_chld_pipe) == -1) throw SystemException("pipe");
@@ -370,6 +363,12 @@ void Server::_addFd(int fd, FdType::FdType fd_type, short int events)
 	pfd.fd = fd;
 	pfd.events = events;
 	_pfds.push_back(pfd);
+}
+
+void Server::_sigIntHandler(int signum)
+{
+	(void)signum;
+	shutting_down_gracefully = true;
 }
 
 void Server::_sigChldHandler(int signum)
