@@ -722,7 +722,7 @@ bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
 
 		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw SystemException("dup2");
-		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX] == -1)) throw SystemException("close");
+		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
 
 		std::cerr << "    The child is going to start the CGI script" << std::endl;
 		// TODO: Define CGI script path in the configuration file?
