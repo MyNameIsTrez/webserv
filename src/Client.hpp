@@ -71,33 +71,35 @@ public:
 
 	void appendReadString(char *received, ssize_t bytes_read);
 
-	void prependResponseHeader();
+	void prependResponseHeader(void);
 
-	struct SystemException : public std::runtime_error
+	// struct SystemException : public std::runtime_error
+	// {
+	// public:
+	// 	SystemException(void)
+	// 		: runtime_error("System exception")
+	// 	{
+	// 	}
+	// };
+
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+	enum Status
 	{
-	public:
-		SystemException(void)
-			: runtime_error("System exception")
-		{
-		}
-	};
+		OK = 200,
+		BAD_REQUEST = 400,
+	} status;
+
+	static const char *status_text_table[];
 
 	struct ClientException : public std::runtime_error
 	{
-	public:
-		enum Status
-		{
-			BAD_REQUEST = 400,
-		};
-
-	private:
-		static const char *status_text_table[];
-
-	public:
-		ClientException(Status status)
-			: runtime_error("Client exception " + std::to_string(status) + ": " + status_text_table[status])
+		ClientException(Status status_)
+			: runtime_error("Client exception: " + std::to_string(status_) + " " + status_text_table[status_])
+			, status(status_)
 		{
 		}
+
+		Status status;
 	};
 
 	ClientReadState::ClientReadState client_read_state;
@@ -132,6 +134,8 @@ private:
 
 	void _parseBodyAppend(const std::string &extra_body);
 	void _hex_to_num(std::string &line, size_t &num);
+
+	void _addStatusLine(void);
 
 	void _generateEnv(void);
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);

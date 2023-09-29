@@ -13,14 +13,16 @@
 // TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN Server.cpp!
 #define MAX_RECEIVED_LEN 100
 
-const char *Client::ClientException::status_text_table[] = {
+const char *Client::status_text_table[] = {
+	[OK] = "OK",
 	[BAD_REQUEST] = "Bad Request",
 };
 
 /*	Orthodox Canonical Form */
 
 Client::Client(int client_fd)
-	: client_read_state(ClientReadState::HEADER),
+	: status(OK),
+	  client_read_state(ClientReadState::HEADER),
 	  cgi_write_state(CGIWriteState::NOT_WRITING),
 	  cgi_read_state(CGIReadState::NOT_READING),
 	  client_write_state(ClientWriteState::NOT_WRITING),
@@ -47,7 +49,8 @@ Client::Client(int client_fd)
 }
 
 Client::Client(Client const &src)
-	: client_read_state(src.client_read_state),
+	: status(src.status),
+	  client_read_state(src.client_read_state),
 	  cgi_write_state(src.cgi_write_state),
 	  cgi_read_state(src.cgi_read_state),
 	  client_write_state(src.client_write_state),
@@ -81,6 +84,7 @@ Client &Client::operator=(Client const &src)
 {
 	if (this == &src)
 		return *this;
+	this->status = src.status;
 	this->client_read_state = src.client_read_state;
 	this->cgi_write_state = src.cgi_write_state;
 	this->cgi_read_state = src.cgi_read_state;
@@ -179,18 +183,34 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 	}
 }
 
-// This method assumes the client has read all bytes from the reaped cgi's stdout
-void Client::prependResponseHeader()
+void Client::prependResponseHeader(void)
 {
-	// TODO: Don't hardcode the header
-	// TODO: Use cgi_exit_status
+	std::string response_backup = this->response;
+	this->response = "";
 
-	std::stringstream len_ss;
-	len_ss << this->response.size();
-	// TODO: Use _replace_all(str, "\n", "\r\n"):
-	// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
+	_addStatusLine();
 
-	this->response = "HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: " + len_ss.str() + "\r\n\r\n" + this->response;
+	// TODO: Do we ever want to send anything besides the status line when status is not OK?
+	if (this->status == OK)
+	{
+		// TODO: Unhardcode the Content-Type?
+		this->response += "Content-Type: text/plain\r\n";
+
+		// TODO: Use cgi_exit_status
+		std::stringstream len_ss;
+		len_ss << response_backup.size();
+		// TODO: Use _replace_all(str, "\n", "\r\n"):
+		// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
+
+		this->response +=
+			"Content-Length: "
+			+ len_ss.str()
+			+ "\r\n";
+	}
+
+	this->response +=
+		"\r\n"
+		+ response_backup;
 }
 
 /*	Private member functions */
@@ -215,7 +235,7 @@ void Client::_parseHeaders(void)
 	this->_parseRequestLine(split[0]);
 
 	if (!this->_isValidRequestLine())
-		throw ClientException(ClientException::BAD_REQUEST);
+		throw ClientException(BAD_REQUEST);
 
 	// Loop for every header
 	for (size_t i = 1; i < split.size(); i++)
@@ -225,7 +245,7 @@ void Client::_parseHeaders(void)
 		// Assign key to everything before the ':' seperator
 		pos = line.find(":");
 		if (pos == std::string::npos)
-			throw ClientException(ClientException::BAD_REQUEST);
+			throw ClientException(BAD_REQUEST);
 		std::string key = line.substr(0, pos);
 
 		// Capitalize letters and replace '-' with '_'
@@ -258,7 +278,7 @@ void Client::_parseHeaders(void)
 
 		// Check if key is a duplicate
 		if (this->header_map.find(key) != this->header_map.end())
-			throw ClientException(ClientException::BAD_REQUEST);
+			throw ClientException(BAD_REQUEST);
 
 		// Add key and value to the map
 		this->header_map.emplace(key, value);
@@ -266,18 +286,18 @@ void Client::_parseHeaders(void)
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
 			if (this->header_map.find("HTTP_CONTENT_LENGTH") != this->header_map.end())
-				throw ClientException(ClientException::BAD_REQUEST);
+				throw ClientException(BAD_REQUEST);
 			this->_is_chunked = true;
 		}
 		else if (key == "HTTP_CONTENT_LENGTH")
 		{
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
 			if (this->_is_chunked)
-				throw ClientException(ClientException::BAD_REQUEST);
+				throw ClientException(BAD_REQUEST);
 
 			// Check if value to content_length is a valid positive number
 			if (!strict_stoul(value, this->_content_length))
-				throw ClientException(ClientException::BAD_REQUEST);
+				throw ClientException(BAD_REQUEST);
 		}
 	}
 }
@@ -287,22 +307,22 @@ void Client::_parseRequestLine(std::string line)
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
 	if (request_method_end_pos == std::string::npos)
-		throw ClientException(ClientException::BAD_REQUEST);
+		throw ClientException(BAD_REQUEST);
 	this->request_method = line.substr(0, request_method_end_pos);
 	request_method_end_pos++;
-	std::cerr << "Request method: '" << this->request_method << "'" << std::endl;
+	std::cerr << "    Request method: '" << this->request_method << "'" << std::endl;
 
 	// Find and set the request target
 	size_t path_end_pos = line.find_last_of(" ");
 	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1)
-		throw ClientException(ClientException::BAD_REQUEST);
+		throw ClientException(BAD_REQUEST);
 	this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	path_end_pos++;
-	std::cerr << "Request target: '" << this->request_target << "'" << std::endl;
+	std::cerr << "    Request target: '" << this->request_target << "'" << std::endl;
 
 	// Set the protocol
 	this->protocol = line.substr(path_end_pos);
-	std::cerr << "HTTP version: '" << this->protocol << "'" << std::endl;
+	std::cerr << "    HTTP version: '" << this->protocol << "'" << std::endl;
 }
 
 bool Client::_isValidRequestLine(void)
@@ -406,7 +426,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 				}
 				// If buffer doesn't start with "\r\n" (This means client sent incorrectly formatted data)
 				else
-					throw ClientException(ClientException::BAD_REQUEST);
+					throw ClientException(BAD_REQUEST);
 			}
 		}
 	}
@@ -451,7 +471,7 @@ void Client::_hex_to_num(std::string &line, size_t &num)
 	else
 	{
 		line.erase(0, i);
-		throw ClientException(ClientException::BAD_REQUEST);
+		throw ClientException(BAD_REQUEST);
 	}
 	// Convert rest of the possible numbers
 	while (i < line.size())
@@ -481,6 +501,17 @@ void Client::_hex_to_num(std::string &line, size_t &num)
 		}
 	}
 	line.erase(0, i);
+}
+
+void Client::_addStatusLine(void)
+{
+	this->response +=
+		this->protocol
+		+ " "
+		+ std::to_string(this->status)
+		+ " "
+		+ status_text_table[this->status]
+		+ "\r\n";
 }
 
 void Client::_generateEnv(void)

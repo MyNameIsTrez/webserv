@@ -348,15 +348,33 @@ void Server::_removeFd(int &fd)
 	fd = -1;
 }
 
+void Server::_enableEvent(size_t pfd_index, short int event)
+{
+	_pfds[pfd_index].events |= event;
+}
+
+void Server::_disableEvent(size_t pfd_index, short int event)
+{
+	_pfds[pfd_index].events &= ~event;
+	_pfds[pfd_index].revents &= ~event;
+}
+
 void Server::_enableWritingToClient(Client &client)
 {
 	std::cerr << "    In _enableWritingToClient()" << std::endl;
 	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
-	_pfds[client_pfd_index].events |= POLLOUT;
+	_enableEvent(client_pfd_index, POLLOUT);
 
 	client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+}
 
-	client.prependResponseHeader();
+void Server::_disableReadingFromClient(Client &client)
+{
+	std::cerr << "    In _disableReadingFromClient()" << std::endl;
+	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
+	_disableEvent(client_pfd_index, POLLIN);
+
+	client.client_read_state = ClientReadState::DONE;
 }
 
 void Server::_addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events)
@@ -446,6 +464,7 @@ void Server::_pollhupCGIToServer(int fd)
 	if (client.cgi_exit_status != -1)
 	{
 		_enableWritingToClient(client);
+		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
 	}
 }
 
@@ -469,10 +488,31 @@ void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue
 
 		Client &client = _getClient(fd);
 
-		if (!_readFd(client, fd, fd_type, should_continue))
+		try
 		{
-			// TODO: Print error
-			exit(EXIT_FAILURE);
+			if (!_readFd(client, fd, fd_type, should_continue))
+			{
+				// TODO: Print error
+				exit(EXIT_FAILURE);
+			}
+		}
+		catch (const Client::ClientException &e)
+		{
+			std::cerr << "  " << e.what() << std::endl;
+
+			client.status = e.status;
+
+			_removeClientAttachments(fd);
+
+			_disableReadingFromClient(client);
+
+			_enableWritingToClient(client);
+
+			client.response = "";
+			client.response_index = 0;
+			client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
+
+			should_continue = true;
 		}
 	}
 }
@@ -564,6 +604,7 @@ void Server::_reapChild(void)
 	if (client.cgi_read_state == CGIReadState::DONE)
 	{
 		_enableWritingToClient(client);
+		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
 	}
 }
 
@@ -624,7 +665,7 @@ bool Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 			assert(client.server_to_cgi_fd != -1);
 			size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
 			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			_pfds[server_to_cgi_pfd_index].events |= POLLOUT;
+			_enableEvent(server_to_cgi_pfd_index, POLLOUT);
 		}
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
@@ -647,16 +688,37 @@ void Server::_removeClient(int fd)
 	assert(fd != -1);
 	std::cerr << "  Removing client with fd " << fd << std::endl;
 
+	_removeClientAttachments(fd);
+
+	Client &client = _getClient(fd);
+
+	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
+	size_t client_index = _fd_to_client_index.at(client.client_fd);
+
+	_fd_to_client_index[_clients.back().client_fd] = client_index;
+	_fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
+	_fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
+
+	_removeClientFd(client.client_fd);
+	_swapRemove(_clients, client_index);
+}
+
+void Server::_removeClientAttachments(int fd)
+{
+	std::cerr << "  Removing client attachments with fd " << fd << std::endl;
+
 	Client &client = _getClient(fd);
 
 	if (client.server_to_cgi_fd != -1)
 	{
 		_removeClientFd(client.server_to_cgi_fd);
+		client.cgi_write_state = CGIWriteState::DONE;
 	}
 
 	if (client.cgi_to_server_fd != -1)
 	{
 		_removeClientFd(client.cgi_to_server_fd);
+		client.cgi_read_state = CGIReadState::DONE;
 	}
 
 	if (client.cgi_pid != -1)
@@ -668,16 +730,6 @@ void Server::_removeClient(int fd)
 		_cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
 	}
-
-	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
-	size_t client_index = _fd_to_client_index.at(client.client_fd);
-
-	_fd_to_client_index[_clients.back().client_fd] = client_index;
-	_fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
-	_fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
-
-	_removeClientFd(client.client_fd);
-	_swapRemove(_clients, client_index);
 }
 
 bool Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
@@ -818,8 +870,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 		std::cerr << "    write() detected 'Broken pipe'" << std::endl;
 
 		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
-		_pfds[pfd_index].events &= ~POLLOUT;
-		_pfds[pfd_index].revents &= ~POLLOUT;
+		_disableEvent(pfd_index, POLLOUT);
 
 		client.cgi_write_state = CGIWriteState::DONE;
 		_removeClientFd(client.server_to_cgi_fd);
@@ -831,8 +882,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 	if (client.body_index == client.body.length())
 	{
 		std::cerr << "    Disabling server_to_cgi POLLOUT" << std::endl;
-		_pfds[pfd_index].events &= ~POLLOUT;
-		_pfds[pfd_index].revents &= ~POLLOUT;
+		_disableEvent(pfd_index, POLLOUT);
 
 		if (client.client_read_state == ClientReadState::DONE)
 		{
@@ -892,8 +942,7 @@ void Server::_writeToClient(Client &client, int fd)
 		// 	else
 		// 	{
 		// 		std::cerr << "    Disabling client POLLOUT" << std::endl;
-		// 		_pfds[pfd_index].events &= ~POLLOUT;
-		// 		_pfds[pfd_index].revents &= ~POLLOUT;
+		// 		_disableEvent(pfd_index, POLLOUT);
 		// 	}
 		// }
 	}

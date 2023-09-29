@@ -34,10 +34,18 @@ private:
 	// UTILS
 	void _printContainerSizes(void);
 	void _printEvents(const pollfd &pfd, FdType::FdType fd_type);
+
 	Client &_getClient(int fd);
+
 	void _removeClientFd(int &fd);
 	void _removeFd(int &fd);
+
+	void _enableEvent(size_t pfd_index, short int event);
+	void _disableEvent(size_t pfd_index, short int event);
+
 	void _enableWritingToClient(Client &client);
+	void _disableReadingFromClient(Client &client);
+
 	void _addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events);
 	void _addFd(int fd, FdType::FdType fd_type, short int events);
 
@@ -56,6 +64,7 @@ private:
 	void _reapChild(void);
 	bool _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
+	void _removeClientAttachments(int fd);
 	bool _startCGI(Client &client, int fd, FdType::FdType fd_type);
 
 	// POLLOUT
