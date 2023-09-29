@@ -283,6 +283,8 @@ void Client::_parseHeaders(void)
 				this->_content_length *= 10;
 				this->_content_length += value[j] - '0';
 			}
+
+			std::cerr << "    Content length: " << this->_content_length << std::endl;
 		}
 	}
 }
