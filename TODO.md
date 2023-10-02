@@ -26,6 +26,9 @@
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
 - [ ] Make sure the server doesn't crash if the CGI script crashed
+- [ ] Check that wrong request methods/request targets/protocols inputs are caught
+- [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
+- [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
 
 ## Victor
 
@@ -46,7 +49,6 @@
 - Do we want to handle when the header is malformed, because it *doesn't* end with \r\n\r\n?
 - Move all defines to the config
 - Do we want to be fully C++98 compliant just cause?
-- Do we want to EXIT_FAILURE when read() returns -1, or do we want to try and keep going?
 - Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
 - Right now we stop reading the client if we've read everything from the CGI. Is this correct, according to the nginx behavior in practice/the HTTP 1.1 RFC? Same goes for how we stop writing to the CGI if we've read everything from the CGI.
 - Multi-part form requests
@@ -56,6 +58,8 @@
 - Make sure DELETE is idempotent (sending a second time has no effect)
 - Consider using content_length to limit how many bytes of the body we'll try to read
 - Consider enforcing a [maximum header size](https://stackoverflow.com/a/686243/13279557)
+- Support custom cgi-bin directory name in the config (do we want an error or a default name if it isn't in the config?)
+- Let stuff be printed to Logger class
 
 # PDF questions
 - "You can’t execve another web server." - So should we add explicit logic that throws an exception if one does try to do it? Or are they saying the program is allowed to segfault if the evaluator tries to do it?
@@ -118,3 +122,8 @@ http://f1r3s6.codam.nl:8080/
 - Make sure `_printContainerSizes()` prints *every* Server map and vector, and that none of them grow over time
 - Make sure no async-unsafe calls like printing are done in any signal handlers (including `Server::_sigChldHandler()`)
 - Replace all perror() and exit() calls with proper exiting logic
+- Check that `curl -X POSTS --data-binary @tests/2_lines.txt localhost:18000` gives the client an error, due to the trailing `S` in `POSTS`
+- Remove every reference to the transitionary `UNDECIDED` `Status` enum
+- Using `#pragma once` in every header
+- PLace `const` at the end of prototypes wherever possible to indicate `this` is `const`
+- Make sure *every* `Status` enum has an associated string in `status_text_table`

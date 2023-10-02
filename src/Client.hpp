@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <poll.h>
+#include <stdexcept>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -68,9 +69,29 @@ public:
 	virtual ~Client(void);
 	Client &operator=(Client const &src);
 
-	bool appendReadString(char *received, ssize_t bytes_read);
+	void appendReadString(char *received, ssize_t bytes_read);
 
-	void prependResponseHeader();
+	void prependResponseHeader(void);
+
+	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
+	enum Status
+	{
+		OK = 200,
+		BAD_REQUEST = 400,
+	} status;
+
+	static const char *status_text_table[];
+
+	struct ClientException : public std::runtime_error
+	{
+		ClientException(Status status_)
+			: runtime_error("Client exception: " + std::to_string(status_) + " " + status_text_table[status_])
+			, status(status_)
+		{
+		}
+
+		Status status;
+	};
 
 	ClientReadState::ClientReadState client_read_state;
 	CGIWriteState::CGIWriteState cgi_write_state;
@@ -78,7 +99,7 @@ public:
 	ClientWriteState::ClientWriteState client_write_state;
 
 	std::string request_method;
-	std::string path;
+	std::string request_target;
 	std::string protocol;
 	std::unordered_map<std::string, std::string> header_map;
 	std::string body;
@@ -94,10 +115,20 @@ public:
 private:
 	Client(void);
 
-	bool _parseHeaders(void);
-	bool _parseStartLine(std::string line);
-	bool _parseBodyAppend(const std::string &extra_body);
-	void _generateEnv();
+	void _parseHeaders(void);
+
+	void _parseRequestLine(std::string line);
+	bool _isValidRequestLine(void);
+	bool _isValidRequestMethod(void);
+	bool _isValidRequestTarget(void);
+	bool _isValidProtocol(void);
+
+	void _parseBodyAppend(const std::string &extra_body);
+	void _hex_to_num(std::string &line, size_t &num);
+
+	void _addStatusLine(void);
+
+	void _generateEnv(void);
 	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
 
 	size_t _content_length;

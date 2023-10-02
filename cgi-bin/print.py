@@ -4,11 +4,11 @@ import json, os, sys, time
 def main():
     print("This is printed to stderr by print.py", file=sys.stderr)
 
-    if os.environ.get('CONTENT_LENGTH'):
-        print(f"CONTENT_LENGTH: {os.environ.get('CONTENT_LENGTH')}", file=sys.stderr)
+    if os.environ.get('HTTP_CONTENT_LENGTH'):
+        print(f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}", file=sys.stderr)
     else:
         # TODO: Should this be unreachable? It's always reached rn
-        print("CONTENT_LENGTH is not in env", file=sys.stderr)
+        print("HTTP_CONTENT_LENGTH is not in env", file=sys.stderr)
 
     # TODO: Test that the server doesn't crash if the script crashes
 
@@ -22,6 +22,8 @@ def main():
     # os.close(sys.stdin.fileno())
     # sys.stdin.close()
     # print("Disabled stdin in print.py", file=sys.stderr)
+
+    # time.sleep(5)
 
     # TODO: Handle the error when sys.stdin.readlines() is done after stdin is closed
     print("Before reading stdin", file=sys.stderr)
@@ -38,7 +40,7 @@ def main():
     sys.stdout.close()
 
     # TODO: Probably want to comment this out before handing in
-    time.sleep(5)
+    # time.sleep(5)
 
     # TODO: Test that this sends a "CGI failed" page to the client
     exit(2)

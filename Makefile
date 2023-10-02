@@ -4,7 +4,7 @@ NAME := webserv
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wshadow
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wshadow -Wno-c99-designator
 
 ################################################################################
 
