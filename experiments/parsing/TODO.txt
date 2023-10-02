@@ -1,5 +1,4 @@
-cgi dingen toevoegen aan config
-
+EXCEPTIONS CATCHEN OP DE JUISTE PLEKKEN
 
 map voor (server/location) blocks om te checken of de inhoud klopt
 
@@ -10,6 +9,7 @@ line checks:
  - meerdere '=' tekens
  - er wordt iets in de type gezet
  - spaties tussen type, '=' en value negeren, maar spaties in de value worden niet geaccepteerd
+ - een regel waarin een type gedeclared wordt moet eindigen op een ';'
 
 DONE:
 • Choose the port and host of each ’server’.
