@@ -6,7 +6,7 @@
 /*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
 /*                                                   +#+                      */
 /*   Created: 2023/08/29 11:52:13 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/09/21 15:59:04 by mforstho      ########   odam.nl         */
+/*   Updated: 2023/10/02 15:13:21 by mforstho      ########   odam.nl         */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -14,6 +14,10 @@
 
 #include <string> // temp
 #include <map>
+
+Parse::Parse(void)
+{
+}
 
 Parse::Parse(std::string file)
 {
@@ -55,115 +59,53 @@ void Parse::save_type(std::string line, std::string type)
 {
 	if (type == "max_connections")
 		return (save_max_connections(line));
+	else if (type == "default_file")
+		return (save_default_file(line));
 	else
-		return;
+		throw InvalidLineException();
 }
-
-// void Parse::save_server_name(std::string line)
-// {
-// 	_server_name = line.substr(line.find('=') + 1);
-// }
-
-// void Parse::save_port(std::string line)
-// {
-// 	_ports.push_back(std::stof(line.substr(line.find('=') + 1)));
-// }
 
 void Parse::save_max_connections(std::string line)
 {
 	_max_connections = std::stoi(line.substr(line.find('=') + 1));
 }
 
-// void Parse::save_root_path(std::string line)
-// {
-// 	_root_path = line.substr(line.find('=') + 1);
-// }
-
-// void Parse::save_index_file(std::string line)
-// {
-// 	_index_file = line.substr(line.find('=') + 1);
-// }
-
-// std::string Parse::get_server_name(void)
-// {
-// 	return (_server_name);
-// }
-
-int Parse::get_connections(void)
+void Parse::save_default_file(std::string line)
 {
-	return (_max_connections);
+	_default_file = line.substr(line.find('=') + 1);
 }
-
-// int Parse::get_port(size_t index)
-// {
-// 	return (_ports.at(index));
-// }
-
-// std::string Parse::get_root(void)
-// {
-// 	return (_root_path);
-// }
-
-// std::string Parse::get_index_file(void)
-// {
-// 	return (_index_file);
-// }
-
-// int Parse::check_line(std::string line)
-// {
-// 	int type;
-// 	if (line.find('='))
-// 	{
-
-// 		type = get_type(line.substr(0, line.find('=')));
-// 		if (type == invalid_type)
-// 		{
-// 			// throw error;
-// 		}
-// 		if (line.c_str()[line.find('=') + 1] == '\n')
-// 		{
-// 			// throw error: field empty
-// 		}
-// 		int equalscounter = 0;
-// 		for (int i = 0; line.c_str()[i] != '\0'; i++)
-// 		{
-// 			if (line.c_str()[i] == '=')
-// 				equalscounter++;
-// 			if (equalscounter > 1)
-// 			{
-// 				// throw error: too many '=' in line
-// 			}
-// 		}
-// 	}
-// 	else
-// 	{
-// 		// throw error;
-// 	}
-// 	std::cout << type << std::endl;
-// 	// save_type(line, type);
-// 	return (EXIT_SUCCESS);
-// }
 
 void Parse::save_config(std::string file)
 {
 	std::ifstream config(file);
 	if (!config.is_open())
 	{
-		// throw std::exception::file_no_access;
+		throw InvalidFileException();
 	}
 	std::string line;
 	while (getline(config, line))
 	{
+		if (line.find_first_not_of('\t') == line.npos)
+			continue;
 		if (line.find("server {") != line.npos)
 		{
 			new_server(line, config);
-			std::cout << "			END OF SERVER" << std::endl;
+			// std::cout << "			END OF SERVER" << std::endl;
 		}
 		else
 		{
+			if (line.find('=') == line.npos)
+			{
+				std::cout << "<" << line << ">" << std::endl;
+				throw InvalidLineException();
+			}
 			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
 			std::string type = line.substr(0, line.find('='));
 			std::cout << type << std::endl;
+			if (type == "\n")
+			{
+				throw EmptyTypeException();
+			}
 			save_type(line, type);
 		}
 	}
@@ -183,11 +125,9 @@ void Parse::save_error_pages(std::string line, ServerData *new_server)
 			{
 				while (isdigit(line.c_str()[i]) != 0)
 				{
-					// std::cout << "ep test" << std::endl;
 					page *= 10;
 					page += line.c_str()[i] - '0';
 					i++;
-					// std::cout << "error_page: " << page << std::endl;
 				}
 				new_server->_error_pages.insert(std::pair<int, std::string>(page, line.substr(line.find('=') + 2)));
 			}
@@ -196,7 +136,7 @@ void Parse::save_error_pages(std::string line, ServerData *new_server)
 	}
 }
 
-void print_vector(std::string prefix, std::vector<std::string> nums)
+void print_vector(std::string prefix, std::vector<std::string> nums) // temporary
 {
 	std::cout << prefix;
 	for (int i = 0; i < nums.size(); i++)
@@ -208,16 +148,16 @@ void print_vector(std::string prefix, std::vector<std::string> nums)
 
 PageData Parse::save_page(std::string line, std::ifstream &config)
 {
-	std::cout << "LOCATION BEGINNING" << std::endl;
+	// std::cout << "LOCATION BEGINNING" << std::endl;
 	int page_start = line.find('/');
 	if (page_start == line.npos)
 	{
-		// error
+		throw InvalidLineException();
 	}
 	int page_end = line.find('{');
 	if (page_end == line.npos)
 	{
-		// error
+		throw InvalidLineException();
 	}
 	PageData new_page;
 	new_page.page_path = line.substr(page_start, page_end - page_start);
@@ -227,6 +167,8 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 			break;
 		if (line[0] != '\0')
 		{
+			if (line.find('=') == line.npos)
+				throw InvalidLineException();
 			std::string value = line.substr(line.find('=') + 1);
 			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
 			std::string type = line.substr(0, line.find('='));
@@ -245,7 +187,7 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 				if (value == "on")
 					new_page.autoindex = true;
 				else
-					new_page.autoindex = false; // wordt nu ook op false gezet bij gibberish
+					new_page.autoindex = false; // TODO: wordt nu ook op false gezet bij gibberish
 			}
 			else if (type == "index_file")
 			{
@@ -262,7 +204,7 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 				std::istream_iterator<std::string> end;
 				std::vector<std::string> vstrings(begin, end);
 				new_page.cgi_paths = vstrings;
-				print_vector("cgi_paths =", new_page.cgi_paths);
+				// print_vector("cgi_paths =", new_page.cgi_paths);
 			}
 			else if (type == "cgi_ext")
 			{
@@ -271,11 +213,13 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 				std::istream_iterator<std::string> end;
 				std::vector<std::string> vstrings(begin, end);
 				new_page.cgi_ext = vstrings;
-				print_vector("cgi_extensions =", new_page.cgi_ext);
+				// print_vector("cgi_extensions =", new_page.cgi_ext);
 			}
+			else
+				throw InvalidLineException();
 		}
 	}
-	std::cout << "LOCATION: " << new_page.page_path << std::endl;
+	// std::cout << "LOCATION: " << new_page.page_path << std::endl;
 	return (new_page);
 }
 
@@ -283,7 +227,7 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 // dan hoeven functies zoals save_page en save_error_pages geen "new_server" mee te krijgen
 void Parse::new_server(std::string line, std::ifstream &config)
 {
-	std::cout << "			NEW_SERVER" << std::endl;
+	// std::cout << "			NEW_SERVER" << std::endl;
 	ServerData new_server;
 
 	int unclosed = 0;
@@ -311,34 +255,36 @@ void Parse::new_server(std::string line, std::ifstream &config)
 			{
 				if (line.find("error_page") != line.npos) // is nog niet beschermd
 					save_error_pages(line, &new_server);
-				line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-				std::string type = line.substr(0, line.find('='));
-				// std::cout << type << std::endl;
-				std::string value = line.substr(line.find('=') + 1);
-				// std::cout << "value of " << type << ": " << value << std::endl;
-				if (value == "")
+				else
 				{
-					std::cout << "Error: empty value" << std::endl;
-					return;
+					line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+					std::string type = line.substr(0, line.find('='));
+					// std::cout << type << std::endl;
+					std::string value = line.substr(line.find('=') + 1);
+					// std::cout << "value of " << type << ": " << value << std::endl;
+					if (value == "")
+					{
+						throw EmptyTypeException();
+					}
+					if (type == "server_name")
+						new_server._server_name = value;
+					else if (type == "listen")
+						new_server._ports.push_back(std::stoi(value));
+					else if (type == "root_path")
+						new_server._root_path = value;
+					else if (type == "index_file")
+						new_server._index_file = value;
+					else if (type == "client_max_body_size")
+						new_server._client_max_body_size = std::stoi(value);
+					else if (type == "http_redirection")
+						new_server._http_redirection = value;
+					else
+					{
+						std::cout << "Error on line:" << line << std::endl;
+						throw InvalidLineException();
+						exit(EXIT_FAILURE);
+					}
 				}
-				if (type == "server_name")
-					new_server._server_name = value;
-				else if (type == "listen")
-					new_server._ports.push_back(std::stoi(value));
-				else if (type == "root_path")
-					new_server._root_path = value;
-				else if (type == "index_file")
-					new_server._index_file = value;
-				else if (type == "client_max_body_size")
-					new_server._client_max_body_size = std::stoi(value);
-				else if (type == "http_redirection")
-					new_server._http_redirection = value;
-				// else
-				// {
-				// 	std::cout << "Error: invalid setting in config file" << std::endl;
-				// 	return;
-				// }
-				// save_type(line, type);
 			}
 		}
 	}

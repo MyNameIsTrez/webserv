@@ -39,5 +39,4 @@ server {
 
 
 
-directory_listening=
 default_file=
