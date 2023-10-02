@@ -329,6 +329,8 @@ bool Client::_isValidRequestTarget(void)
 // See RFC 9112 section 2.3
 bool Client::_isValidProtocol(void)
 {
+	if (this->protocol.size() < sizeof("HTTP/0.0") - 1)
+		return false;
 	if (this->protocol.rfind("HTTP/", 0) == std::string::npos)
 		return false;
 	if (this->protocol[5] < '0' || this->protocol[5] > '9')
