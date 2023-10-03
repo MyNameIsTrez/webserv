@@ -1,81 +1,57 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        ::::::::            */
-/*   Parse.cpp                                          :+:    :+:            */
-/*                                                     +:+                    */
-/*   By: mforstho <mforstho@student.codam.nl>         +#+                     */
-/*                                                   +#+                      */
-/*   Created: 2023/08/29 11:52:13 by mforstho      #+#    #+#                 */
-/*   Updated: 2023/10/02 15:13:21 by mforstho      ########   odam.nl         */
-/*                                                                            */
-/* ************************************************************************** */
-
-#include "Parse.hpp"
+#include "Config.hpp"
 
 #include <string> // temp
 #include <map>
 
-Parse::Parse(void)
+Config::Config(void)
 {
 }
 
-Parse::Parse(std::string file)
+Config::Config(std::string file)
 {
 	save_config(file);
 }
 
-Parse::~Parse(void)
+Config::~Config(void)
 {
 }
 
-enum parse_types
-{
-	invalid_type,
-	server_name,
-	listen,
-	max_connections,
-	root_path,
-	index_file,
-	new_server
-};
+// TODO: REMOVE?
+// ParseTypes Config::get_type(std::string type)
+// {
+// 	if (type == "server_name")
+// 		return ParseTypes::SERVER_NAME;
+// 	if (type == "listen")
+// 		return ParseTypes::LISTEN;
+// 	if (type == "max_connections")
+// 		return ParseTypes::MAX_CONNECTIONS;
+// 	if (type == "root_path")
+// 		return ParseTypes::ROOT_PATH;
+// 	if (type == "index_file")
+// 		return ParseTypes::INDEX_FILE;
+// 	return ParseTypes::INVALID_TYPE;
+// }
 
-int Parse::get_type(std::string type)
-{
-	if (type == "server_name")
-		return (server_name);
-	else if (type == "listen")
-		return (listen);
-	else if (type == "max_connections")
-		return (max_connections);
-	else if (type == "root_path")
-		return (root_path);
-	else if (type == "index_file")
-		return (index_file);
-	else
-		return (invalid_type);
-}
-
-void Parse::save_type(std::string line, std::string type)
+void Config::save_type(std::string line, std::string type)
 {
 	if (type == "max_connections")
-		return (save_max_connections(line));
-	else if (type == "default_file")
-		return (save_default_file(line));
-	else
-		throw InvalidLineException();
+		return save_max_connections(line);
+	if (type == "default_file")
+		return save_default_file(line);
+	throw InvalidLineException();
 }
 
-void Parse::save_max_connections(std::string line)
+void Config::save_max_connections(std::string line)
 {
-	_max_connections = std::stoi(line.substr(line.find('=') + 1));
+	_max_connections = std::stoul(line.substr(line.find('=') + 1));
 }
 
-void Parse::save_default_file(std::string line)
+void Config::save_default_file(std::string line)
 {
 	_default_file = line.substr(line.find('=') + 1);
 }
 
-void Parse::save_config(std::string file)
+void Config::save_config(std::string file)
 {
 	std::ifstream config(file);
 	if (!config.is_open())
@@ -111,9 +87,9 @@ void Parse::save_config(std::string file)
 	}
 }
 
-void Parse::save_error_pages(std::string line, ServerData *new_server)
+void Config::save_error_pages(std::string line, ServerData *new_server)
 {
-	int i = line.find("error_page");
+	size_t i = line.find("error_page");
 	if (i != line.npos)
 	{
 		while (line[i] != '\0')
@@ -129,7 +105,7 @@ void Parse::save_error_pages(std::string line, ServerData *new_server)
 					page += line.c_str()[i] - '0';
 					i++;
 				}
-				new_server->_error_pages.insert(std::pair<int, std::string>(page, line.substr(line.find('=') + 2)));
+				new_server->_error_pages.emplace(static_cast<Status::Status>(page), line.substr(line.find('=') + 2));
 			}
 			i++;
 		}
@@ -139,22 +115,22 @@ void Parse::save_error_pages(std::string line, ServerData *new_server)
 void print_vector(std::string prefix, std::vector<std::string> nums) // temporary
 {
 	std::cout << prefix;
-	for (int i = 0; i < nums.size(); i++)
+	for (size_t i = 0; i < nums.size(); i++)
 	{
 		std::cout << " " << nums.at(i);
 	}
 	std::cout << std::endl;
 }
 
-PageData Parse::save_page(std::string line, std::ifstream &config)
+PageData Config::save_page(std::string line, std::ifstream &config)
 {
 	// std::cout << "LOCATION BEGINNING" << std::endl;
-	int page_start = line.find('/');
+	size_t page_start = line.find('/');
 	if (page_start == line.npos)
 	{
 		throw InvalidLineException();
 	}
-	int page_end = line.find('{');
+	size_t page_end = line.find('{');
 	if (page_end == line.npos)
 	{
 		throw InvalidLineException();
@@ -220,12 +196,12 @@ PageData Parse::save_page(std::string line, std::ifstream &config)
 		}
 	}
 	// std::cout << "LOCATION: " << new_page.page_path << std::endl;
-	return (new_page);
+	return new_page;
 }
 
 // "new_server" zou ik kunnen rewriten zodat het meteen in de "_serverdata" gezet wordt
 // dan hoeven functies zoals save_page en save_error_pages geen "new_server" mee te krijgen
-void Parse::new_server(std::string line, std::ifstream &config)
+void Config::new_server(std::string line, std::ifstream &config)
 {
 	// std::cout << "			NEW_SERVER" << std::endl;
 	ServerData new_server;
@@ -275,7 +251,7 @@ void Parse::new_server(std::string line, std::ifstream &config)
 					else if (type == "index_file")
 						new_server._index_file = value;
 					else if (type == "client_max_body_size")
-						new_server._client_max_body_size = std::stoi(value);
+						new_server._client_max_body_size = std::stoul(value);
 					else if (type == "http_redirection")
 						new_server._http_redirection = value;
 					else
@@ -292,24 +268,24 @@ void Parse::new_server(std::string line, std::ifstream &config)
 	return;
 }
 
-void Parse::print_server_info(size_t index)
-{
-	std::cout << "Info for server " << index + 1 << std::endl;
-	std::cout << "server name: " << _serverdata.at(index)._server_name << std::endl;
-	std::cout << "server ports: ";
-	for (int i = 0; i < _serverdata.at(index)._ports.size(); i++)
-	{
-
-		std::cout << _serverdata.at(index)._ports.at(i) << ", ";
-	}
-	std::cout << std::endl;
-	std::cout << "root path: " << _serverdata.at(index)._root_path << std::endl;
-	std::cout << "index file: " << _serverdata.at(index)._index_file << std::endl;
-	for (std::map<int, std::string>::iterator it = _serverdata.at(index)._error_pages.begin(); it != _serverdata.at(index)._error_pages.end(); ++it)
-	{
-		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
-	}
-}
+// TODO: REMOVE?
+// void Config::print_server_info(size_t index)
+// {
+// 	std::cout << "Info for server " << index + 1 << std::endl;
+// 	std::cout << "server name: " << _serverdata.at(index)._server_name << std::endl;
+// 	std::cout << "server ports: ";
+// 	for (size_t i = 0; i < _serverdata.at(index)._ports.size(); i++)
+// 	{
+// 		std::cout << _serverdata.at(index)._ports.at(i) << ", ";
+// 	}
+// 	std::cout << std::endl;
+// 	std::cout << "root path: " << _serverdata.at(index)._root_path << std::endl;
+// 	std::cout << "index file: " << _serverdata.at(index)._index_file << std::endl;
+// 	for (std::map<int, std::string>::iterator it = _serverdata.at(index)._error_pages.begin(); it != _serverdata.at(index)._error_pages.end(); ++it)
+// 	{
+// 		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
+// 	}
+// }
 
 /*
 std::string new_server() {

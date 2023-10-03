@@ -1,19 +1,33 @@
+#include "Config.hpp"
 #include "Server.hpp"
 
 #include <cstdlib>
+// #include <signal.h>
 
-void check_leaks(void)
+int main(int argc, char *argv[])
 {
-	system("leaks -q webserv");
-}
+	if (argc != 2)
+	{
+		std::cout << "Expected exactly one configuration path argument" << std::endl;
+		return EXIT_FAILURE;
+	}
 
-int main(void)
-{
-	atexit(check_leaks);
+	// TODO: Default configuration if argc<=1?
+
+	Config config;
+	try
+	{
+		config.save_config(argv[1]);
+	}
+	catch (const InvalidLineException &a)
+	{
+		std::cout << a.what() << std::endl;
+		return EXIT_FAILURE;
+	}
 
 	// TODO: Error handling
-	Server server; // Default configuration path
-	// Server server("foo.cfg"); // TODO: Try this
+	Server server(config);
 	server.run();
+	// signal(SIGCHLD, SIG_DFL); // TODO: Put this back in
 	return EXIT_SUCCESS;
 }

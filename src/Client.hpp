@@ -1,5 +1,7 @@
 #pragma once
 
+#include "Status.hpp"
+
 #include <cstddef>
 #include <poll.h>
 #include <stdexcept>
@@ -73,24 +75,19 @@ public:
 
 	void prependResponseHeader(void);
 
-	// https://developer.mozilla.org/en-US/docs/Web/HTTP/Status
-	enum Status
-	{
-		OK = 200,
-		BAD_REQUEST = 400,
-	} status;
+	Status::Status status;
 
 	static const char *status_text_table[];
 
 	struct ClientException : public std::runtime_error
 	{
-		ClientException(Status status_)
+		ClientException(Status::Status status_)
 			: runtime_error("Client exception: " + std::to_string(status_) + " " + status_text_table[status_])
 			, status(status_)
 		{
 		}
 
-		Status status;
+		Status::Status status;
 	};
 
 	ClientReadState::ClientReadState client_read_state;

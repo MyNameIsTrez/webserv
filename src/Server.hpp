@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Client.hpp"
+#include "Config.hpp"
 
 #include <cstring>
 
@@ -19,8 +20,7 @@ namespace FdType
 class Server
 {
 public:
-	Server(void);
-	Server(const std::string &configuration_path);
+	Server(const Config &config);
 
 	virtual ~Server(void);
 
@@ -62,7 +62,7 @@ private:
 
 	// POLLIN
 	void _handlePollin(int fd, FdType::FdType fd_type, bool &should_continue);
-	void _acceptClient();
+	void _acceptClient(int server_fd);
 	void _reapChild(void);
 	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
@@ -80,7 +80,6 @@ private:
 
 	struct SystemException : public std::runtime_error
 	{
-	public:
 		// TODO: Use strerror(), since this is only thrown on C functions that set errno? (double-check that)
 		SystemException(const std::string &function_name)
 			: runtime_error("System exception in function '" + function_name + "': " + strerror(errno))
@@ -90,7 +89,7 @@ private:
 
 	static int _sig_chld_pipe[2];
 
-	int _server_fd;
+	const Config &_config;
 
 	std::unordered_map<pid_t, int> _cgi_pid_to_client_fd;
 	std::unordered_map<int, size_t> _fd_to_client_index;
