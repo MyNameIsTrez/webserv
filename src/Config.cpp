@@ -203,7 +203,6 @@ void Config::new_server(std::string line, std::ifstream &config)
 				unclosed++;
 			if (line.find("location") != line.npos)
 			{
-				// TODO: Use returned page
 				new_server.page_data.push_back(save_page(line, config));
 				unclosed--;
 			}
