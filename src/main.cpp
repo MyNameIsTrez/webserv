@@ -24,10 +24,11 @@ int main(int argc, char *argv[])
 		std::cout << a.what() << std::endl;
 		return EXIT_FAILURE;
 	}
+	config.print_config_info();
 
 	// TODO: Error handling
-	Server server(config);
-	server.run();
+	// Server server(config);
+	// server.run();
 	// signal(SIGCHLD, SIG_DFL); // TODO: Put this back in
 	return EXIT_SUCCESS;
 }

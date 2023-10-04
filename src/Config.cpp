@@ -76,7 +76,7 @@ void Config::save_error_pages(std::string line, ServerData *new_server)
 			if (line[i] == '=')
 				break;
 			int page = 0;
-			if (isdigit(line.c_str()[i]) != 0)
+			if (isdigit(line.c_str()[i]) != 0) // checken of er uberhaupt error codes in de config staan en of er een pad beschreven is. Zo niet, exception throwen
 			{
 				while (isdigit(line.c_str()[i]) != 0)
 				{
@@ -204,7 +204,7 @@ void Config::new_server(std::string line, std::ifstream &config)
 			if (line.find("location") != line.npos)
 			{
 				// TODO: Use returned page
-				save_page(line, config);
+				new_server.page_data.push_back(save_page(line, config));
 				unclosed--;
 			}
 			else if (line.find('=') != line.npos)
@@ -248,35 +248,56 @@ void Config::new_server(std::string line, std::ifstream &config)
 	return;
 }
 
-// TODO: REMOVE?
-// void Config::print_server_info(size_t index)
-// {
-// 	std::cout << "Info for server " << index + 1 << std::endl;
-// 	std::cout << "server name: " << serverdata.at(index).server_name << std::endl;
-// 	std::cout << "server ports: ";
-// 	for (size_t i = 0; i < serverdata.at(index).ports.size(); i++)
-// 	{
-// 		std::cout << serverdata.at(index).ports.at(i) << ", ";
-// 	}
-// 	std::cout << std::endl;
-// 	std::cout << "root path: " << serverdata.at(index).root_path << std::endl;
-// 	std::cout << "index file: " << serverdata.at(index).index_file << std::endl;
-// 	for (std::map<int, std::string>::iterator it = serverdata.at(index).error_pages.begin(); it != serverdata.at(index).error_pages.end(); ++it)
-// 	{
-// 		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
-// 	}
-// }
+void Config::print_config_info(void)
+{
+	std::cout << std::endl;
+	std::cout << std::endl;
+	std::cout << "max_connections: " << _max_connections << std::endl;
+	std::cout << "default_file: " << _default_file << std::endl;
 
-/*
-std::string new_server() {
-	if ('{') {
-		while (getline(config, line)) {
-
+	std::cout << std::endl;
+	for (size_t i = 0; i < serverdata.size(); i++)
+	{
+		std::cout << "server_name: " << serverdata.at(i).server_name << std::endl;
+		std::cout << "server ports: ";
+		for (size_t j = 0; j < serverdata.at(i).ports.size(); j++)
+		{
+			std::cout << serverdata.at(i).ports.at(j) << ", ";
 		}
-		return line;
+		std::cout << std::endl;
+		std::cout << "root_path: " << serverdata.at(i).root_path << std::endl;
+		std::cout << "index_file: " << serverdata.at(i).index_file << std::endl;
+		std::cout << "client_max_body_size: " << serverdata.at(i).client_max_body_size << std::endl;
+		std::cout << "http_redirection: " << serverdata.at(i).http_redirection << std::endl;
+		for (std::map<Status::Status, std::string>::iterator it = serverdata.at(i).error_pages.begin(); it != serverdata.at(i).error_pages.end(); ++it)
+		{
+			std::cout << "error page: " << it->first << ": " << it->second << std::endl;
+		}
+		for (size_t h = 0; h < serverdata.at(i).page_data.size(); h++)
+		{
+			std::cout << "page_path: " << serverdata.at(i).page_data.at(h).page_path << std::endl;
+			std::cout << "allowed_methods: ";
+			for (size_t k = 0; k < serverdata.at(i).page_data.at(h).allowed_methods.size(); k++)
+			{
+				std::cout << serverdata.at(i).page_data.at(h).allowed_methods.at(k) << ", ";
+			}
+			std::cout << std::endl;
+			std::cout << "autoindex: " << serverdata.at(i).page_data.at(h).autoindex << std::endl;
+			std::cout << "index_file: " << serverdata.at(i).page_data.at(h).index_file << std::endl;
+			std::cout << "root: " << serverdata.at(i).page_data.at(h).root << std::endl;
+			std::cout << "cgi_paths: ";
+			for (size_t l = 0; l < serverdata.at(i).page_data.at(h).cgi_paths.size(); l++)
+			{
+				std::cout << serverdata.at(i).page_data.at(h).cgi_paths.at(l) << ", ";
+			}
+			std::cout << std::endl;
+			std::cout << "cgi_extensions: ";
+			for (size_t m = 0; m < serverdata.at(i).page_data.at(h).cgi_ext.size(); m++)
+			{
+				std::cout << serverdata.at(i).page_data.at(h).cgi_ext.at(m) << ", ";
+			}
+			std::cout << std::endl;
+			std::cout << std::endl;
+		}
 	}
 }
-
-line = new_server(config, line);
-
-*/
