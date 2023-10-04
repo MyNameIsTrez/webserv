@@ -1,6 +1,7 @@
 #include "Server.hpp"
 
 #include "Client.hpp"
+#include "Config.hpp"
 
 #include <cassert>
 #include <iostream>
@@ -11,7 +12,6 @@
 #include <unordered_set>
 
 // TODO: Move some/all of these defines to a config file
-#define SERVER_PORT 18000
 #define MAX_CONNECTION_QUEUE_LEN 10
 #define MAX_CGI_WRITE_LEN 100
 #define MAX_CLIENT_WRITE_LEN 100
@@ -30,8 +30,8 @@ int Server::_sig_chld_pipe[2];
 
 /*	Constructors */
 
-Server::Server(void)
-	: _server_fd(-1),
+Server::Server(const Config &config)
+	: _config(config),
 	  _cgi_pid_to_client_fd(),
 	  _fd_to_client_index(),
 	  _fd_to_pfd_index(),
@@ -39,48 +39,53 @@ Server::Server(void)
 	  _clients(),
 	  _pfds()
 {
-	// TODO: Parse config
+	for (const auto &server_data : _config.serverdata)
+	{
+		// TODO: Remove
+		// for (const auto &error_page : server_data.error_pages)
+		// {
+		// 	std::cerr << "error page: " << error_page.first << " -> " << error_page.second << std::endl;
+		// }
 
-	// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
-	// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-	if ((_server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
+		for (const auto &port : server_data.ports)
+		{
+			std::cerr << "Port: " << port << std::endl;
 
-	// Prevents "bind: Address already in use" error after:
-	// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
-	int option = 1; // "the parameter should be non-zero to enable a boolean option"
-	if (setsockopt(_server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
+			int server_fd;
 
-	// Leave this commented out for evaluation demonstration purposes
-	// if (write(-1, "", 0) == -1) throw SystemException("test");
+			// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
+			// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
+			if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
 
-	sockaddr_in servaddr{};
-	servaddr.sin_family = AF_INET;
-	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-	servaddr.sin_port = htons(SERVER_PORT);
+			// Prevents "bind: Address already in use" error after:
+			// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
+			int option = 1; // "the parameter should be non-zero to enable a boolean option"
+			if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
-	if ((bind(_server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
+			sockaddr_in servaddr{};
+			servaddr.sin_family = AF_INET;
+			servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+			servaddr.sin_port = htons(port);
 
-	if ((listen(_server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
+			if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
 
-	_addFd(_server_fd, FdType::SERVER, POLLIN);
-	std::cerr << "Added server fd " << _server_fd << std::endl;
+			if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
 
-	std::cerr << "Port is " << SERVER_PORT << std::endl;
+			_addFd(server_fd, FdType::SERVER, POLLIN);
+			std::cerr << "Added server fd " << server_fd << std::endl;
+		}
+	}
 
 	signal(SIGINT, _sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
+
+	// Demonstration purposes
+	// if (write(-1, "", 0)) throw SystemException("write");
 
 	if (pipe(_sig_chld_pipe) == -1) throw SystemException("pipe");
 	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
 	std::cerr << "Added _sig_chld_pipe[PIPE_READ_INDEX] fd " << _sig_chld_pipe[PIPE_READ_INDEX] << std::endl;
 	signal(SIGCHLD, _sigChldHandler);
-}
-
-Server::Server(const std::string &configuration_path)
-	: Server()
-{
-	// TODO: Use the configuration_path
-	(void)configuration_path;
 }
 
 /*	Public member functions */
@@ -109,10 +114,22 @@ void Server::run(void)
 
 			servers_active = false;
 
-			// TODO: Handle multiple servers; the required steps are listed here: https://stackoverflow.com/a/15560580/13279557
-			size_t server_pfd_index = 0;
-			_fd_to_pfd_index[_pfds.back().fd] = server_pfd_index;
-			_swapRemove(_pfds, server_pfd_index);
+			for (const auto &fd_to_fd_type_pair : _fd_to_fd_type)
+			{
+				if (fd_to_fd_type_pair.second == FdType::SERVER)
+				{
+					int fd = fd_to_fd_type_pair.first;
+
+					size_t pfd_index = _fd_to_pfd_index.at(fd);
+					_fd_to_pfd_index[_pfds.back().fd] = pfd_index;
+					_swapRemove(_pfds, pfd_index);
+
+					_fd_to_pfd_index.erase(fd);
+					// We're not erasing from _fd_to_fd_type, since we're looping through it
+
+					if (close(fd) == -1) throw SystemException("close");
+				}
+			}
 		}
 
 		// If the only fd left in _pfds is _sig_chld_pipe[PIPE_READ_INDEX], return
@@ -438,7 +455,7 @@ void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue
 {
 	if (fd_type == FdType::SERVER)
 	{
-		_acceptClient();
+		_acceptClient(fd);
 	}
 	else if (fd_type == FdType::SIG_CHLD)
 	{
@@ -479,9 +496,9 @@ void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue
 	}
 }
 
-void Server::_acceptClient()
+void Server::_acceptClient(int server_fd)
 {
-	int client_fd = accept(_server_fd, NULL, NULL);
+	int client_fd = accept(server_fd, NULL, NULL);
 	std::cerr << "    Accepted client fd " << client_fd << std::endl;
 
 	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
