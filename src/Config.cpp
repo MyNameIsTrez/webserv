@@ -11,22 +11,6 @@ Config::~Config(void)
 {
 }
 
-// TODO: REMOVE?
-// ParseTypes Config::get_type(std::string type)
-// {
-// 	if (type == "server_name")
-// 		return ParseTypes::SERVER_NAME;
-// 	if (type == "listen")
-// 		return ParseTypes::LISTEN;
-// 	if (type == "max_connections")
-// 		return ParseTypes::MAX_CONNECTIONS;
-// 	if (type == "root_path")
-// 		return ParseTypes::ROOT_PATH;
-// 	if (type == "index_file")
-// 		return ParseTypes::INDEX_FILE;
-// 	return ParseTypes::INVALID_TYPE;
-// }
-
 void Config::save_type(std::string line, std::string type)
 {
 	if (type == "max_connections")
@@ -100,7 +84,7 @@ void Config::save_error_pages(std::string line, ServerData *new_server)
 					page += line.c_str()[i] - '0';
 					i++;
 				}
-				new_server->_error_pages.emplace(static_cast<Status::Status>(page), line.substr(line.find('=') + 2));
+				new_server->error_pages.emplace(static_cast<Status::Status>(page), line.substr(line.find('=') + 2));
 			}
 			i++;
 		}
@@ -194,7 +178,7 @@ PageData Config::save_page(std::string line, std::ifstream &config)
 	return new_page;
 }
 
-// "new_server" zou ik kunnen rewriten zodat het meteen in de "_serverdata" gezet wordt
+// "new_server" zou ik kunnen rewriten zodat het meteen in de "serverdata" gezet wordt
 // dan hoeven functies zoals save_page en save_error_pages geen "new_server" mee te krijgen
 void Config::new_server(std::string line, std::ifstream &config)
 {
@@ -219,6 +203,7 @@ void Config::new_server(std::string line, std::ifstream &config)
 				unclosed++;
 			if (line.find("location") != line.npos)
 			{
+				// TODO: Use returned page
 				save_page(line, config);
 				unclosed--;
 			}
@@ -238,17 +223,17 @@ void Config::new_server(std::string line, std::ifstream &config)
 						throw EmptyTypeException();
 					}
 					if (type == "server_name")
-						new_server._server_name = value;
+						new_server.server_name = value;
 					else if (type == "listen")
-						new_server._ports.push_back(std::stoi(value));
+						new_server.ports.push_back(std::stoi(value));
 					else if (type == "root_path")
-						new_server._root_path = value;
+						new_server.root_path = value;
 					else if (type == "index_file")
-						new_server._index_file = value;
+						new_server.index_file = value;
 					else if (type == "client_max_body_size")
-						new_server._client_max_body_size = std::stoul(value);
+						new_server.client_max_body_size = std::stoul(value);
 					else if (type == "http_redirection")
-						new_server._http_redirection = value;
+						new_server.http_redirection = value;
 					else
 					{
 						std::cout << "Error on line:" << line << std::endl;
@@ -259,7 +244,7 @@ void Config::new_server(std::string line, std::ifstream &config)
 			}
 		}
 	}
-	_serverdata.push_back(new_server);
+	serverdata.push_back(new_server);
 	return;
 }
 
@@ -267,16 +252,16 @@ void Config::new_server(std::string line, std::ifstream &config)
 // void Config::print_server_info(size_t index)
 // {
 // 	std::cout << "Info for server " << index + 1 << std::endl;
-// 	std::cout << "server name: " << _serverdata.at(index)._server_name << std::endl;
+// 	std::cout << "server name: " << serverdata.at(index).server_name << std::endl;
 // 	std::cout << "server ports: ";
-// 	for (size_t i = 0; i < _serverdata.at(index)._ports.size(); i++)
+// 	for (size_t i = 0; i < serverdata.at(index).ports.size(); i++)
 // 	{
-// 		std::cout << _serverdata.at(index)._ports.at(i) << ", ";
+// 		std::cout << serverdata.at(index).ports.at(i) << ", ";
 // 	}
 // 	std::cout << std::endl;
-// 	std::cout << "root path: " << _serverdata.at(index)._root_path << std::endl;
-// 	std::cout << "index file: " << _serverdata.at(index)._index_file << std::endl;
-// 	for (std::map<int, std::string>::iterator it = _serverdata.at(index)._error_pages.begin(); it != _serverdata.at(index)._error_pages.end(); ++it)
+// 	std::cout << "root path: " << serverdata.at(index).root_path << std::endl;
+// 	std::cout << "index file: " << serverdata.at(index).index_file << std::endl;
+// 	for (std::map<int, std::string>::iterator it = serverdata.at(index).error_pages.begin(); it != serverdata.at(index).error_pages.end(); ++it)
 // 	{
 // 		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
 // 	}

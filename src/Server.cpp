@@ -39,15 +39,15 @@ Server::Server(const Config &config)
 	  _clients(),
 	  _pfds()
 {
-	for (const auto &server_data : _config._serverdata)
+	for (const auto &server_data : _config.serverdata)
 	{
 		// TODO: Remove
-		// for (const auto &error_page : server_data._error_pages)
+		// for (const auto &error_page : server_data.error_pages)
 		// {
 		// 	std::cerr << "error page: " << error_page.first << " -> " << error_page.second << std::endl;
 		// }
 
-		for (const auto &port : server_data._ports)
+		for (const auto &port : server_data.ports)
 		{
 			std::cerr << "Port: " << port << std::endl;
 
@@ -61,9 +61,6 @@ Server::Server(const Config &config)
 			// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
 			int option = 1; // "the parameter should be non-zero to enable a boolean option"
 			if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
-
-			// Leave this commented out for evaluation demonstration purposes
-			// if (write(-1, "", 0) == -1) throw SystemException("test");
 
 			sockaddr_in servaddr{};
 			servaddr.sin_family = AF_INET;
@@ -81,6 +78,9 @@ Server::Server(const Config &config)
 
 	signal(SIGINT, _sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
+
+	// Demonstration purposes
+	// if (write(-1, "", 0)) throw SystemException("write");
 
 	if (pipe(_sig_chld_pipe) == -1) throw SystemException("pipe");
 	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);

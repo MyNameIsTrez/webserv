@@ -25,25 +25,14 @@ struct PageData // TODO: Rename to LocationData?
 
 struct ServerData
 {
-	std::vector<int> _ports;
-	std::string _server_name;
-	std::string _root_path;
-	std::string _index_file;
-	size_t _client_max_body_size;
-	std::string _http_redirection;
-	std::map<Status::Status, std::string> _error_pages; // TODO: Use error enum as key
-	std::vector<PageData> _pagedata; // TODO: Turn into <page_path, PageData> map?
-};
-
-enum ParseTypes
-{
-	INVALID_TYPE,
-	SERVER_NAME,
-	LISTEN,
-	MAX_CONNECTIONS,
-	ROOT_PATH,
-	INDEX_FILE,
-	NEW_SERVER
+	std::vector<int> ports;
+	std::string server_name;
+	std::string root_path;
+	std::string index_file;
+	size_t client_max_body_size;
+	std::string http_redirection;
+	std::map<Status::Status, std::string> error_pages; // TODO: Use error enum as key
+	std::vector<PageData> page_data; // TODO: Turn into <page_path, PageData> map?
 };
 
 class Config
@@ -54,7 +43,6 @@ public:
 
 	void init(std::string file);
 
-	// ParseTypes get_type(std::string type);
 	void save_type(std::string line, std::string type);
 	// int get_port(size_t index);
 	// std::string get_root(void);
@@ -71,7 +59,7 @@ public:
 
 	size_t _max_connections;
 	std::string _default_file;
-	std::vector<ServerData> _serverdata;
+	std::vector<ServerData> serverdata;
 
 private:
 	Config(const Config &src);
