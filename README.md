@@ -61,3 +61,11 @@ This will print localhost's response: (by search-and-replacing example.com)
 - Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
 - Create a `foo.txt` file containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
 - POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:18000`
+
+## Fuzzing the config parser
+
+1. Run `docker build -t aflplusplus-webserv fuzzing && docker run --rm -it -v .:/src aflplusplus-webserv` to build and run docker with
+2. Run `setup.sh` to compile for afl-cmin + afl-tmin, generate tests, and compile for AFL
+3. Run `coverage.sh` to fuzz while generating coverage
+
+Note that you'll want to run `coverage.sh` a few times, as the random search nature of afl++ can cause it to find something instantly that would've taken forever otherwise.
