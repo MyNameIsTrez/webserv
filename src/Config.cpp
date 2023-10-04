@@ -7,11 +7,6 @@ Config::Config(void)
 {
 }
 
-Config::Config(std::string file)
-{
-	save_config(file);
-}
-
 Config::~Config(void)
 {
 }
@@ -51,7 +46,7 @@ void Config::save_default_file(std::string line)
 	_default_file = line.substr(line.find('=') + 1);
 }
 
-void Config::save_config(std::string file)
+void Config::init(std::string file)
 {
 	std::ifstream config(file);
 	if (!config.is_open())

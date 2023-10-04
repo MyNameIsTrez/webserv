@@ -48,17 +48,13 @@ enum ParseTypes
 
 class Config
 {
-private:
 public:
-	size_t _max_connections;
-	std::string _default_file;
-	std::vector<ServerData> _serverdata;
-	// typedef int (*t_jump_function)(std::string line);
 	Config(void);
-	Config(std::string file);
 	virtual ~Config(void);
+
+	void init(std::string file);
+
 	// ParseTypes get_type(std::string type);
-	void save_config(std::string file);
 	void save_type(std::string line, std::string type);
 	// int get_port(size_t index);
 	// std::string get_root(void);
@@ -70,6 +66,16 @@ public:
 	PageData save_page(std::string line, std::ifstream &config);
 	// int check_line(std::string line);
 	// void print_server_info(size_t index);
+
+	// typedef int (*t_jump_function)(std::string line);
+
+	size_t _max_connections;
+	std::string _default_file;
+	std::vector<ServerData> _serverdata;
+
+private:
+	Config(const Config &src);
+	Config &operator=(const Config &src);
 };
 
 struct InvalidLineException : public std::runtime_error

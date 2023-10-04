@@ -42,7 +42,7 @@ $(NAME): $(OBJFILES)
 
 .PHONY: run
 run: all
-	./webserv
+	./webserv webserv.conf
 
 .PHONY: drun
 drun:

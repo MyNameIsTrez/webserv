@@ -21,7 +21,6 @@ class Server
 {
 public:
 	Server(const Config &config);
-
 	virtual ~Server(void);
 
 	void run(void);

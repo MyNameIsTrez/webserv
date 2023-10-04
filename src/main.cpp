@@ -17,7 +17,7 @@ int main(int argc, char *argv[])
 	Config config;
 	try
 	{
-		config.save_config(argv[1]);
+		config.init(argv[1]);
 	}
 	catch (const InvalidLineException &a)
 	{

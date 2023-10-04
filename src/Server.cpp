@@ -41,6 +41,12 @@ Server::Server(const Config &config)
 {
 	for (const auto &server_data : _config._serverdata)
 	{
+		// TODO: Remove
+		// for (const auto &error_page : server_data._error_pages)
+		// {
+		// 	std::cerr << "error page: " << error_page.first << " -> " << error_page.second << std::endl;
+		// }
+
 		for (const auto &port : server_data._ports)
 		{
 			std::cerr << "Port: " << port << std::endl;
