@@ -1,5 +1,8 @@
 #!/bin/bash
 
+make fclean
+make -C fuzzing clean
+
 export AFL_LLVM_LAF_ALL=1
 
 # These are mutually exclusive
