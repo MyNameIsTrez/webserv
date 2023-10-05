@@ -10,6 +10,7 @@
 !experiments/in.txt
 
 !fuzzing/scripts/*.sh
+!fuzzing/src/*.cpp
 !fuzzing/tests/*.txt
 !fuzzing/Dockerfile
 !fuzzing/Makefile
