@@ -100,7 +100,7 @@ else:
 			if index_defined():
 				respond_with_index_file()
 			elif autoindex == on:
-				respond_with_directly_listing()
+				respond_with_directory_listing()
 			else
 				respond_with_error()
 		else:
@@ -109,10 +109,10 @@ else:
 		if file_exists(request_target):
 			if method == GET:
 				respond_with_file_body()
-			elif method == POST:
-				respond_with_error()
-			else:
+			elif method == DELETE:
 				delete_file()
+			else:
+				respond_with_error()
 		else:
 			if method == POST:
 				create_file()
