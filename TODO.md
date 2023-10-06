@@ -29,6 +29,7 @@
 - [ ] Check that wrong request methods/request targets/protocols inputs are caught
 - [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
 - [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
+- [ ] Proper `autoindex on;` and `autoindex off;` for the `/` root
 
 ## Victor
 

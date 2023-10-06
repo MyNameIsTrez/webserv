@@ -9,11 +9,14 @@
 - [CGI programming is simple!](http://www.whizkidtech.redprince.net/cgi-bin/tutorial)
 - [CGI C examples](https://www.eskimo.com/~scs/cclass/handouts/cgi.html)
 - [NGINX configuration guide](https://www.plesk.com/blog/various/nginx-configuration-guide/)
-
 - [See comments on this answer](https://stackoverflow.com/a/5616108/13279557) about how non-blocking is impossible
 - [Non-blocking I/O with regular files](https://www.remlab.net/op/nonblock.shtml)
 - [File operations always block](https://stackoverflow.com/a/56403228/13279557)
 - [Non-blocking disk I/O](https://neugierig.org/software/blog/2011/12/nonblocking-disk-io.html)
+- [NGINX configuration format explanation](https://stackoverflow.com/a/46918583/13279557)
+- [NGINX "location" directive explanation](https://www.digitalocean.com/community/tutorials/nginx-location-directive#1-nginx-location-matching-all-requests)
+- [Full example NGINX configuration](https://www.nginx.com/resources/wiki/start/topics/examples/full/)
+- [How nginx processes a request](https://nginx.org/en/docs/http/request_processing.html)
 
 ## Setting up multiple servers with different hostnames
 
@@ -25,14 +28,11 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Running nginx
 
-- Download nginx with `brew install nginx`
+- Build and run docker with `docker build -t nginx nginx/ && docker run --rm -it -v $(pwd):/code -p 8080:80 nginx`
 - Start nginx with `nginx`
-- Go to `http://localhost:8080/` to view the default nginx page
 - View the help menu with `nginx -h`
-- Open the configuration file with `code /Users/sbos/.brew/etc/nginx/nginx.conf`
 - Reload configuration file without closing connections with `nginx -s reload`
-- Check whether nginx is running with `ps aux | grep nginx`
-- Stop nginx with `pkill nginx`
+- View the website with `http://localhost:8080/`
 
 ## Running siege
 
@@ -64,8 +64,58 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Fuzzing the config parser
 
-1. Run `docker build -t aflplusplus-webserv fuzzing && docker run --rm -it -v .:/src aflplusplus-webserv` to build and run docker with
+1. Run `docker build -t aflplusplus-webserv fuzzing && docker run --rm -it -v .:/src aflplusplus-webserv` to build and run docker
 2. Run `setup.sh` to compile for afl-cmin + afl-tmin, generate tests, and compile for AFL
 3. Run `coverage.sh` to fuzz while generating coverage
 
 Note that you'll want to run `coverage.sh` a few times, as the random search nature of afl++ can cause it to find something instantly that would've taken forever otherwise.
+
+
+
+Assuming `root /code/public;`, with this file tree:
+```
+public/
+	foo/
+		a.png
+		b.html
+		c.mp4
+	d.html
+```
+
+```py
+if begins_with("/cgi-bin/"):
+	if ends_with("/"):
+		respond_with_error()
+	else:
+		if method == DELETE:
+			respond_with_error()
+		else:
+			if file_exists(request_target):
+				start_cgi()
+			else:
+				respond_with_error()
+else:
+	if ends_with("/"):
+		if method == GET:
+			if index_defined():
+				respond_with_index_file()
+			elif autoindex == on:
+				respond_with_directly_listing()
+			else
+				respond_with_error()
+		else:
+			respond_with_error()
+	else:
+		if file_exists(request_target)
+			if method == GET:
+				respond_with_file_body()
+			elif method == POST:
+				respond_with_error()
+			else:
+				delete_file()
+		else:
+			if method == POST:
+				create_file()
+			else:
+				respond_with_error()
+```

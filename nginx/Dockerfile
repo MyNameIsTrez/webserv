@@ -1,8 +1,3 @@
-# docker build -t nginx .
-# docker run --rm -it -v $(pwd):/code -p 8080:80 nginx
-# nginx
-# View http://localhost:8080/
-
 FROM alpine:3.13
 
 RUN apk update && \
@@ -16,8 +11,11 @@ RUN apk update && \
 RUN mkdir -p /run/nginx
 
 RUN rm /etc/nginx/conf.d/default.conf
-RUN ln -s /code/nginx.conf /etc/nginx/conf.d/default.conf
+RUN ln -s /code/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 
+# Append the `daemon off` directive to the config,
+# so `nginx` always runs in the foreground
+# Instead you can also comment this out and use `nginx -g 'daemon off;'
 RUN echo 'daemon off;' >> /etc/nginx/nginx.conf
 
 EXPOSE 80

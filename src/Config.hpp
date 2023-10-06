@@ -43,12 +43,9 @@ public:
 
 	void init(std::istream &config);
 
-	void save_type(std::string line, std::string type);
 	// int get_port(size_t index);
 	// std::string get_root(void);
 	// std::string get_index_file(void);
-	void save_max_connections(std::string line);
-	void save_default_file(std::string line);
 	void new_server(std::string line, std::istream &config);
 	void save_error_pages(std::string line, ServerData *new_server);
 	PageData save_page(std::string line, std::istream &config);

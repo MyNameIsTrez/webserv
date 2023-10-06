@@ -18,15 +18,6 @@ static void run(int argc, char *argv[], char *buf)
 	(void)argc;
 	(void)argv;
 
-	// So x.txt doesn't take the same path as an empty file,
-	// which'd result in "WARNING: Down to zero bytes"
-	// if (buf[0] == 'x')
-	// {
-	// 	exit(EXIT_FAILURE);
-	// }
-
-	// assert(argv[0] != NULL);
-
 	Config config;
 	std::stringstream config_stream(buf);
 	try
@@ -36,53 +27,6 @@ static void run(int argc, char *argv[], char *buf)
 	catch (const ConfigException &a)
 	{
 	}
-
-	// if (argv[1])
-	// {
-	// 	int fd = open("path.txt", O_RDONLY | O_CREAT);
-	// 	if (fd == -1) abort();
-	// 	if (write(fd, argv[1], strlen(argv[1])) == -1) abort();
-	// 	close(fd);
-	// 	// char read_buf[1];
-	// 	// ssize_t bytes_read = read(fd, read_buf, 1);
-	// 	// close(fd);
-	// 	// if (bytes_read == -1) abort();
-
-	// 	// if (read_buf[0] == 'm') abort();
-	// }
-
-	// if (buf[0] == 'y')
-	// {
-	// 	throw std::runtime_error("foo");
-	// }
-	// if (buf[0] == 'z')
-	// {
-	// 	abort();
-	// }
-	// // Infinite loop
-	// if (buf[0] == 'p')
-	// {
-	// 	while (1)
-	// 		printf("a");
-	// 	abort(); // Demonstrates not being reached
-	// }
-
-	// if (buf[0] == 'a')
-	// {
-	// 	if (buf[1] == 'b')
-	// 	{
-	// 		if (buf[2] == 'c')
-	// 		{
-	// 			abort();
-	// 			// if (buf[3] == 'd')
-	// 			// {
-	// 			// 	if (buf[4] == 'e')
-	// 			// 	{
-	// 			// 	}
-	// 			// }
-	// 		}
-	// 	}
-	// }
 }
 
 int main(int argc, char *argv[])
@@ -109,7 +53,7 @@ int main(int argc, char *argv[])
 
 #if defined AFL || defined GCOV
 	// __extension__ is necessary when using -Wpedantic
-	while (__extension__ __AFL_LOOP(1000))
+	while (__extension__ __AFL_LOOP(10000))
 #endif
 	{
 		run(argc, argv, (char *)buf);

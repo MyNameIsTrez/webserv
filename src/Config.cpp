@@ -8,24 +8,8 @@ Config::~Config(void)
 {
 }
 
-void Config::save_type(std::string line, std::string type)
-{
-	if (type == "max_connections")
-		return save_max_connections(line);
-	if (type == "default_file")
-		return save_default_file(line);
-	throw InvalidLineException();
-}
-
-void Config::save_max_connections(std::string line)
-{
-	_max_connections = std::stoul(line.substr(line.find('=') + 1));
-}
-
-void Config::save_default_file(std::string line)
-{
-	_default_file = line.substr(line.find('=') + 1);
-}
+// TODO: REMOVE
+#include <assert.h>
 
 void Config::init(std::istream &config)
 {
@@ -44,19 +28,23 @@ void Config::init(std::istream &config)
 		}
 		else
 		{
-			if (line.find('=') == line.npos)
+			size_t equals_index = line.find('=');
+			if (equals_index == line.npos)
 			{
 				std::cout << "<" << line << ">" << std::endl;
 				throw InvalidLineException();
 			}
 			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-			std::string type = line.substr(0, line.find('='));
+			equals_index = line.find('=');
+			std::string type = line.substr(0, equals_index);
 			std::cout << type << std::endl;
-			if (type == "\n")
-			{
-				throw EmptyTypeException();
-			}
-			save_type(line, type);
+			assert(type != "\n"); // TODO: Remove
+
+			if (type == "max_connections")
+				_max_connections = std::stoul(line.substr(equals_index + 1));
+			else if (type == "default_file")
+				_default_file = line.substr(equals_index + 1);
+			else throw InvalidLineException();
 		}
 	}
 }
@@ -70,10 +58,10 @@ void Config::save_error_pages(std::string line, ServerData *new_server)
 		{
 			if (line[i] == '=')
 				break;
-			int page = 0;
-			if (isdigit(line.c_str()[i]) != 0)
+			if (isdigit(line.c_str()[i]))
 			{
-				while (isdigit(line.c_str()[i]) != 0)
+				int page = 0;
+				while (isdigit(line.c_str()[i]))
 				{
 					page *= 10;
 					page += line.c_str()[i] - '0';
