@@ -106,7 +106,7 @@ else:
 		else:
 			respond_with_error()
 	else:
-		if file_exists(request_target)
+		if file_exists(request_target):
 			if method == GET:
 				respond_with_file_body()
 			elif method == POST:
