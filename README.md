@@ -83,24 +83,24 @@ public/
 ```
 
 ```py
-if begins_with("/cgi-bin/"):
-	if ends_with("/"):
+if request_target.starts_with("/cgi-bin/"):
+	if request_target.ends_with("/"):
 		respond_with_error()
 	else:
 		if method == DELETE:
 			respond_with_error()
 		else:
 			if file_exists(request_target):
-				start_cgi()
+				start_cgi(request_target)
 			else:
 				respond_with_error()
 else:
-	if ends_with("/"):
+	if request_target.ends_with("/"):
 		if method == GET:
-			if index_defined():
-				respond_with_index_file()
-			elif autoindex == on:
-				respond_with_directory_listing()
+			if is_index_file_defined(request_target):
+				respond_with_index_file(request_target)
+			elif is_autoindex_on(request_target):
+				respond_with_directory_listing(request_target)
 			else
 				respond_with_error()
 		else:
@@ -108,14 +108,14 @@ else:
 	else:
 		if file_exists(request_target):
 			if method == GET:
-				respond_with_file_body()
+				respond_with_file_body(request_target)
 			elif method == DELETE:
-				delete_file()
+				delete_file(request_target)
 			else:
 				respond_with_error()
 		else:
 			if method == POST:
-				create_file()
+				create_file(request_target)
 			else:
 				respond_with_error()
 ```
