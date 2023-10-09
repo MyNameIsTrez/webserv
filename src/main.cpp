@@ -17,9 +17,11 @@ int main(int argc, char *argv[])
 	Config config;
 	try
 	{
-		config.init(argv[1]);
+		std::ifstream config_file(argv[1]);
+		if (!config_file.is_open()) throw InvalidFileException();
+		config.init(config_file);
 	}
-	catch (const InvalidLineException &a)
+	catch (const ConfigException &a)
 	{
 		std::cout << a.what() << std::endl;
 		return EXIT_FAILURE;

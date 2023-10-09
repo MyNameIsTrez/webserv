@@ -15,9 +15,6 @@ ifdef DEBUG
 CFLAGS += -g3
 CFLAGS += -Wfatal-errors
 endif
-# ifdef COVERAGE
-# CFLAGS += --coverage -O0
-# endif
 ifdef SAN
 CFLAGS += -fsanitize=address,undefined
 endif

@@ -41,7 +41,7 @@ public:
 	Config(void);
 	virtual ~Config(void);
 
-	void init(std::string file);
+	void init(std::istream &config);
 
 	void save_type(std::string line, std::string type);
 	// int get_port(size_t index);
@@ -49,9 +49,9 @@ public:
 	// std::string get_index_file(void);
 	void save_max_connections(std::string line);
 	void save_default_file(std::string line);
-	void new_server(std::string line, std::ifstream &config);
+	void new_server(std::string line, std::istream &config);
 	void save_error_pages(std::string line, ServerData *new_server);
-	PageData save_page(std::string line, std::ifstream &config);
+	PageData save_page(std::string line, std::istream &config);
 	// int check_line(std::string line);
 	// void print_server_info(size_t index);
 
@@ -68,17 +68,22 @@ private:
 	Config &operator=(const Config &src);
 };
 
-struct InvalidLineException : public std::runtime_error
+struct ConfigException : public std::runtime_error
 {
-	InvalidLineException() : runtime_error("Error: Invalid line in config file"){};
+	ConfigException(const std::string &message) : std::runtime_error(message){};
 };
 
-struct InvalidFileException : public std::runtime_error
+struct InvalidLineException : public ConfigException
 {
-	InvalidFileException() : runtime_error("Error: Unable to open config file"){};
+	InvalidLineException() : ConfigException("Error: Invalid line in config file"){};
 };
 
-struct EmptyTypeException : public std::runtime_error
+struct InvalidFileException : public ConfigException
 {
-	EmptyTypeException() : runtime_error("Error: Empty type in config file"){};
+	InvalidFileException() : ConfigException("Error: Unable to open config file"){};
+};
+
+struct EmptyTypeException : public ConfigException
+{
+	EmptyTypeException() : ConfigException("Error: Empty type in config file"){};
 };

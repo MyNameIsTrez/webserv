@@ -1,8 +1,5 @@
 #include "Config.hpp"
 
-#include <string> // temp
-#include <map>
-
 Config::Config(void)
 {
 }
@@ -30,16 +27,14 @@ void Config::save_default_file(std::string line)
 	_default_file = line.substr(line.find('=') + 1);
 }
 
-void Config::init(std::string file)
+void Config::init(std::istream &config)
 {
-	std::ifstream config(file);
-	if (!config.is_open())
-	{
-		throw InvalidFileException();
-	}
 	std::string line;
 	while (getline(config, line))
 	{
+		// TODO: Remove
+		// if (line.find("a") != line.npos)
+		// 	abort();
 		if (line.find_first_not_of('\t') == line.npos)
 			continue;
 		if (line.find("server {") != line.npos)
@@ -101,7 +96,7 @@ void print_vector(std::string prefix, std::vector<std::string> nums) // temporar
 	std::cout << std::endl;
 }
 
-PageData Config::save_page(std::string line, std::ifstream &config)
+PageData Config::save_page(std::string line, std::istream &config)
 {
 	// std::cout << "LOCATION BEGINNING" << std::endl;
 	size_t page_start = line.find('/');
@@ -180,7 +175,7 @@ PageData Config::save_page(std::string line, std::ifstream &config)
 
 // "new_server" zou ik kunnen rewriten zodat het meteen in de "serverdata" gezet wordt
 // dan hoeven functies zoals save_page en save_error_pages geen "new_server" mee te krijgen
-void Config::new_server(std::string line, std::ifstream &config)
+void Config::new_server(std::string line, std::istream &config)
 {
 	// std::cout << "			NEW_SERVER" << std::endl;
 	ServerData new_server;
