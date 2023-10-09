@@ -68,10 +68,9 @@ This will print localhost's response: (by search-and-replacing example.com)
 1. Run `docker build -t aflplusplus-webserv fuzzing && docker run --rm -it -v .:/src aflplusplus-webserv` to build and run docker
 2. Run `setup.sh` to compile for afl-cmin + afl-tmin, generate tests, and compile for AFL
 3. Run `coverage.sh` to fuzz while generating coverage
+4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
 
-Note that you'll want to run `coverage.sh` a few times, as the random search nature of afl++ can cause it to find something instantly that would've taken forever otherwise.
-
-
+## Plan of attack
 
 Assuming `root /code/public;`, with this file tree:
 ```
@@ -100,7 +99,7 @@ else:
 			resolved = resolve_directory_target(request_target)
 
 			if resolved.is_index_file_defined:
-				respond_with_index_file(resolved.path)
+				respond_with_file(resolved.path)
 			elif resolved.is_autoindex_on:
 				respond_with_directory_listing(resolved.path)
 			else
@@ -109,7 +108,7 @@ else:
 			respond_with_error()
 	else:
 		if method == GET:
-			respond_with_file_body(request_target)
+			respond_with_file(request_target)
 		elif method == POST:
 			create_file(request_target)
 		else:
