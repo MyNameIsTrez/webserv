@@ -83,6 +83,8 @@ public/
 ```
 
 ```py
+request_target = sanitize_request_target(request_target)
+
 if request_target.starts_with("/cgi-bin/"):
 	if request_target.ends_with("/"):
 		respond_with_error()
@@ -94,10 +96,12 @@ if request_target.starts_with("/cgi-bin/"):
 else:
 	if request_target.ends_with("/"):
 		if method == GET:
-			if is_index_file_defined(request_target):
-				respond_with_index_file(request_target)
-			elif is_autoindex_on(request_target):
-				respond_with_directory_listing(request_target)
+			resolved = resolve_directory_target(request_target)
+
+			if resolved.is_index_file_defined:
+				respond_with_index_file(resolved.path)
+			elif resolved.is_autoindex_on:
+				respond_with_directory_listing(resolved.path)
 			else
 				respond_with_error()
 		else:
