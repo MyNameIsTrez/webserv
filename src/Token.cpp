@@ -1,3 +1,23 @@
+#include "Token.hpp"
+
+Token::Token(void)
+{
+}
+
+Token::Token(Token const &src)
+{
+}
+
+Token::~Token(void)
+{
+}
+
+Token &Token::operator=(Token const &src)
+{
+	if (this == &src)
+		return (*this);
+	return (*this);
+}
 
 enum TokenType
 {
@@ -16,32 +36,68 @@ struct Token
 
 std::vector<Token> tokenize_line(std::string line)
 {
-	std::vector<Token> tokens;
+	std::vector<Token> tokenized_line;
 	std::string input;
 	size_t i = 0;
 	while (i < input.length())
 	{
 		if (input[i] == '=')
 		{
-			add_equals_token(input, i);
+			tokenized_line.push_back(add_equals_token(i));
 		}
-		else if (is_whitespace(input))
+		else if (isspace(input[i]) != 0)
 		{
-			add_whitespace_token(input, i);
+			tokenized_line.push_back(add_whitespace_token(input, i));
+		}
+		else if (input[i] == '\n')
+		{
+			tokenized_line.push_back(add_newline_token(i));
+		}
+		else
+		{
+			tokenized_line.push_back(add_word_token(input, i));
 		}
 	}
+	return (tokenized_line);
 }
 
-void add_equals_token(size_t &i)
+Token add_equals_token(size_t &i)
 {
 	Token token;
 	token.str = "=";
 	token.type == EQUALS;
-	tokens.push_back(token);
+	token.index = i;
 	i++;
+	return (token);
 }
 
-void add_whitespace_token(const std::string &input, size_t &i)
+Token add_whitespace_token(const std::string &input, size_t &i)
 {
-	i++;
+	Token token;
+	token.type = WHITESPACE;
+	token.index = i;
+	while (isspace(input[i]) != 0)
+		i++;
+	token.str = input.substr(token.index, i);
+	return (token);
+}
+
+Token add_word_token(const std::string &input, size_t &i)
+{
+	Token token;
+	token.type = WORD;
+	token.index = i;
+	while (isspace(input[i]) == 0 && (input[i] != '=' || input[i] != '\n'))
+		i++;
+	token.str = input.substr(token.index, i);
+	return (token);
+}
+
+Token add_newline_token(size_t &i)
+{
+	Token token;
+	token.type = NEWLINE;
+	token.index = i;
+	token.str = '\n';
+	return (token);
 }
