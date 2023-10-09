@@ -90,10 +90,7 @@ if request_target.starts_with("/cgi-bin/"):
 		if method == DELETE:
 			respond_with_error()
 		else:
-			if file_exists(request_target):
-				start_cgi(request_target)
-			else:
-				respond_with_error()
+			start_cgi(request_target)
 else:
 	if request_target.ends_with("/"):
 		if method == GET:
@@ -106,16 +103,10 @@ else:
 		else:
 			respond_with_error()
 	else:
-		if file_exists(request_target):
-			if method == GET:
-				respond_with_file_body(request_target)
-			elif method == DELETE:
-				delete_file(request_target)
-			else:
-				respond_with_error()
+		if method == GET:
+			respond_with_file_body(request_target)
+		elif method == POST:
+			create_file(request_target)
 		else:
-			if method == POST:
-				create_file(request_target)
-			else:
-				respond_with_error()
+			delete_file(request_target)
 ```
