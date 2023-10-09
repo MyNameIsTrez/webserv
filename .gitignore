@@ -10,9 +10,13 @@
 !experiments/in.txt
 
 !fuzzing/scripts/*.sh
+!fuzzing/src/*.cpp
 !fuzzing/tests/*.txt
 !fuzzing/Dockerfile
 !fuzzing/Makefile
+
+!nginx/Dockerfile
+!nginx/nginx.conf
 
 !public/index.html
 
@@ -25,10 +29,8 @@
 !YoupiBanane/**
 
 !./.gitignore
-!./Dockerfile
 !./fn_descriptions.c
 !./Makefile
-!./nginx.conf
 !./README.md
 !./subject.pdf
 !./TODO.md
