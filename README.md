@@ -16,7 +16,8 @@
 - [NGINX configuration format explanation](https://stackoverflow.com/a/46918583/13279557)
 - [NGINX "location" directive explanation](https://www.digitalocean.com/community/tutorials/nginx-location-directive#1-nginx-location-matching-all-requests)
 - [Full example NGINX configuration](https://www.nginx.com/resources/wiki/start/topics/examples/full/)
-- [How nginx processes a request](https://nginx.org/en/docs/http/request_processing.html)
+- [How NGINX processes a request](https://nginx.org/en/docs/http/request_processing.html)
+- [How NGINX redirection and try_files works](https://serverfault.com/a/1094257/1055398)
 
 ## Setting up multiple servers with different hostnames
 
