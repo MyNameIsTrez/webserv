@@ -1,4 +1,5 @@
 #include "Config.hpp"
+#include "Token.hpp"
 
 Config::Config(void)
 {
@@ -8,23 +9,38 @@ Config::~Config(void)
 {
 }
 
-void Config::save_type(std::string line, std::string type)
+void Config::save_type(std::string type, std::string value)
 {
 	if (type == "max_connections")
-		return save_max_connections(line);
+		return save_max_connections(value);
 	if (type == "default_file")
-		return save_default_file(line);
+		return save_default_file(value);
 	throw InvalidLineException();
 }
 
-void Config::save_max_connections(std::string line)
+unsigned long check_digit(std::string input)
 {
-	_max_connections = std::stoul(line.substr(line.find('=') + 1));
+	unsigned long result = 0;
+	for (size_t i = 0; i < input.size(); i++)
+	{
+		if (input[i] < '0' || input[i] > '9')
+			throw InvalidLineException();
+
+		result *= 10;
+		result += (unsigned long)(input[i] - '0');
+	}
+	return (result);
+}
+void Config::save_max_connections(std::string value)
+{
+
+	_max_connections = check_digit(value);
+	// _max_connections = std::stoul(line.substr(line.find('=') + 1));
 }
 
-void Config::save_default_file(std::string line)
+void Config::save_default_file(std::string value)
 {
-	_default_file = line.substr(line.find('=') + 1);
+	_default_file = value;
 }
 
 void Config::init(std::istream &config)
@@ -43,25 +59,57 @@ void Config::init(std::istream &config)
 			// std::cout << "			END OF SERVER" << std::endl;
 		}
 		else
-		{
-			if (line.find('=') == line.npos)
+		{ // TODO: hier ook tokenization gebruiken
+			std::string type;
+			std::string value;
+			size_t ti = 0; // token_index
+			std::vector<Token> t_line = tokenize_line(line);
+			if (t_line.at(ti).type == WHITESPACE)
+				ti++;
+			if (ti < t_line.size() && t_line.at(ti).type == WORD)
 			{
-				std::cout << "<" << line << ">" << std::endl;
+				if (t_line.at(ti).str.c_str()[0] == '#')
+				{
+					std::cout << line << " THIS IS A COMMENT" << std::endl;
+					continue;
+				}
+				else
+					type = t_line.at(ti).str;
+				ti++;
+			}
+			else
 				throw InvalidLineException();
-			}
-			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-			std::string type = line.substr(0, line.find('='));
-			std::cout << type << std::endl;
-			if (type == "\n")
-			{
-				throw EmptyTypeException();
-			}
-			save_type(line, type);
+			if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+				ti++;
+			if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+				ti++;
+			else
+				throw InvalidLineException();
+			if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+				ti++;
+			if (ti < t_line.size() && t_line.at(ti).type == WORD)
+				value = t_line.at(ti).str;
+			else
+				throw InvalidLineException();
+
+			// if (line.find('=') == line.npos)
+			// {
+			// 	std::cout << "<" << line << ">" << std::endl;
+			// 	throw InvalidLineException();
+			// }
+			// line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+			// std::string type = line.substr(0, line.find('='));
+			// std::cout << type << std::endl;
+			// if (type == "\n")
+			// {
+			// 	throw EmptyTypeException();
+			// }
+			save_type(type, value);
 		}
 	}
 }
 
-void Config::save_error_pages(std::string line, ServerData *new_server)
+void Config::save_error_pages(std::string line, ServerData *new_server) // TODO: hier ook tokenization en check_digit gebruiktn
 {
 	size_t i = line.find("error_page");
 	if (i != line.npos)
@@ -86,7 +134,7 @@ void Config::save_error_pages(std::string line, ServerData *new_server)
 	}
 }
 
-void print_vector(std::string prefix, std::vector<std::string> nums) // temporary
+void print_vector(std::string prefix, std::vector<std::string> nums)
 {
 	std::cout << prefix;
 	for (size_t i = 0; i < nums.size(); i++)
@@ -207,10 +255,42 @@ void Config::new_server(std::string line, std::istream &config)
 					save_error_pages(line, &new_server);
 				else
 				{
-					line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-					std::string type = line.substr(0, line.find('='));
+					std::string type;
+					std::string value;
+					size_t ti = 0; // token_index
+					std::vector<Token> t_line = tokenize_line(line);
+					if (t_line.at(ti).type == WHITESPACE)
+						ti++;
+					if (ti < t_line.size() && t_line.at(ti).type == WORD)
+					{
+						if (t_line.at(ti).str.c_str()[0] == '#')
+						{
+							std::cout << line << " THIS IS A COMMENT" << std::endl;
+							continue;
+						}
+						else
+							type = t_line.at(ti).str;
+						ti++;
+					}
+					else
+						throw InvalidLineException();
+					if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+						ti++;
+					if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+						ti++;
+					else
+						throw InvalidLineException();
+					if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+						ti++;
+					if (ti < t_line.size() && t_line.at(ti).type == WORD)
+						value = t_line.at(ti).str;
+					else
+						throw InvalidLineException();
+
+					// line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+					// std::string type = line.substr(0, line.find('='));
 					// std::cout << type << std::endl;
-					std::string value = line.substr(line.find('=') + 1);
+					// std::string value = line.substr(line.find('=') + 1);
 					// std::cout << "value of " << type << ": " << value << std::endl;
 					if (value == "")
 					{
@@ -219,13 +299,13 @@ void Config::new_server(std::string line, std::istream &config)
 					if (type == "server_name")
 						new_server.server_name = value;
 					else if (type == "listen")
-						new_server.ports.push_back(std::stoi(value));
+						new_server.ports.push_back((int)check_digit(value));
 					else if (type == "root_path")
 						new_server.root_path = value;
 					else if (type == "index_file")
 						new_server.index_file = value;
 					else if (type == "client_max_body_size")
-						new_server.client_max_body_size = std::stoul(value);
+						new_server.client_max_body_size = check_digit(value);
 					else if (type == "http_redirection")
 						new_server.http_redirection = value;
 					else

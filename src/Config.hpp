@@ -1,6 +1,7 @@
 #pragma once
 
 #include "Status.hpp"
+// #include "Token.hpp"
 
 #include <algorithm>
 #include <exception>
@@ -43,12 +44,12 @@ public:
 
 	void init(std::istream &config);
 
-	void save_type(std::string line, std::string type);
+	void save_type(std::string type, std::string value);
 	// int get_port(size_t index);
 	// std::string get_root(void);
 	// std::string get_index_file(void);
-	void save_max_connections(std::string line);
-	void save_default_file(std::string line);
+	void save_max_connections(std::string value);
+	void save_default_file(std::string value);
 	void new_server(std::string line, std::istream &config);
 	void save_error_pages(std::string line, ServerData *new_server);
 	PageData save_page(std::string line, std::istream &config);
@@ -59,9 +60,9 @@ public:
 
 	void print_config_info(void);
 
-	size_t _max_connections;
+	unsigned long _max_connections;
 	std::string _default_file;
-	std::vector<ServerData> serverdata;
+	std::vector<ServerData> serverdata; // renamen naar "servers"
 
 private:
 	Config(const Config &src);
