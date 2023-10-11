@@ -1,5 +1,6 @@
 #include "Config.hpp"
 #include "Token.hpp"
+#include "Utils.hpp"
 
 Config::Config(void)
 {
@@ -18,24 +19,12 @@ void Config::save_type(std::string type, std::string value)
 	throw InvalidLineException();
 }
 
-unsigned long check_digit(std::string input)
-{
-	unsigned long result = 0;
-	for (size_t i = 0; i < input.size(); i++)
-	{
-		if (input[i] < '0' || input[i] > '9')
-			throw InvalidLineException();
-
-		result *= 10;
-		result += (unsigned long)(input[i] - '0');
-	}
-	return (result);
-}
 void Config::save_max_connections(std::string value)
 {
+	if (!convert_digits(value, _max_connections))
+		throw InvalidLineException();
 
-	_max_connections = check_digit(value);
-	// _max_connections = std::stoul(line.substr(line.find('=') + 1));
+	// _max_connections = check_digit(value);
 }
 
 void Config::save_default_file(std::string value)
@@ -299,13 +288,22 @@ void Config::new_server(std::string line, std::istream &config)
 					if (type == "server_name")
 						new_server.server_name = value;
 					else if (type == "listen")
-						new_server.ports.push_back((int)check_digit(value));
+					{
+						int tmp_port;
+						if (!convert_digits(value, tmp_port))
+							throw InvalidLineException();
+						new_server.ports.push_back(tmp_port);
+					}
 					else if (type == "root_path")
 						new_server.root_path = value;
 					else if (type == "index_file")
 						new_server.index_file = value;
 					else if (type == "client_max_body_size")
-						new_server.client_max_body_size = check_digit(value);
+					{
+						if (!convert_digits(value, new_server.client_max_body_size))
+							throw InvalidLineException();
+						// new_server.client_max_body_size = check_digit(value);
+					}
 					else if (type == "http_redirection")
 						new_server.http_redirection = value;
 					else
