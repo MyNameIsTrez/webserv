@@ -25,7 +25,7 @@ struct PageData // TODO: Rename to LocationData?
 
 struct ServerData
 {
-	std::vector<int> ports;
+	std::vector<std::string> ports;
 	std::string server_name;
 	std::string root_path;
 	std::string index_file;
@@ -56,7 +56,7 @@ public:
 
 	size_t _max_connections;
 	std::string _default_file;
-	std::vector<ServerData> serverdata;
+	std::vector<ServerData> servers;
 
 private:
 	Config(const Config &src);

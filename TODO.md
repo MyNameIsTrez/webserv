@@ -8,21 +8,14 @@
 
 ## Sander
 
-- [x] Set up regular NGINX server
-- [x] Run Siege on NGINX server
-- [x] Set up clang format
-- [ ] Run Codam tester on NGINX server
-- [ ] CGI without creating child zombie processes
 - [ ] Set up Docker that has Valgrind
 - [ ] Verify that Valgrind detects uninitialized member variables
-- [ ] Fuzz the config
 - [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
 - [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
 - [ ] Make sure all error code pages are correctly sent: 3xx is redirect; 4xx is not available; 5xx is server error
-- [ ] Make sure that having two clients POSTing/GETing the server at the same time works
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
 - [ ] Make sure the server doesn't crash if the CGI script crashed
@@ -30,6 +23,10 @@
 - [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
 - [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
 - [ ] Proper `autoindex on;` and `autoindex off;` for the `/` root
+- [ ] Verify that all tests in `tests/config_exceptions/` throw an exception
+- [ ] Verify that duplicate config keys always throw exceptions
+- [ ] Make sure that `listen 127.0.0.1:80;` doesn't crash our program (since we expect a simple number like `80`)
+- [ ] Verify that same behavior as nginx happens when location/server_name is missing in webserv
 
 ## Victor
 

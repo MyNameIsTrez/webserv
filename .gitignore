@@ -24,7 +24,9 @@
 
 !src/*.[ch]pp
 
-!tests/*.txt
+!tests/config_exceptions/*.conf
+!tests/sent/*.txt
+!tests/working/*.conf
 
 !YoupiBanane/**
 

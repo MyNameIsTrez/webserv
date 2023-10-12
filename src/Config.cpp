@@ -208,7 +208,7 @@ void Config::new_server(std::string line, std::istream &config)
 					if (type == "server_name")
 						new_server.server_name = value;
 					else if (type == "listen")
-						new_server.ports.push_back(std::stoi(value));
+						new_server.ports.push_back(value);
 					else if (type == "root_path")
 						new_server.root_path = value;
 					else if (type == "index_file")
@@ -227,7 +227,7 @@ void Config::new_server(std::string line, std::istream &config)
 			}
 		}
 	}
-	serverdata.push_back(new_server);
+	servers.push_back(new_server);
 	return;
 }
 
@@ -235,16 +235,16 @@ void Config::new_server(std::string line, std::istream &config)
 // void Config::print_server_info(size_t index)
 // {
 // 	std::cout << "Info for server " << index + 1 << std::endl;
-// 	std::cout << "server name: " << serverdata.at(index).server_name << std::endl;
+// 	std::cout << "server name: " << servers.at(index).server_name << std::endl;
 // 	std::cout << "server ports: ";
-// 	for (size_t i = 0; i < serverdata.at(index).ports.size(); i++)
+// 	for (size_t i = 0; i < servers.at(index).ports.size(); i++)
 // 	{
-// 		std::cout << serverdata.at(index).ports.at(i) << ", ";
+// 		std::cout << servers.at(index).ports.at(i) << ", ";
 // 	}
 // 	std::cout << std::endl;
-// 	std::cout << "root path: " << serverdata.at(index).root_path << std::endl;
-// 	std::cout << "index file: " << serverdata.at(index).index_file << std::endl;
-// 	for (std::map<int, std::string>::iterator it = serverdata.at(index).error_pages.begin(); it != serverdata.at(index).error_pages.end(); ++it)
+// 	std::cout << "root path: " << servers.at(index).root_path << std::endl;
+// 	std::cout << "index file: " << servers.at(index).index_file << std::endl;
+// 	for (std::map<int, std::string>::iterator it = servers.at(index).error_pages.begin(); it != servers.at(index).error_pages.end(); ++it)
 // 	{
 // 		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
 // 	}

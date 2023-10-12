@@ -27,9 +27,13 @@ This will print example.com's response:
 This will print localhost's response: (by search-and-replacing example.com)
 `curl --resolve example.com:18000:127.0.0.1 http://example.com:18000/`
 
+- Go to default (first) `server` in NGINX with `curl --resolve example.com:8080:127.0.0.1 http://example.com:8080/`
+- Go to `server_name` "f1r4s8" in NGINX with `curl http://f1r4s8:8080`
+- Go to `server_name` "f1r4s8.codam.nl" in NGINX with `curl http://f1r4s8.codam.nl:8080`
+
 ## Running nginx
 
-- Build and run docker with `docker build -t nginx nginx/ && docker run --rm -it -v $(pwd):/code -p 8080:80 nginx`
+- Build and run docker with `docker build -t nginx nginx/ && docker run --rm -it -v $(pwd):/code -p 8080:80 -p 8081:81 nginx`
 - Start nginx with `nginx`
 - View the help menu with `nginx -h`
 - Reload configuration file without closing connections with `nginx -s reload`
@@ -62,6 +66,12 @@ This will print localhost's response: (by search-and-replacing example.com)
 - Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
 - Create a `foo.txt` file containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
 - POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:18000`
+
+## Using nc
+
+- `echo "GET /foo/../foo/a.html" | nc localhost 8080`
+- `nc -l 8081` start nc server
+- `echo "GET /foo/../foo/a.html" | nc localhost 8081` connect with nc server
 
 ## Fuzzing the config parser
 
@@ -113,4 +123,41 @@ else:
 			create_file(request_target)
 		else:
 			delete_file(request_target)
+```
+
+```c++
+// Construct this by looping over all servers and looping over their ports,
+// letting the key be the server's `server_name` + ":" + `listen` port.
+// If the key was already present, throw a config exception.
+//
+// This map is then used once we've fully read a client's header
+// to map a Host header like `f1r4s8:8080` to a virtual server, saving it in the client
+// If the Host header isn't in this map, use _server_port_to_default_server_index
+std::unordered_map<std::string, size_t> _http_host_header_to_server_index;
+
+// Construct this by looping over all servers and looping over their ports,
+// letting the key be the server's `listen` port.
+// If the key was already present, don't overwrite it, and just continue.
+//
+// This map is used as a fallback for _http_host_header_to_server_index
+// The `server_port` is gotten by substr()-ing `8080` from `f1r4s8:8080` from the Host header
+std::unordered_map<std::string, size_t> _server_port_to_default_server_index;
+
+// Construct an unordered_set of all port numbers
+uint16_t port;
+if (!parseNumber(key, &port)) throw InvalidLineException();
+std::unordered_set<uint16_t> _port_numbers;
+_port_numbers.emplace(port);
+
+// Use the unordered_set to call bind for every port number
+server_port_fd = socket(AF_INET, SOCK_STREAM, 0);
+servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+servaddr.sin_port = htons(port);
+bind(server_port_fd, (sockaddr *)&servaddr, sizeof(servaddr));
+
+// Done when a server_port_fd has POLLIN
+int client_fd = accept(server_port_fd, NULL, NULL);
+
+// The client's request_target is finally used to find the location directive
+// in their virtual server
 ```
