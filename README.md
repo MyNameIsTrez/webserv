@@ -132,7 +132,7 @@ else:
 //
 // This map is then used once we've fully read a client's header
 // to map a Host header like `f1r4s8:8080` to a virtual server, saving it in the client
-// If the Host header isn't in this map, use _server_port_to_default_server_index
+// If the Host header isn't in this map, use _port_to_default_server_index
 std::unordered_map<std::string, size_t> _http_host_header_to_server_index;
 
 // Construct this by looping over all servers and looping over their ports,
@@ -140,8 +140,8 @@ std::unordered_map<std::string, size_t> _http_host_header_to_server_index;
 // If the key was already present, don't overwrite it, and just continue.
 //
 // This map is used as a fallback for _http_host_header_to_server_index
-// The `server_port` is gotten by substr()-ing `8080` from `f1r4s8:8080` from the Host header
-std::unordered_map<std::string, size_t> _server_port_to_default_server_index;
+// The `port` is gotten by substr()-ing `8080` from `f1r4s8:8080` from the Host header
+std::unordered_map<std::string, size_t> _port_to_default_server_index;
 
 // Construct an unordered_set of all port numbers
 uint16_t port;
@@ -150,13 +150,13 @@ std::unordered_set<uint16_t> _port_numbers;
 _port_numbers.emplace(port);
 
 // Use the unordered_set to call bind for every port number
-server_port_fd = socket(AF_INET, SOCK_STREAM, 0);
+port_fd = socket(AF_INET, SOCK_STREAM, 0);
 servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 servaddr.sin_port = htons(port);
-bind(server_port_fd, (sockaddr *)&servaddr, sizeof(servaddr));
+bind(port_fd, (sockaddr *)&servaddr, sizeof(servaddr));
 
-// Done when a server_port_fd has POLLIN
-int client_fd = accept(server_port_fd, NULL, NULL);
+// Done when a port_fd has POLLIN
+int client_fd = accept(port_fd, NULL, NULL);
 
 // The client's request_target is finally used to find the location directive
 // in their virtual server

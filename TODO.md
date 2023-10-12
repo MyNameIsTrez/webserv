@@ -27,6 +27,8 @@
 - [ ] Verify that duplicate config keys always throw exceptions
 - [ ] Make sure that `listen 127.0.0.1:80;` doesn't crash our program (since we expect a simple number like `80`)
 - [ ] Verify that same behavior as nginx happens when location/server_name is missing in webserv
+- [ ] Use the config's max_connections?
+- [ ] Use the config's default_file?
 
 ## Victor
 

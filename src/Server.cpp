@@ -40,79 +40,33 @@ Server::Server(const Config &config)
 	  _clients(),
 	  _pfds()
 {
-	for (auto server_it = _config.servers.begin(); server_it < _config.servers.end(); server_it++)
+	for (const auto &port_number : _config.port_numbers)
 	{
-		// TODO: Remove
-		// for (const auto &error_page : server.error_pages)
-		// {
-		// 	std::cerr << "error page: " << error_page.first << " -> " << error_page.second << std::endl;
-		// }
+		std::cerr << "Port number: " << port_number << std::endl;
 
-		// TODO: Stop hardcoding!!
-		// const std::string &server_name = server_it->server_name;
-		std::vector<std::string> server_names = {"f1r4s8", "127.0.0.1"};
-		// std::vector<std::string> server_names = {"f1r4s8", "f1r4s8.codam.nl"};
-		size_t server_index = server_it - _config.servers.begin();
-		const std::string &server_name = server_names.at(server_index);
-		std::cerr << "Server name: '" << server_name << "'" << std::endl;
+		// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
+		// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
+		int server_fd;
+		if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
 
-		for (const auto &port : server_it->ports)
-		{
-			std::cerr << "Port: " << port << std::endl;
+		// TODO: Use this?
+		// // Prevents "bind: Address already in use" error after:
+		// // 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
+		// int option = 1; // "the parameter should be non-zero to enable a boolean option"
+		// if (setsockopt(port_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
-    		// struct addrinfo hints;
-			// memset(&hints, 0, sizeof(struct addrinfo));
-			// hints.ai_family = AF_UNSPEC;    /* Allow IPv4 or IPv6 */
-			// hints.ai_socktype = SOCK_DGRAM; /* Datagram socket */
-			// hints.ai_flags = AI_PASSIVE;    /* For wildcard IP address */
-			// hints.ai_protocol = 0;          /* Any protocol */
-			// hints.ai_canonname = NULL;
-			// hints.ai_addr = NULL;
-			// hints.ai_next = NULL;
+		sockaddr_in servaddr{};
+		servaddr.sin_family = AF_INET;
+		servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+		servaddr.sin_port = htons(port_number);
 
-			addrinfo *result;
-			int status = getaddrinfo(server_name.c_str(), port.c_str(), NULL, &result);
-			if (status != 0) throw SystemException("getaddrinfo", gai_strerror(status));
+		if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
 
-    		addrinfo *rp;
-			int server_port_fd;
-			size_t i = 0;
-			for (rp = result; rp != NULL; rp = rp->ai_next)
-			{
-				std::cerr << "i: " << i << std::endl;
-				server_port_fd = socket(rp->ai_family, rp->ai_socktype, rp->ai_protocol);
-				if (server_port_fd != -1)
-				{
-					// TODO: Use this?
-					// // Prevents "bind: Address already in use" error after:
-					// // 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
-					// int option = 1; // "the parameter should be non-zero to enable a boolean option"
-					// if (setsockopt(server_port_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
+		if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
 
-					// TODO: Maybe want to check some error edge cases for bind() and listen()? (it is expected that most addrinfos error)
-					if (bind(server_port_fd, rp->ai_addr, rp->ai_addrlen) == 0)
-					{
-						// TODO: Add back
-						if (listen(server_port_fd, MAX_CONNECTION_QUEUE_LEN) == 0)
-						{
-							break; // Success
-						}
-					}
-					close(server_port_fd);
-				}
-				i++;
-			}
+		_addFd(server_fd, FdType::SERVER, POLLIN);
 
-			if (rp == NULL) throw SystemException("bind+listen", "No address could be bound+listened to");
-
-			freeaddrinfo(result);
-
-			_addFd(server_port_fd, FdType::SERVER, POLLIN);
-
-			_server_port_fd_to_server_index.emplace(server_port_fd, server_index);
-
-			std::cerr << "Added port fd " << server_port_fd << std::endl;
-		}
+		std::cerr << "Added server fd " << server_fd << std::endl;
 	}
 
 	signal(SIGINT, _sigIntHandler);
@@ -297,8 +251,7 @@ void Server::_printContainerSizes(void)
 {
 	std::cerr
 		<< "MAPS: "
-		<< "_server_port_fd_to_server_index=" << _server_port_fd_to_server_index.size()
-		<< ", _cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
+		<< "_cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
 		<< ", _fd_to_client_index=" << _fd_to_client_index.size()
 		<< ", _fd_to_pfd_index=" << _fd_to_pfd_index.size()
 		<< ", _fd_to_fd_type=" << _fd_to_fd_type.size()

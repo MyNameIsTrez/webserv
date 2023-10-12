@@ -83,17 +83,12 @@ private:
 			: runtime_error("System exception in function '" + function_name + "': " + strerror(errno))
 		{
 		}
-		SystemException(const std::string &function_name, const std::string &message)
-			: runtime_error("System exception in function '" + function_name + "': " + message)
-		{
-		}
 	};
 
 	static int _sig_chld_pipe[2];
 
 	const Config &_config;
 
-	std::unordered_map<int, size_t> _server_port_fd_to_server_index;
 	std::unordered_map<pid_t, int> _cgi_pid_to_client_fd;
 	std::unordered_map<int, size_t> _fd_to_client_index;
 	std::unordered_map<int, size_t> _fd_to_pfd_index;
