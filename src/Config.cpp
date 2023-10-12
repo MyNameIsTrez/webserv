@@ -2,7 +2,7 @@
 #include "Token.hpp"
 #include "Utils.hpp"
 
-Config::Config(void)
+Config::Config(void) : _max_connections(), _default_file(), serverdata()
 {
 }
 
@@ -37,9 +37,6 @@ void Config::init(std::istream &config)
 	std::string line;
 	while (getline(config, line))
 	{
-		// TODO: Remove
-		// if (line.find("a") != line.npos)
-		// 	abort();
 		if (line.find_first_not_of('\t') == line.npos)
 			continue;
 		if (line.find("server {") != line.npos)
@@ -48,7 +45,7 @@ void Config::init(std::istream &config)
 			// std::cout << "			END OF SERVER" << std::endl;
 		}
 		else
-		{ // TODO: hier ook tokenization gebruiken
+		{
 			std::string type;
 			std::string value;
 			size_t ti = 0; // token_index
@@ -98,31 +95,6 @@ void Config::init(std::istream &config)
 	}
 }
 
-void Config::save_error_pages(std::string line, ServerData *new_server) // TODO: hier ook tokenization en check_digit gebruiktn
-{
-	size_t i = line.find("error_page");
-	if (i != line.npos)
-	{
-		while (line[i] != '\0')
-		{
-			if (line[i] == '=')
-				break;
-			int page = 0;
-			if (isdigit(line.c_str()[i]) != 0) // checken of er uberhaupt error codes in de config staan en of er een pad beschreven is. Zo niet, exception throwen
-			{
-				while (isdigit(line.c_str()[i]) != 0)
-				{
-					page *= 10;
-					page += line.c_str()[i] - '0';
-					i++;
-				}
-				new_server->error_pages.emplace(static_cast<Status::Status>(page), line.substr(line.find('=') + 2));
-			}
-			i++;
-		}
-	}
-}
-
 void print_vector(std::string prefix, std::vector<std::string> nums)
 {
 	std::cout << prefix;
@@ -153,7 +125,7 @@ PageData Config::save_page(std::string line, std::istream &config)
 		if (line.find('}') != line.npos)
 			break;
 		if (line[0] != '\0')
-		{
+		{ // TODO: hier ook tokenization gebruiken
 			if (line.find('=') == line.npos)
 				throw InvalidLineException();
 			std::string value = line.substr(line.find('=') + 1);
@@ -240,78 +212,106 @@ void Config::new_server(std::string line, std::istream &config)
 			}
 			else if (line.find('=') != line.npos)
 			{
-				if (line.find("error_page") != line.npos) // is nog niet beschermd
-					save_error_pages(line, &new_server);
-				else
+				std::string type;
+				std::string value;
+				size_t ti = 0; // token_index
+				std::vector<Token> t_line = tokenize_line(line);
+				if (t_line.at(ti).type == WHITESPACE)
+					ti++;
+				if (ti < t_line.size() && t_line.at(ti).type == WORD)
 				{
-					std::string type;
-					std::string value;
-					size_t ti = 0; // token_index
-					std::vector<Token> t_line = tokenize_line(line);
-					if (t_line.at(ti).type == WHITESPACE)
-						ti++;
-					if (ti < t_line.size() && t_line.at(ti).type == WORD)
+					if (t_line.at(ti).str.c_str()[0] == '#')
 					{
-						if (t_line.at(ti).str.c_str()[0] == '#')
+						std::cout << line << " THIS IS A COMMENT" << std::endl;
+						continue;
+					}
+					else if (t_line.at(ti).str == "error_page")
+					{
+						unsigned long e_code;
+						ti++;
+						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+							ti++;
+						else
+							throw InvalidLineException();
+						if (ti < t_line.size() && t_line.at(ti).type == WORD)
 						{
-							std::cout << line << " THIS IS A COMMENT" << std::endl;
-							continue;
+							// digit stuff
+							if (!convert_digits(t_line.at(ti).str, e_code))
+								throw InvalidLineException();
+							ti++;
 						}
 						else
-							type = t_line.at(ti).str;
-						ti++;
-					}
-					else
-						throw InvalidLineException();
-					if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
-						ti++;
-					if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
-						ti++;
-					else
-						throw InvalidLineException();
-					if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
-						ti++;
-					if (ti < t_line.size() && t_line.at(ti).type == WORD)
-						value = t_line.at(ti).str;
-					else
-						throw InvalidLineException();
-
-					// line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-					// std::string type = line.substr(0, line.find('='));
-					// std::cout << type << std::endl;
-					// std::string value = line.substr(line.find('=') + 1);
-					// std::cout << "value of " << type << ": " << value << std::endl;
-					if (value == "")
-					{
-						throw EmptyTypeException();
-					}
-					if (type == "server_name")
-						new_server.server_name = value;
-					else if (type == "listen")
-					{
-						int tmp_port;
-						if (!convert_digits(value, tmp_port))
 							throw InvalidLineException();
-						new_server.ports.push_back(tmp_port);
-					}
-					else if (type == "root_path")
-						new_server.root_path = value;
-					else if (type == "index_file")
-						new_server.index_file = value;
-					else if (type == "client_max_body_size")
-					{
-						if (!convert_digits(value, new_server.client_max_body_size))
+						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+							ti++;
+						if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+							ti++;
+						else
 							throw InvalidLineException();
-						// new_server.client_max_body_size = check_digit(value);
+						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+							ti++;
+						if (ti < t_line.size() && t_line.at(ti).type == WORD)
+						{
+							value = t_line.at(ti).str;
+							new_server.error_pages.emplace(static_cast<Status::Status>(e_code), value);
+						}
+						else
+							throw InvalidLineException();
+						continue;
 					}
-					else if (type == "http_redirection")
-						new_server.http_redirection = value;
 					else
-					{
-						std::cout << "Error on line:" << line << std::endl;
+						type = t_line.at(ti).str;
+					ti++;
+				}
+				else
+					throw InvalidLineException();
+				if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+					ti++;
+				if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+					ti++;
+				else
+					throw InvalidLineException();
+				if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+					ti++;
+				if (ti < t_line.size() && t_line.at(ti).type == WORD)
+					value = t_line.at(ti).str;
+				else
+					throw InvalidLineException();
+				// line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+				// std::string type = line.substr(0, line.find('='));
+				// std::cout << type << std::endl;
+				// std::string value = line.substr(line.find('=') + 1);
+				// std::cout << "value of " << type << ": " << value << std::endl;
+				if (value == "")
+				{
+					throw EmptyTypeException();
+				}
+				if (type == "server_name")
+					new_server.server_name = value;
+				else if (type == "listen")
+				{
+					unsigned long tmp_port;
+					if (!convert_digits(value, tmp_port))
 						throw InvalidLineException();
-						exit(EXIT_FAILURE);
-					}
+					new_server.ports.push_back(tmp_port);
+				}
+				else if (type == "root_path")
+					new_server.root_path = value;
+				else if (type == "index_file")
+					new_server.index_file = value;
+				else if (type == "client_max_body_size")
+				{
+					if (!convert_digits(value, new_server.client_max_body_size))
+						throw InvalidLineException();
+					// new_server.client_max_body_size = check_digit(value);
+				}
+				else if (type == "http_redirection")
+					new_server.http_redirection = value;
+				else
+				{
+					std::cout << "Error on line:" << line << std::endl;
+					throw InvalidLineException();
+					exit(EXIT_FAILURE);
 				}
 			}
 		}

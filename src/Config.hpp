@@ -26,7 +26,7 @@ struct PageData // TODO: Rename to LocationData?
 
 struct ServerData
 {
-	std::vector<int> ports;
+	std::vector<unsigned long> ports;
 	std::string server_name;
 	std::string root_path;
 	std::string index_file;

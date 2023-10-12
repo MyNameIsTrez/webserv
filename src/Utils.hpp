@@ -7,6 +7,7 @@
 template <typename T>
 bool convert_digits(std::string input, T &dst)
 {
+	dst = 0;
 	for (size_t i = 0; i < input.size(); i++)
 	{
 		if (input[i] < '0' || input[i] > '9')
