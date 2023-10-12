@@ -6,7 +6,7 @@
 #include <stdarg.h>
 #include <errno.h>
 
-#define SERVER_PORT 18000
+#define SERVER_PORT 8080
 
 #define MAX_RECEIVED_LEN 4096
 
