@@ -322,8 +322,7 @@ bool Client::_isValidRequestMethod(void)
 
 bool Client::_isValidRequestTarget(void)
 {
-	// TODO: Write this
-	return true;
+	return this->request_target[0] == '/';
 }
 
 // See RFC 9112 section 2.3
