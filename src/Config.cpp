@@ -23,7 +23,7 @@ void Config::init(std::istream &config)
 			continue;
 		if (line.find("server {") != line.npos)
 		{
-			new_server(line, config);
+			newServer(line, config);
 			// std::cout << "			END OF SERVER" << std::endl;
 		}
 		else
@@ -41,15 +41,17 @@ void Config::init(std::istream &config)
 			assert(type != "\n"); // TODO: Remove
 
 			if (type == "max_connections")
-				_max_connections = std::stoul(line.substr(equals_index + 1));
+				max_connections = std::stoul(line.substr(equals_index + 1));
 			else if (type == "default_file")
-				_default_file = line.substr(equals_index + 1);
+				default_file = line.substr(equals_index + 1);
 			else throw InvalidLineException();
 		}
 	}
+
+	initMetadata();
 }
 
-void Config::save_error_pages(std::string line, ServerData *new_server)
+void Config::saveErrorPages(std::string line, ServerData *new_server)
 {
 	size_t i = line.find("error_page");
 	if (i != line.npos)
@@ -84,7 +86,7 @@ void print_vector(std::string prefix, std::vector<std::string> nums) // temporar
 	std::cout << std::endl;
 }
 
-PageData Config::save_page(std::string line, std::istream &config)
+PageData Config::savePage(std::string line, std::istream &config)
 {
 	// std::cout << "LOCATION BEGINNING" << std::endl;
 	size_t page_start = line.find('/');
@@ -162,8 +164,8 @@ PageData Config::save_page(std::string line, std::istream &config)
 }
 
 // "new_server" zou ik kunnen rewriten zodat het meteen in de "serverdata" gezet wordt
-// dan hoeven functies zoals save_page en save_error_pages geen "new_server" mee te krijgen
-void Config::new_server(std::string line, std::istream &config)
+// dan hoeven functies zoals savePage en save_error_pages geen "new_server" mee te krijgen
+void Config::newServer(std::string line, std::istream &config)
 {
 	// std::cout << "			NEW_SERVER" << std::endl;
 	ServerData new_server;
@@ -187,13 +189,13 @@ void Config::new_server(std::string line, std::istream &config)
 			if (line.find("location") != line.npos)
 			{
 				// TODO: Use returned page
-				save_page(line, config);
+				savePage(line, config);
 				unclosed--;
 			}
 			else if (line.find('=') != line.npos)
 			{
 				if (line.find("error_page") != line.npos) // is nog niet beschermd
-					save_error_pages(line, &new_server);
+					saveErrorPages(line, &new_server);
 				else
 				{
 					line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
@@ -206,7 +208,7 @@ void Config::new_server(std::string line, std::istream &config)
 						throw EmptyTypeException();
 					}
 					if (type == "server_name")
-						new_server.server_name = value;
+						new_server.server_names.push_back(value);
 					else if (type == "listen")
 						new_server.ports.push_back(value);
 					else if (type == "root_path")
@@ -232,7 +234,7 @@ void Config::new_server(std::string line, std::istream &config)
 }
 
 // TODO: REMOVE?
-// void Config::print_server_info(size_t index)
+// void Config::printServerInfo(size_t index)
 // {
 // 	std::cout << "Info for server " << index + 1 << std::endl;
 // 	std::cout << "server name: " << servers.at(index).server_name << std::endl;
@@ -251,7 +253,7 @@ void Config::new_server(std::string line, std::istream &config)
 // }
 
 /*
-std::string new_server() {
+std::string newServer() {
 	if ('{') {
 		while (getline(config, line)) {
 
@@ -260,6 +262,62 @@ std::string new_server() {
 	}
 }
 
-line = new_server(config, line);
+line = newServer(config, line);
 
 */
+
+// TODO: Replace with Milan's Utils.cpp version
+template <class T>
+static bool parseNumber(const std::string &str, T &number)
+{
+	number = 0;
+
+	for (size_t i = 0; i < str.length(); i++)
+	{
+		int chr = str.at(i);
+		if (chr < '0' || chr > '9')
+			return false;
+
+		number *= 10;
+		number += chr - '0';
+	}
+
+	return true;
+}
+
+void Config::initMetadata(void)
+{
+	for (auto server_it = servers.begin(); server_it < servers.end(); server_it++)
+	{
+		size_t server_index = server_it - servers.begin();
+
+		for (const std::string &port : server_it->ports)
+		{
+			// We don't care about the returned bool
+			// that indicates whether the key was already present,
+			// since this maps the first usage of the port
+			port_to_default_server_index.emplace(
+				port,
+				server_index
+			);
+
+			uint16_t port_number;
+			if (!parseNumber(port, port_number)) throw InvalidPortException();
+			port_numbers.emplace(port_number);
+
+			for (const std::string &server_name : server_it->server_names)
+			{
+				auto pair = http_host_header_to_server_index.emplace(
+					server_name + ":" + port,
+					server_index
+				);
+
+				// If the key was already present
+				if (!pair.second)
+				{
+					throw ConflictingServerNameException();
+				}
+			}
+		}
+	}
+}

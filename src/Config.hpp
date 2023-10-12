@@ -10,6 +10,8 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
 
 struct PageData // TODO: Rename to LocationData?
@@ -26,7 +28,7 @@ struct PageData // TODO: Rename to LocationData?
 struct ServerData
 {
 	std::vector<std::string> ports;
-	std::string server_name;
+	std::vector<std::string> server_names;
 	std::string root_path;
 	std::string index_file;
 	size_t client_max_body_size;
@@ -43,24 +45,30 @@ public:
 
 	void init(std::istream &config);
 
-	// int get_port(size_t index);
-	// std::string get_root(void);
-	// std::string get_index_file(void);
-	void new_server(std::string line, std::istream &config);
-	void save_error_pages(std::string line, ServerData *new_server);
-	PageData save_page(std::string line, std::istream &config);
-	// int check_line(std::string line);
-	// void print_server_info(size_t index);
-
-	// typedef int (*t_jump_function)(std::string line);
-
-	size_t _max_connections;
-	std::string _default_file;
+	size_t max_connections;
+	std::string default_file;
 	std::vector<ServerData> servers;
+
+	std::unordered_map<std::string, size_t> http_host_header_to_server_index;
+	std::unordered_map<std::string, size_t> port_to_default_server_index;
+	std::unordered_set<uint16_t> port_numbers;
 
 private:
 	Config(const Config &src);
 	Config &operator=(const Config &src);
+
+	// TODO: Remove all commented out lines
+	// int getPort(size_t index);
+	// std::string getRoot(void);
+	// std::string getIndex_file(void);
+	void newServer(std::string line, std::istream &config);
+	void saveErrorPages(std::string line, ServerData *new_server);
+	PageData savePage(std::string line, std::istream &config);
+	// int checkLine(std::string line);
+	// void printServerInfo(size_t index);
+	void initMetadata(void);
+
+	// typedef int (*t_jump_function)(std::string line);
 };
 
 struct ConfigException : public std::runtime_error
@@ -70,15 +78,25 @@ struct ConfigException : public std::runtime_error
 
 struct InvalidLineException : public ConfigException
 {
-	InvalidLineException() : ConfigException("Error: Invalid line in config file") {};
+	InvalidLineException() : ConfigException("Error: Invalid line in config") {};
 };
 
 struct InvalidFileException : public ConfigException
 {
-	InvalidFileException() : ConfigException("Error: Unable to open config file") {};
+	InvalidFileException() : ConfigException("Error: Unable to open config") {};
 };
 
 struct EmptyTypeException : public ConfigException
 {
-	EmptyTypeException() : ConfigException("Error: Empty type in config file") {};
+	EmptyTypeException() : ConfigException("Error: Empty type in config") {};
+};
+
+struct ConflictingServerNameException : public ConfigException
+{
+	ConflictingServerNameException() : ConfigException("Error: Conflicting server name in config") {};
+};
+
+struct InvalidPortException : public ConfigException
+{
+	InvalidPortException() : ConfigException("Error: Invalid port in config") {};
 };
