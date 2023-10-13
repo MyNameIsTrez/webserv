@@ -2,6 +2,7 @@
 
 #include "Client.hpp"
 #include "Config.hpp"
+#include "Utils.hpp"
 
 #include <cassert>
 #include <iostream>
@@ -9,6 +10,7 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unordered_set>
 
@@ -613,14 +615,99 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 
 		client.appendReadString(received, bytes_read);
 
-		// If we've just started reading/entirely read this client's body, start a CGI script
-		if (previous_read_state == ClientReadState::HEADER && client.client_read_state != ClientReadState::HEADER)
-		{
-			// TODO: Only run the below code if the request wants to start the CGI AND it is a POST request
+		bool done_reading_header =
+			        previous_read_state == ClientReadState::HEADER
+			&& client.client_read_state != ClientReadState::HEADER;
 
-			_startCGI(client, fd, fd_type);
+		if (done_reading_header)
+		{
+			const std::string &target = client.request_target;
+			const std::string &method = client.request_method;
+
+			if (Utils::startsWith(target, "/cgi-bin/"))
+			{
+				if (target.back() == '/')
+				{
+					throw Client::ClientException(Status::FORBIDDEN);
+				}
+				else
+				{
+					if (method == "DELETE")
+					{
+						throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+					}
+					else
+					{
+						_startCGI(client, fd, fd_type);
+					}
+				}
+			}
+			else
+			{
+				const Location location = _resolveToLocation(target);
+
+				if (!_isAllowedMethod(location, method))
+				{
+					throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+				}
+
+				if (target.back() == '/')
+				{
+					if (method == "GET")
+					{
+						if (location.is_index_file_defined)
+						{
+							_respondWithFile(location.path);
+						}
+						else if (location.is_autoindex_on)
+						{
+							_respondWithDirectoryListing(location.path);
+						}
+						else
+						{
+							throw Client::ClientException(Status::FORBIDDEN);
+						}
+					}
+					else
+					{
+						throw Client::ClientException(Status::FORBIDDEN);
+					}
+				}
+				else
+				{
+					struct stat status;
+					if (stat(target.c_str(), &status) == -1) throw SystemException("stat");
+
+					if (S_ISDIR(status.st_mode))
+					{
+						if (method == "DELETE")
+						{
+							throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+						}
+						else
+						{
+							_respondWithRedirect(target + "/");
+						}
+					}
+					else if (method == "GET")
+					{
+						_respondWithFile(target);
+					}
+					else if (method == "POST")
+					{
+						_createFile(target);
+					}
+					else
+					{
+						_deleteFile(target);
+					}
+				}
+			}
 		}
 
+		// TODO: Unhardcode this so it doesn't only work for server_to_cgi
+		// If we've just read body bytes, enable server_to_cgi POLLOUT
+		// This uses the fact that bytes_read here is guaranteed to be > 0
 		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_write_state != CGIWriteState::DONE)
 		{
 			assert(client.server_to_cgi_fd != -1);
@@ -761,6 +848,59 @@ void Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 	std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
+}
+
+Location Server::_resolveToLocation(const std::string &request_target)
+{
+	// TODO: Write
+	(void)request_target;
+
+	Location location;
+
+	// location.is_index_file_defined = false;
+	// location.is_autoindex_on = false;
+	// location.path = ;
+
+	return location;
+}
+
+bool Server::_isAllowedMethod(const Location &location, const std::string &method)
+{
+	// TODO: Write
+	(void)location;
+	(void)method;
+
+	return true;
+}
+
+void Server::_respondWithFile(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+}
+
+void Server::_respondWithDirectoryListing(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+}
+
+void Server::_respondWithRedirect(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+}
+
+void Server::_createFile(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+}
+
+void Server::_deleteFile(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
 }
 
 void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)

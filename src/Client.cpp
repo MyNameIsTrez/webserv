@@ -1,5 +1,7 @@
 #include "Client.hpp"
 
+#include "Utils.hpp"
+
 #include <algorithm>
 #include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
 #include <cstdio>
@@ -134,6 +136,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 	{
 		this->_header.append(received, bytes_read);
 
+		// Return if the header hasn't been fully read yet
 		size_t found_index = this->_header.find("\r\n\r\n");
 		if (found_index == std::string::npos)
 			return;
@@ -331,7 +334,7 @@ bool Client::_isValidProtocol(void)
 {
 	if (this->protocol.size() < sizeof("HTTP/0.0") - 1)
 		return false;
-	if (this->protocol.rfind("HTTP/", 0) == std::string::npos)
+	if (Utils::startsWith(this->protocol, "HTTP/"))
 		return false;
 	if (this->protocol[5] < '0' || this->protocol[5] > '9')
 		return false;

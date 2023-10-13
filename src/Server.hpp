@@ -17,6 +17,13 @@ namespace FdType
 	};
 }
 
+struct Location
+{
+	bool is_index_file_defined;
+	bool is_autoindex_on;
+	std::string path;
+};
+
 class Server
 {
 public:
@@ -67,6 +74,13 @@ private:
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
 	void _startCGI(Client &client, int fd, FdType::FdType fd_type);
+	Location _resolveToLocation(const std::string &request_target);
+	bool _isAllowedMethod(const Location &location, const std::string &method);
+	void _respondWithFile(const std::string &path);
+	void _respondWithDirectoryListing(const std::string &path);
+	void _respondWithRedirect(const std::string &path);
+	void _createFile(const std::string &path);
+	void _deleteFile(const std::string &path);
 
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
