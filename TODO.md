@@ -29,6 +29,7 @@
 - [ ] Verify that same behavior as nginx happens when location/server_name is missing in webserv
 - [ ] Use the config's max_connections?
 - [ ] Use the config's default_file?
+- [ ] Ask Milan to parse something like limit_except
 
 ## Victor
 

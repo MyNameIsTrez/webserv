@@ -99,27 +99,36 @@ if request_target.starts_with("/cgi-bin/"):
 	if request_target.ends_with("/"):
 		respond_with_error()
 	else:
-		if method == DELETE:
+		if method == "DELETE":
 			respond_with_error()
 		else:
 			start_cgi(request_target)
 else:
-	if request_target.ends_with("/"):
-		if method == GET:
-			resolved = resolve_directory_target(request_target)
+	location = resolve_location(request_target)
 
-			if resolved.is_index_file_defined:
-				respond_with_file(resolved.path)
-			elif resolved.is_autoindex_on:
-				respond_with_directory_listing(resolved.path)
+	if not is_allowed_method(location, method):
+		respond_with_error()
+
+	if request_target.ends_with("/"):
+		if method == "GET":
+			if location.is_index_file_defined:
+				respond_with_file(location.path)
+			elif location.is_autoindex_on:
+				respond_with_directory_listing(location.path)
 			else
 				respond_with_error()
 		else:
 			respond_with_error()
 	else:
-		if method == GET:
+		status = stat(request_target)
+		if status.type == DIRECTORY:
+			if method == "DELETE":
+				respond_with_error(405)
+			else:
+				respond_with_redirect(request_target + "/")
+		elif method == "GET":
 			respond_with_file(request_target)
-		elif method == POST:
+		elif method == "POST":
 			create_file(request_target)
 		else:
 			delete_file(request_target)
