@@ -18,6 +18,8 @@
 const char *Client::status_text_table[] = {
 	[Status::OK] = "OK",
 	[Status::BAD_REQUEST] = "Bad Request",
+	[Status::FORBIDDEN] = "Forbidden",
+	[Status::METHOD_NOT_ALLOWED] = "Method Not Allowed",
 };
 
 /*	Orthodox Canonical Form */
