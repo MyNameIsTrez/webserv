@@ -121,12 +121,12 @@ private:
 	bool _isValidProtocol(void);
 
 	void _parseBodyAppend(const std::string &extra_body);
-	void _hex_to_num(std::string &line, size_t &num);
+	void _hexToNum(std::string &line, size_t &num);
 
 	void _addStatusLine(void);
 
 	void _generateEnv(void);
-	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
+	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
 	size_t _content_length;
 	std::string _header;

@@ -189,7 +189,7 @@ void Client::prependResponseHeader(void)
 		// TODO: Use cgi_exit_status
 		std::stringstream len_ss;
 		len_ss << response_body.size();
-		// TODO: Use _replace_all(str, "\n", "\r\n"):
+		// TODO: Use _replaceAll(str, "\n", "\r\n"):
 		// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
 
 		this->response +=
@@ -280,14 +280,7 @@ void Client::_parseHeaders(void)
 			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
 			if (this->_is_chunked) throw ClientException(Status::BAD_REQUEST);
 
-			// Put value into content_length
-			for (size_t j = 0; j < value.size(); j++)
-			{
-				if (value[j] < '0' || value[j] > '9') throw ClientException(Status::BAD_REQUEST);
-
-				this->_content_length *= 10;
-				this->_content_length += value[j] - '0';
-			}
+			if (!Utils::parseNumber(value, this->_content_length)) throw ClientException(Status::BAD_REQUEST);
 
 			std::cerr << "    Content length: " << this->_content_length << std::endl;
 		}
@@ -336,7 +329,7 @@ bool Client::_isValidProtocol(void)
 {
 	if (this->protocol.size() < sizeof("HTTP/0.0") - 1)
 		return false;
-	if (Utils::startsWith(this->protocol, "HTTP/"))
+	if (!Utils::startsWith(this->protocol, "HTTP/"))
 		return false;
 	if (this->protocol[5] < '0' || this->protocol[5] > '9')
 		return false;
@@ -362,7 +355,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					break;
 
 				// Consumes characters from the start of the buffer, using them to increase the content length
-				_hex_to_num(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
+				_hexToNum(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
 
 				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but it's nice to just update it as appropriate (Maybe want to delete because it isn't needed)
 				this->_chunked_read_state = READING_CONTENT_LEN_ENDLINE;
@@ -439,7 +432,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 }
 
 
-void Client::_hex_to_num(std::string &line, size_t &num)
+void Client::_hexToNum(std::string &line, size_t &num)
 {
 	size_t i = 0;
 
@@ -512,7 +505,7 @@ void Client::_generateEnv(void)
 }
 
 // TODO: Remove?
-// std::string Client::_replace_all(std::string input, const std::string& needle, const std::string& replacement)
+// std::string Client::_replaceAll(std::string input, const std::string& needle, const std::string& replacement)
 // {
 // 	size_t start_pos = 0;
 // 	while((start_pos = input.find(needle, start_pos)) != std::string::npos)

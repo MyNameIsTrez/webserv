@@ -48,27 +48,27 @@ Server::Server(const Config &config)
 
 		// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 		// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-		int server_fd;
-		if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
+		int port_fd;
+		if ((port_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
 
-		// TODO: Use this?
-		// // Prevents "bind: Address already in use" error after:
-		// // 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
-		// int option = 1; // "the parameter should be non-zero to enable a boolean option"
-		// if (setsockopt(port_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
+		// TODO: Do these steps still reliably produce the error?:
+		// Prevents "bind: Address already in use" error after:
+		// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
+		int option = 1; // "the parameter should be non-zero to enable a boolean option"
+		if (setsockopt(port_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
 		sockaddr_in servaddr{};
 		servaddr.sin_family = AF_INET;
 		servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 		servaddr.sin_port = htons(port_number);
 
-		if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
+		if ((bind(port_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
 
-		if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
+		if ((listen(port_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
 
-		_addFd(server_fd, FdType::SERVER, POLLIN);
+		_addFd(port_fd, FdType::SERVER, POLLIN);
 
-		std::cerr << "Added server fd " << server_fd << std::endl;
+		std::cerr << "Added port fd " << port_fd << std::endl;
 	}
 
 	signal(SIGINT, _sigIntHandler);
@@ -857,9 +857,9 @@ Location Server::_resolveToLocation(const std::string &request_target)
 
 	Location location;
 
-	// location.is_index_file_defined = false;
-	// location.is_autoindex_on = false;
-	// location.path = ;
+	location.is_index_file_defined = false;
+	location.is_autoindex_on = false;
+	// location.path = "";
 
 	return location;
 }

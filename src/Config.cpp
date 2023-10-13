@@ -1,5 +1,7 @@
 #include "Config.hpp"
 
+#include "Utils.hpp"
+
 Config::Config(void)
 {
 }
@@ -53,6 +55,7 @@ void Config::init(std::istream &config)
 
 void Config::saveErrorPages(std::string line, ServerData *new_server)
 {
+	// TODO: Use Utils::parseNumber()
 	size_t i = line.find("error_page");
 	if (i != line.npos)
 	{
@@ -266,25 +269,6 @@ line = newServer(config, line);
 
 */
 
-// TODO: Replace with Milan's Utils.cpp version
-template <class T>
-static bool parseNumber(const std::string &str, T &number)
-{
-	number = 0;
-
-	for (size_t i = 0; i < str.length(); i++)
-	{
-		int chr = str.at(i);
-		if (chr < '0' || chr > '9')
-			return false;
-
-		number *= 10;
-		number += chr - '0';
-	}
-
-	return true;
-}
-
 void Config::initMetadata(void)
 {
 	for (auto server_it = servers.begin(); server_it < servers.end(); server_it++)
@@ -302,7 +286,7 @@ void Config::initMetadata(void)
 			);
 
 			uint16_t port_number;
-			if (!parseNumber(port, port_number)) throw InvalidPortException();
+			if (!Utils::parseNumber(port, port_number)) throw InvalidPortException();
 			port_numbers.emplace(port_number);
 
 			for (const std::string &server_name : server_it->server_names)
