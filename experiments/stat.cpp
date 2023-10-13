@@ -10,15 +10,32 @@
 int main(void)
 {
 	const char *path = "stat.cpp";
-	stat buf;
+	// const char *path = ".";
+	struct stat status;
 
-	if (stat(path, &buf))
+	if (stat(path, &status) == -1)
 	{
 		perror("stat");
 		return EXIT_FAILURE;
 	}
 
-	printf("This file is %lld bytes\n", buf.st_size);
+	printf("st_atim.tv_nsec: %ld\n", status.st_atim.tv_nsec);
+	printf("st_atim.tv_sec: %ld\n", status.st_atim.tv_sec);
+	printf("st_blksize: %ld\n", status.st_blksize);
+	printf("st_blocks: %ld\n", status.st_blocks);
+	printf("st_ctim.tv_nsec: %ld\n", status.st_ctim.tv_nsec);
+	printf("st_ctim.tv_sec: %ld\n", status.st_ctim.tv_sec);
+	printf("st_dev: %lu\n", status.st_dev);
+	printf("st_gid: %d\n", status.st_gid);
+	printf("st_ino: %lu\n", status.st_ino);
+	printf("st_mode: %d\n", status.st_mode);
+	printf("S_ISDIR(st_mode): %d\n", S_ISDIR(status.st_mode));
+	printf("st_mtim.tv_nsec: %ld\n", status.st_mtim.tv_nsec);
+	printf("st_mtim.tv_sec: %ld\n", status.st_mtim.tv_sec);
+	printf("st_nlink: %lu\n", status.st_nlink);
+	printf("st_rdev: %lu\n", status.st_rdev);
+	printf("st_size: %ld\n", status.st_size);
+	printf("st_uid: %d\n", status.st_uid);
 
 	return EXIT_SUCCESS;
 }
