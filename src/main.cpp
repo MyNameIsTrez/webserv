@@ -18,7 +18,8 @@ int main(int argc, char *argv[])
 	try
 	{
 		std::ifstream config_file(argv[1]);
-		if (!config_file.is_open()) throw InvalidFileException();
+		if (!config_file.is_open())
+			throw InvalidFileException();
 		config.init(config_file);
 	}
 	catch (const ConfigException &a)
@@ -29,8 +30,8 @@ int main(int argc, char *argv[])
 	config.print_config_info();
 
 	// TODO: Error handling
-	// Server server(config);
-	// server.run();
+	Server server(config);
+	server.run();
 	// signal(SIGCHLD, SIG_DFL); // TODO: Put this back in
 	return EXIT_SUCCESS;
 }
