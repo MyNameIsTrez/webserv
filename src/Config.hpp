@@ -25,14 +25,14 @@ struct PageData // TODO: Rename to LocationData?
 
 struct ServerData
 {
-	std::vector<int> ports;
+	std::vector<unsigned long> ports;
 	std::string server_name;
 	std::string root_path;
 	std::string index_file;
 	size_t client_max_body_size;
 	std::string http_redirection;
-	std::map<Status::Status, std::string> error_pages; // TODO: Use error enum as key
-	std::vector<PageData> page_data; // TODO: Turn into <page_path, PageData> map?
+	std::map<Status::Status, std::string> error_pages;
+	std::vector<PageData> page_data;
 };
 
 class Config
@@ -43,9 +43,12 @@ public:
 
 	void init(std::istream &config);
 
+	void save_type(std::string type, std::string value);
 	// int get_port(size_t index);
 	// std::string get_root(void);
 	// std::string get_index_file(void);
+	void save_max_connections(std::string value);
+	void save_default_file(std::string value);
 	void new_server(std::string line, std::istream &config);
 	void save_error_pages(std::string line, ServerData *new_server);
 	PageData save_page(std::string line, std::istream &config);
@@ -54,9 +57,11 @@ public:
 
 	// typedef int (*t_jump_function)(std::string line);
 
-	size_t _max_connections;
+	void print_config_info(void);
+
+	unsigned long _max_connections;
 	std::string _default_file;
-	std::vector<ServerData> serverdata;
+	std::vector<ServerData> serverdata; // renamen naar "servers"
 
 private:
 	Config(const Config &src);
@@ -65,20 +70,20 @@ private:
 
 struct ConfigException : public std::runtime_error
 {
-	ConfigException(const std::string &message) : std::runtime_error(message) {};
+	ConfigException(const std::string &message) : std::runtime_error(message){};
 };
 
 struct InvalidLineException : public ConfigException
 {
-	InvalidLineException() : ConfigException("Error: Invalid line in config file") {};
+	InvalidLineException() : ConfigException("Error: Invalid line in config file"){};
 };
 
 struct InvalidFileException : public ConfigException
 {
-	InvalidFileException() : ConfigException("Error: Unable to open config file") {};
+	InvalidFileException() : ConfigException("Error: Unable to open config file"){};
 };
 
 struct EmptyTypeException : public ConfigException
 {
-	EmptyTypeException() : ConfigException("Error: Empty type in config file") {};
+	EmptyTypeException() : ConfigException("Error: Empty type in config file"){};
 };

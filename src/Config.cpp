@@ -1,6 +1,8 @@
 #include "Config.hpp"
+#include "Token.hpp"
+#include "Utils.hpp"
 
-Config::Config(void)
+Config::Config(void) : _max_connections(), _default_file(), serverdata()
 {
 }
 
@@ -8,17 +10,33 @@ Config::~Config(void)
 {
 }
 
-// TODO: REMOVE
-#include <assert.h>
+void Config::save_type(std::string type, std::string value)
+{
+	if (type == "max_connections")
+		return save_max_connections(value);
+	if (type == "default_file")
+		return save_default_file(value);
+	throw InvalidLineException();
+}
+
+void Config::save_max_connections(std::string value)
+{
+	if (!convert_digits(value, _max_connections))
+		throw InvalidLineException();
+
+	// _max_connections = check_digit(value);
+}
+
+void Config::save_default_file(std::string value)
+{
+	_default_file = value;
+}
 
 void Config::init(std::istream &config)
 {
 	std::string line;
 	while (getline(config, line))
 	{
-		// TODO: Remove
-		// if (line.find("a") != line.npos)
-		// 	abort();
 		if (line.find_first_not_of('\t') == line.npos)
 			continue;
 		if (line.find("server {") != line.npos)
@@ -28,53 +46,56 @@ void Config::init(std::istream &config)
 		}
 		else
 		{
-			size_t equals_index = line.find('=');
-			if (equals_index == line.npos)
+			std::string type;
+			std::string value;
+			size_t ti = 0; // token_index
+			std::vector<Token> t_line = tokenize_line(line);
+			if (t_line.at(ti).type == WHITESPACE)
+				ti++;
+			if (ti < t_line.size() && t_line.at(ti).type == WORD)
 			{
-				std::cout << "<" << line << ">" << std::endl;
-				throw InvalidLineException();
-			}
-			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-			equals_index = line.find('=');
-			std::string type = line.substr(0, equals_index);
-			std::cout << type << std::endl;
-			assert(type != "\n"); // TODO: Remove
-
-			if (type == "max_connections")
-				_max_connections = std::stoul(line.substr(equals_index + 1));
-			else if (type == "default_file")
-				_default_file = line.substr(equals_index + 1);
-			else throw InvalidLineException();
-		}
-	}
-}
-
-void Config::save_error_pages(std::string line, ServerData *new_server)
-{
-	size_t i = line.find("error_page");
-	if (i != line.npos)
-	{
-		while (line[i] != '\0')
-		{
-			if (line[i] == '=')
-				break;
-			if (isdigit(line.c_str()[i]))
-			{
-				int page = 0;
-				while (isdigit(line.c_str()[i]))
+				if (t_line.at(ti).str.c_str()[0] == '#')
 				{
-					page *= 10;
-					page += line.c_str()[i] - '0';
-					i++;
+					std::cout << line << " THIS IS A COMMENT" << std::endl;
+					continue;
 				}
-				new_server->error_pages.emplace(static_cast<Status::Status>(page), line.substr(line.find('=') + 2));
+				else
+					type = t_line.at(ti).str;
+				ti++;
 			}
-			i++;
+			else
+				throw InvalidLineException();
+			if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+				ti++;
+			if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+				ti++;
+			else
+				throw InvalidLineException();
+			if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+				ti++;
+			if (ti < t_line.size() && t_line.at(ti).type == WORD)
+				value = t_line.at(ti).str;
+			else
+				throw InvalidLineException();
+
+			// if (line.find('=') == line.npos)
+			// {
+			// 	std::cout << "<" << line << ">" << std::endl;
+			// 	throw InvalidLineException();
+			// }
+			// line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+			// std::string type = line.substr(0, line.find('='));
+			// std::cout << type << std::endl;
+			// if (type == "\n")
+			// {
+			// 	throw EmptyTypeException();
+			// }
+			save_type(type, value);
 		}
 	}
 }
 
-void print_vector(std::string prefix, std::vector<std::string> nums) // temporary
+void print_vector(std::string prefix, std::vector<std::string> nums)
 {
 	std::cout << prefix;
 	for (size_t i = 0; i < nums.size(); i++)
@@ -84,7 +105,7 @@ void print_vector(std::string prefix, std::vector<std::string> nums) // temporar
 	std::cout << std::endl;
 }
 
-PageData Config::save_page(std::string line, std::istream &config)
+PageData Config::save_page(std::string line, std::istream &config) // TODO: veranderen naar "save_location"
 {
 	// std::cout << "LOCATION BEGINNING" << std::endl;
 	size_t page_start = line.find('/');
@@ -104,7 +125,7 @@ PageData Config::save_page(std::string line, std::istream &config)
 		if (line.find('}') != line.npos)
 			break;
 		if (line[0] != '\0')
-		{
+		{ // TODO: hier ook tokenization gebruiken
 			if (line.find('=') == line.npos)
 				throw InvalidLineException();
 			std::string value = line.substr(line.find('=') + 1);
@@ -124,8 +145,10 @@ PageData Config::save_page(std::string line, std::istream &config)
 			{
 				if (value == "on")
 					new_page.autoindex = true;
+				else if (value == "off")
+					new_page.autoindex = false;
 				else
-					new_page.autoindex = false; // TODO: wordt nu ook op false gezet bij gibberish
+					throw InvalidLineException();
 			}
 			else if (type == "index_file")
 			{
@@ -186,43 +209,111 @@ void Config::new_server(std::string line, std::istream &config)
 				unclosed++;
 			if (line.find("location") != line.npos)
 			{
-				// TODO: Use returned page
-				save_page(line, config);
+				new_server.page_data.push_back(save_page(line, config));
 				unclosed--;
 			}
 			else if (line.find('=') != line.npos)
 			{
-				if (line.find("error_page") != line.npos) // is nog niet beschermd
-					save_error_pages(line, &new_server);
+				std::string type;
+				std::string value;
+				size_t ti = 0; // token_index
+				std::vector<Token> t_line = tokenize_line(line);
+				if (t_line.at(ti).type == WHITESPACE)
+					ti++;
+				if (ti < t_line.size() && t_line.at(ti).type == WORD)
+				{
+					if (t_line.at(ti).str.c_str()[0] == '#')
+					{
+						std::cout << line << " THIS IS A COMMENT" << std::endl;
+						continue;
+					}
+					else if (t_line.at(ti).str == "error_page")
+					{
+						unsigned long e_code;
+						ti++;
+						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+							ti++;
+						else
+							throw InvalidLineException();
+						if (ti < t_line.size() && t_line.at(ti).type == WORD)
+						{
+							// digit stuff
+							if (!convert_digits(t_line.at(ti).str, e_code))
+								throw InvalidLineException();
+							ti++;
+						}
+						else
+							throw InvalidLineException();
+						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+							ti++;
+						if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+							ti++;
+						else
+							throw InvalidLineException();
+						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+							ti++;
+						if (ti < t_line.size() && t_line.at(ti).type == WORD)
+						{
+							value = t_line.at(ti).str;
+							new_server.error_pages.emplace(static_cast<Status::Status>(e_code), value);
+						}
+						else
+							throw InvalidLineException();
+						continue;
+					}
+					else
+						type = t_line.at(ti).str;
+					ti++;
+				}
+				else
+					throw InvalidLineException();
+				if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+					ti++;
+				if (ti < t_line.size() && t_line.at(ti).type == EQUALS)
+					ti++;
+				else
+					throw InvalidLineException();
+				if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
+					ti++;
+				if (ti < t_line.size() && t_line.at(ti).type == WORD)
+					value = t_line.at(ti).str;
+				else
+					throw InvalidLineException();
+				// line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
+				// std::string type = line.substr(0, line.find('='));
+				// std::cout << type << std::endl;
+				// std::string value = line.substr(line.find('=') + 1);
+				// std::cout << "value of " << type << ": " << value << std::endl;
+				if (value == "")
+				{
+					throw EmptyTypeException();
+				}
+				if (type == "server_name")
+					new_server.server_name = value;
+				else if (type == "listen")
+				{
+					unsigned long tmp_port;
+					if (!convert_digits(value, tmp_port))
+						throw InvalidLineException();
+					new_server.ports.push_back(tmp_port);
+				}
+				else if (type == "root_path")
+					new_server.root_path = value;
+				else if (type == "index_file")
+					new_server.index_file = value;
+				else if (type == "client_max_body_size")
+				{
+					if (!convert_digits(value, new_server.client_max_body_size))
+						throw InvalidLineException();
+					// new_server.client_max_body_size = check_digit(value);
+				}
+				else if (type == "http_redirection")
+					new_server.http_redirection = value;
 				else
 				{
-					line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
-					std::string type = line.substr(0, line.find('='));
-					// std::cout << type << std::endl;
-					std::string value = line.substr(line.find('=') + 1);
-					// std::cout << "value of " << type << ": " << value << std::endl;
-					if (value == "")
-					{
-						throw EmptyTypeException();
-					}
-					if (type == "server_name")
-						new_server.server_name = value;
-					else if (type == "listen")
-						new_server.ports.push_back(std::stoi(value));
-					else if (type == "root_path")
-						new_server.root_path = value;
-					else if (type == "index_file")
-						new_server.index_file = value;
-					else if (type == "client_max_body_size")
-						new_server.client_max_body_size = std::stoul(value);
-					else if (type == "http_redirection")
-						new_server.http_redirection = value;
-					else
-					{
-						std::cout << "Error on line:" << line << std::endl;
-						throw InvalidLineException();
-						exit(EXIT_FAILURE);
-					}
+					std::cout << "Error on line:" << line << std::endl;
+					throw InvalidLineException();
+					exit(EXIT_FAILURE);
 				}
 			}
 		}
@@ -231,35 +322,56 @@ void Config::new_server(std::string line, std::istream &config)
 	return;
 }
 
-// TODO: REMOVE?
-// void Config::print_server_info(size_t index)
-// {
-// 	std::cout << "Info for server " << index + 1 << std::endl;
-// 	std::cout << "server name: " << serverdata.at(index).server_name << std::endl;
-// 	std::cout << "server ports: ";
-// 	for (size_t i = 0; i < serverdata.at(index).ports.size(); i++)
-// 	{
-// 		std::cout << serverdata.at(index).ports.at(i) << ", ";
-// 	}
-// 	std::cout << std::endl;
-// 	std::cout << "root path: " << serverdata.at(index).root_path << std::endl;
-// 	std::cout << "index file: " << serverdata.at(index).index_file << std::endl;
-// 	for (std::map<int, std::string>::iterator it = serverdata.at(index).error_pages.begin(); it != serverdata.at(index).error_pages.end(); ++it)
-// 	{
-// 		std::cout << "error page: " << it->first << ": " << it->second << std::endl;
-// 	}
-// }
+void Config::print_config_info(void)
+{
+	std::cout << std::endl;
+	std::cout << std::endl;
+	std::cout << "max_connections: " << _max_connections << std::endl;
+	std::cout << "default_file: " << _default_file << std::endl;
 
-/*
-std::string new_server() {
-	if ('{') {
-		while (getline(config, line)) {
-
+	std::cout << std::endl;
+	for (size_t i = 0; i < serverdata.size(); i++)
+	{
+		std::cout << "server_name: " << serverdata.at(i).server_name << std::endl;
+		std::cout << "server ports: ";
+		for (size_t j = 0; j < serverdata.at(i).ports.size(); j++)
+		{
+			std::cout << serverdata.at(i).ports.at(j) << ", ";
 		}
-		return line;
+		std::cout << std::endl;
+		std::cout << "root_path: " << serverdata.at(i).root_path << std::endl;
+		std::cout << "index_file: " << serverdata.at(i).index_file << std::endl;
+		std::cout << "client_max_body_size: " << serverdata.at(i).client_max_body_size << std::endl;
+		std::cout << "http_redirection: " << serverdata.at(i).http_redirection << std::endl;
+		for (std::map<Status::Status, std::string>::iterator it = serverdata.at(i).error_pages.begin(); it != serverdata.at(i).error_pages.end(); ++it)
+		{
+			std::cout << "error page: " << it->first << ": " << it->second << std::endl;
+		}
+		for (size_t h = 0; h < serverdata.at(i).page_data.size(); h++)
+		{
+			std::cout << "page_path: " << serverdata.at(i).page_data.at(h).page_path << std::endl;
+			std::cout << "allowed_methods: ";
+			for (size_t k = 0; k < serverdata.at(i).page_data.at(h).allowed_methods.size(); k++)
+			{
+				std::cout << serverdata.at(i).page_data.at(h).allowed_methods.at(k) << ", ";
+			}
+			std::cout << std::endl;
+			std::cout << "autoindex: " << serverdata.at(i).page_data.at(h).autoindex << std::endl;
+			std::cout << "index_file: " << serverdata.at(i).page_data.at(h).index_file << std::endl;
+			std::cout << "root: " << serverdata.at(i).page_data.at(h).root << std::endl;
+			std::cout << "cgi_paths: ";
+			for (size_t l = 0; l < serverdata.at(i).page_data.at(h).cgi_paths.size(); l++)
+			{
+				std::cout << serverdata.at(i).page_data.at(h).cgi_paths.at(l) << ", ";
+			}
+			std::cout << std::endl;
+			std::cout << "cgi_extensions: ";
+			for (size_t m = 0; m < serverdata.at(i).page_data.at(h).cgi_ext.size(); m++)
+			{
+				std::cout << serverdata.at(i).page_data.at(h).cgi_ext.at(m) << ", ";
+			}
+			std::cout << std::endl;
+			std::cout << std::endl;
+		}
 	}
 }
-
-line = new_server(config, line);
-
-*/
