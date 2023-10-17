@@ -105,7 +105,7 @@ void print_vector(std::string prefix, std::vector<std::string> nums)
 	std::cout << std::endl;
 }
 
-PageData Config::save_page(std::string line, std::istream &config)
+PageData Config::save_page(std::string line, std::istream &config) // TODO: veranderen naar "save_location"
 {
 	// std::cout << "LOCATION BEGINNING" << std::endl;
 	size_t page_start = line.find('/');
@@ -145,8 +145,10 @@ PageData Config::save_page(std::string line, std::istream &config)
 			{
 				if (value == "on")
 					new_page.autoindex = true;
+				else if (value == "off")
+					new_page.autoindex = false;
 				else
-					new_page.autoindex = false; // TODO: wordt nu ook op false gezet bij gibberish
+					throw InvalidLineException();
 			}
 			else if (type == "index_file")
 			{

@@ -32,8 +32,8 @@ struct ServerData
 	std::string index_file;
 	size_t client_max_body_size;
 	std::string http_redirection;
-	std::map<Status::Status, std::string> error_pages; // TODO: Use error enum as key
-	std::vector<PageData> page_data;				   // TODO: Turn into <page_path, PageData> map?
+	std::map<Status::Status, std::string> error_pages;
+	std::vector<PageData> page_data;
 };
 
 class Config
