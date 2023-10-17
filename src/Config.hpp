@@ -33,8 +33,8 @@ struct ServerData
 	std::string index_file;
 	size_t client_max_body_size;
 	std::string http_redirection;
-	std::map<Status::Status, std::string> error_pages; // TODO: Use error enum as key
-	std::vector<PageData> page_data; // TODO: Turn into <page_path, PageData> map?
+	std::map<Status::Status, std::string> error_pages;
+	std::vector<PageData> page_data;
 };
 
 class Config
@@ -61,11 +61,14 @@ private:
 	// int getPort(size_t index);
 	// std::string getRoot(void);
 	// std::string getIndex_file(void);
+	void saveType(std::string type, std::string value);
+	void saveMaxConnections(std::string value);
+	void saveDefaultFile(std::string value);
 	void newServer(std::string line, std::istream &config);
 	void saveErrorPages(std::string line, ServerData *new_server);
 	PageData savePage(std::string line, std::istream &config);
 	// int checkLine(std::string line);
-	// void printServerInfo(size_t index);
+	void printConfigInfo(void);
 	void initMetadata(void);
 
 	// typedef int (*t_jump_function)(std::string line);
@@ -73,7 +76,7 @@ private:
 
 struct ConfigException : public std::runtime_error
 {
-	ConfigException(const std::string &message) : std::runtime_error(message) {};
+	ConfigException(const std::string &message) : std::runtime_error(message){};
 };
 
 struct InvalidLineException : public ConfigException
