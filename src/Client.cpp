@@ -337,24 +337,28 @@ void Client::_useHeaders(void)
 	const auto &host_it = this->headers.find("HOST");
 	if (host_it == this->headers.end())
 	{
-		// "A client MUST send a Host header field" - HTTP/1.1 RFC 9112, section 3.2. Request Target
+		// "A client MUST send a Host header field" - HTTP/1.1 RFC 9112, section 3.2 Request Target
 		throw Client::ClientException(Status::BAD_REQUEST);
 	}
 	else
 	{
-		const std::string &value = host_it->second;
+		const std::string &host = host_it->second;
 
-		size_t colon_index = value.find(":");
-		if (colon_index == value.npos) throw Client::ClientException(Status::BAD_REQUEST);
+		size_t colon_index = host.find(":");
+		if (colon_index == host.npos)
+		{
+			// "If no port is included, the default port for the service requested is implied"
+			// Source: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host
+			this->port = 80;
+		}
+		else
+		{
+			// If there is no port after the colon
+			if (colon_index == host.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
 
-		// "If no port is included, the default port for the service requested is implied"
-		// Source: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host
-		// TODO: Make the port optional, defaulting to port 80?
-		// If there is no port after the colon
-		if (colon_index == value.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
-
-		std::string port_str = value.substr(colon_index + 1);
-		if (!Utils::parseNumber(port_str, this->port)) throw Client::ClientException(Status::BAD_REQUEST);
+			std::string port_str = host.substr(colon_index + 1);
+			if (!Utils::parseNumber(port_str, this->port)) throw Client::ClientException(Status::BAD_REQUEST);
+		}
 	}
 }
 
