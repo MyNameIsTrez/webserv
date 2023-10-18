@@ -6,9 +6,9 @@
 
 int main(int argc, char *argv[])
 {
-	if (argc != 2)
+	if (argc != 1 && argc != 2)
 	{
-		std::cout << "Expected exactly one configuration path argument" << std::endl;
+		std::cerr << "Usage: " << argv[0] << " [configuration_path]" << std::endl;
 		return EXIT_FAILURE;
 	}
 
@@ -17,7 +17,8 @@ int main(int argc, char *argv[])
 	Config config;
 	try
 	{
-		std::ifstream config_file(argv[1]);
+		// TODO: Change "webserv.conf" to "webserv.json"?
+		std::ifstream config_file(argc == 2 ? argv[1] : "webserv.conf");
 		if (!config_file.is_open())
 			throw InvalidFileException();
 		config.init(config_file);
