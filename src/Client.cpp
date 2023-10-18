@@ -3,7 +3,7 @@
 #include "Utils.hpp"
 
 #include <algorithm>
-#include <assert.h> // TODO: DELETE WHEN FINISHING PROJECT
+#include <assert.h>
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
@@ -19,6 +19,7 @@ const char *Client::status_text_table[] = {
 	[Status::OK] = "OK",
 	[Status::BAD_REQUEST] = "Bad Request",
 	[Status::FORBIDDEN] = "Forbidden",
+	[Status::NOT_FOUND] = "Not Found",
 	[Status::METHOD_NOT_ALLOWED] = "Method Not Allowed",
 };
 
@@ -33,20 +34,21 @@ Client::Client(int client_fd)
 	  request_method(),
 	  request_target(),
 	  protocol(),
-	  header_map(),
+	  headers(),
+	  port(-1),
 	  body(),
-	  body_index(0),
+	  body_index(),
 	  response(),
-	  response_index(0),
+	  response_index(),
 	  client_fd(client_fd),
 	  server_to_cgi_fd(-1),
 	  cgi_to_server_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
-	  _content_length(0),
+	  _content_length(),
 	  _header(),
-	  _is_chunked(false),
-	  _chunked_remaining_content_length(0),
+	  _is_chunked(),
+	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
 	  _chunked_read_state(READING_CONTENT_LEN)
 {
@@ -61,7 +63,8 @@ Client::Client(Client const &src)
 	  request_method(src.request_method),
 	  request_target(src.request_target),
 	  protocol(src.protocol),
-	  header_map(src.header_map),
+	  headers(src.headers),
+	  port(src.port),
 	  body(src.body),
 	  body_index(src.body_index),
 	  response(src.response),
@@ -96,7 +99,8 @@ Client &Client::operator=(Client const &src)
 	this->request_method = src.request_method;
 	this->request_target = src.request_target;
 	this->protocol = src.protocol;
-	this->header_map = src.header_map;
+	this->headers = src.headers;
+	this->port = src.port;
 	this->body = src.body;
 	this->body_index = src.body_index;
 	this->response = src.response;
@@ -116,22 +120,6 @@ Client &Client::operator=(Client const &src)
 
 /*	Public member functions */
 
-// TODO: Remove
-// #include <sstream>
-// #include <iostream>
-// #include <iomanip>
-// static std::string to_hex(const std::string &s, bool upper_case = true)
-// {
-// 	std::stringstream ret;
-
-// 	for (std::string::size_type i = 0; i < s.size(); ++i)
-// 	{
-// 		ret << std::hex << std::setfill('0') << std::setw(2) << (upper_case ? std::uppercase : std::nouppercase) << (int)s[i];
-// 	}
-
-// 	return ret.str();
-// }
-
 void Client::appendReadString(char *received, ssize_t bytes_read)
 {
 	if (this->client_read_state == ClientReadState::HEADER)
@@ -148,8 +136,14 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		// Erase temporarily appended body bytes from _header
 		this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
 
-		// Sets this->request_method and this->_content_length
-		_parseHeaders();
+		const auto header_lines = _getHeaderLines();
+
+		this->_parseRequestLine(header_lines[0]);
+		if (!this->_isValidRequestLine()) throw ClientException(Status::BAD_REQUEST);
+
+		_fillHeaders(header_lines);
+
+		_useHeaders();
 
 		// Only POST requests have a body
 		if (this->request_method != "POST")
@@ -205,89 +199,27 @@ void Client::prependResponseHeader(void)
 
 /*	Private member functions */
 
-void Client::_parseHeaders(void)
+std::vector<std::string> Client::_getHeaderLines(void)
 {
-	std::vector<std::string> split;
-	size_t pos;
-	size_t start = 0;
+	std::vector<std::string> header_lines;
 
 	// Delete the trailing "\r\n" that separates the headers from the body
 	this->_header.erase(this->_header.size() - 2);
 
-	// std::cerr << "\"" << to_hex(this->_header) << "\"" << std::endl;
-
-	while ((pos = this->_header.find("\r\n", start)) != std::string::npos)
+	size_t start = 0;
+	while (true)
 	{
-		split.push_back(this->_header.substr(start, pos - start));
-		start = pos + 2;
+		size_t i = this->_header.find("\r\n", start);
+		if (i == std::string::npos)
+			break;
+		header_lines.push_back(this->_header.substr(start, i - start));
+		start = i + 2;
 	}
 
-	this->_parseRequestLine(split[0]);
-
-	if (!this->_isValidRequestLine()) throw ClientException(Status::BAD_REQUEST);
-
-	// Loop for every header
-	for (size_t i = 1; i < split.size(); i++)
-	{
-		std::string line = split[i];
-
-		// Assign key to everything before the ':' seperator
-		pos = line.find(":");
-		if (pos == std::string::npos) throw ClientException(Status::BAD_REQUEST);
-		std::string key = line.substr(0, pos);
-
-		// Capitalize letters and replace '-' with '_'
-		for (size_t j = 0; j < key.size(); j++)
-		{
-			key[j] = toupper(key[j]);
-			if (key[j] == '-')
-				key[j] = '_';
-		}
-
-		key = "HTTP_" + key;
-
-		// Skip all leading spaces and tabs before value
-		pos++;
-		while (pos < line.size() && (line[pos] == ' ' || line[pos] == '\t'))
-			pos++;
-
-		// Assign value to everything after the whitespaces
-		std::string value = line.substr(pos);
-
-		// Erase all trailing spaces and tabs after value
-		for (size_t j = 0; j < value.size(); j++)
-		{
-			if (value[j] == ' ' || value[j] == '\t')
-			{
-				value.erase(j);
-				break;
-			}
-		}
-
-		// Check if key is a duplicate
-		if (this->header_map.find(key) != this->header_map.end()) throw ClientException(Status::BAD_REQUEST);
-
-		// Add key and value to the map
-		this->header_map.emplace(key, value);
-		if (key == "HTTP_TRANSFER_ENCODING" && value == "chunked")
-		{
-			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
-			if (this->header_map.find("HTTP_CONTENT_LENGTH") != this->header_map.end()) throw ClientException(Status::BAD_REQUEST);
-			this->_is_chunked = true;
-		}
-		else if (key == "HTTP_CONTENT_LENGTH")
-		{
-			// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
-			if (this->_is_chunked) throw ClientException(Status::BAD_REQUEST);
-
-			if (!Utils::parseNumber(value, this->_content_length)) throw ClientException(Status::BAD_REQUEST);
-
-			std::cerr << "    Content length: " << this->_content_length << std::endl;
-		}
-	}
+	return header_lines;
 }
 
-void Client::_parseRequestLine(std::string line)
+void Client::_parseRequestLine(const std::string &line)
 {
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
@@ -339,6 +271,93 @@ bool Client::_isValidProtocol(void)
 	return true;
 }
 
+void Client::_fillHeaders(const std::vector<std::string> &header_lines)
+{
+	for (const std::string &line : header_lines)
+	{
+		// Assign key to everything before the ':' seperator
+		size_t i = line.find(":");
+		if (i == std::string::npos) throw ClientException(Status::BAD_REQUEST);
+		std::string key = line.substr(0, i);
+
+		// Capitalize letters and replace '-' with '_'
+		for (size_t j = 0; j < key.size(); j++)
+		{
+			key[j] = toupper(key[j]);
+			if (key[j] == '-')
+				key[j] = '_';
+		}
+
+		// Skip all leading spaces and tabs before value
+		i++;
+		while (i < line.size() && (line[i] == ' ' || line[i] == '\t'))
+			i++;
+
+		// Assign value to everything after the whitespaces
+		std::string value = line.substr(i);
+
+		// Erase all trailing spaces and tabs after value
+		for (size_t j = 0; j < value.size(); j++)
+		{
+			if (value[j] == ' ' || value[j] == '\t')
+			{
+				value.erase(j);
+				break;
+			}
+		}
+
+		// Check if key is a duplicate
+		if (this->headers.find(key) != this->headers.end()) throw ClientException(Status::BAD_REQUEST);
+
+		// Add key and value to the map
+		this->headers.emplace(key, value);
+		std::cerr << "    Header key: '" << key << "', value: '" << value << "'" << std::endl;
+	}
+}
+
+void Client::_useHeaders(void)
+{
+	const auto &transfer_encoding_it = this->headers.find("TRANSFER_ENCODING");
+	if (transfer_encoding_it != this->headers.end() && transfer_encoding_it->second == "chunked")
+	{
+		this->_is_chunked = true;
+	}
+
+	const auto &content_length_it = this->headers.find("CONTENT_LENGTH");
+	if (content_length_it != this->headers.end())
+	{
+		// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
+		if (this->_is_chunked) throw ClientException(Status::BAD_REQUEST);
+
+		if (!Utils::parseNumber(content_length_it->second, this->_content_length)) throw ClientException(Status::BAD_REQUEST);
+
+		std::cerr << "    Content length: " << this->_content_length << std::endl;
+	}
+
+	const auto &host_it = this->headers.find("HOST");
+	if (host_it == this->headers.end())
+	{
+		// "A client MUST send a Host header field" - HTTP/1.1 RFC 9112, section 3.2. Request Target
+		throw Client::ClientException(Status::BAD_REQUEST);
+	}
+	else
+	{
+		const std::string &value = host_it->second;
+
+		size_t colon_index = value.find(":");
+		if (colon_index == value.npos) throw Client::ClientException(Status::BAD_REQUEST);
+
+		// "If no port is included, the default port for the service requested is implied"
+		// Source: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host
+		// TODO: Make the port optional, defaulting to port 80?
+		// If there is no port after the colon
+		if (colon_index == value.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
+
+		std::string port_str = value.substr(colon_index + 1);
+		if (!Utils::parseNumber(port_str, this->port)) throw Client::ClientException(Status::BAD_REQUEST);
+	}
+}
+
 void Client::_parseBodyAppend(const std::string &extra_body)
 {
 	if (this->_is_chunked)
@@ -353,7 +372,6 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 				if (this->_chunked_body_buffer.find_first_not_of("1234567890abcdefABCDEF") == std::string::npos)
 					break;
 
-				// Consumes characters from the start of the buffer, using them to increase the content length
 				_hexToNum(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
 
 				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but it's nice to just update it as appropriate (Maybe want to delete because it isn't needed)
@@ -430,7 +448,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 	}
 }
 
-
+// Consumes characters from the start of line, using them to increase num
 void Client::_hexToNum(std::string &line, size_t &num)
 {
 	size_t i = 0;
@@ -501,6 +519,9 @@ void Client::_generateEnv(void)
 {
 	// TODO: Decide what variable to give the CGI, and if we have to put HTTP_ in front of all the keys
 	// See page 19, section 4.1.18 in CGI RFC 3875
+
+	// TODO: Do this:
+	// key = "HTTP_" + key;
 }
 
 // TODO: Remove?
