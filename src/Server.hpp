@@ -17,11 +17,15 @@ namespace FdType
 	};
 }
 
-struct Location
+struct ResolvedLocation
 {
-	bool is_index_file_defined;
-	bool is_autoindex_on;
+	bool has_index;
+	bool autoindex;
 	std::string path;
+	bool resolved;
+	bool get_allowed;
+	bool post_allowed;
+	bool delete_allowed;
 };
 
 class Server
@@ -73,9 +77,9 @@ private:
 	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
-	void _startCGI(Client &client, int fd, FdType::FdType fd_type);
-	Location _resolveToLocation(const std::string &request_target);
-	bool _isAllowedMethod(const Location &location, const std::string &method);
+	void _startCGI(Client &client, int fd);
+	ResolvedLocation _resolveToLocation(const std::string &request_target, const ServerDirective &server);
+	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
 	void _respondWithFile(const std::string &path);
 	void _respondWithDirectoryListing(const std::string &path);
 	void _respondWithRedirect(const std::string &path);

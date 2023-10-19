@@ -7,6 +7,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <filesystem>
 #include <poll.h>
 #include <sstream>
 #include <unistd.h>
@@ -136,14 +137,17 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		// Erase temporarily appended body bytes from _header
 		this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
 
-		const auto header_lines = _getHeaderLines();
+		const auto header_lines = this->_getHeaderLines();
 
 		this->_parseRequestLine(header_lines[0]);
 		if (!this->_isValidRequestLine()) throw ClientException(Status::BAD_REQUEST);
 
-		_fillHeaders(header_lines);
+		// Resolves "/.." to "/" to prevent escaping the public directory
+		this->request_target = std::filesystem::weakly_canonical(this->request_target);
 
-		_useHeaders();
+		this->_fillHeaders(header_lines);
+
+		this->_useHeaders();
 
 		// Only POST requests have a body
 		if (this->request_method != "POST")
@@ -273,8 +277,10 @@ bool Client::_isValidProtocol(void)
 
 void Client::_fillHeaders(const std::vector<std::string> &header_lines)
 {
-	for (const std::string &line : header_lines)
+	for (size_t line_index = 1; line_index < header_lines.size(); line_index++)
 	{
+		const std::string &line = header_lines.at(line_index);
+
 		// Assign key to everything before the ':' seperator
 		size_t i = line.find(":");
 		if (i == std::string::npos) throw ClientException(Status::BAD_REQUEST);
@@ -329,7 +335,7 @@ void Client::_useHeaders(void)
 		// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
 		if (this->_is_chunked) throw ClientException(Status::BAD_REQUEST);
 
-		if (!Utils::parseNumber(content_length_it->second, this->_content_length)) throw ClientException(Status::BAD_REQUEST);
+		if (!Utils::parseNumber(content_length_it->second, this->_content_length, std::numeric_limits<size_t>::max())) throw ClientException(Status::BAD_REQUEST);
 
 		std::cerr << "    Content length: " << this->_content_length << std::endl;
 	}
@@ -357,7 +363,7 @@ void Client::_useHeaders(void)
 			if (colon_index == host.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
 
 			std::string port_str = host.substr(colon_index + 1);
-			if (!Utils::parseNumber(port_str, this->port)) throw Client::ClientException(Status::BAD_REQUEST);
+			if (!Utils::parseNumber(port_str, this->port, static_cast<uint16_t>(65535))) throw Client::ClientException(Status::BAD_REQUEST);
 		}
 	}
 }

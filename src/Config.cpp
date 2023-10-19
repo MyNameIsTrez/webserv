@@ -1,8 +1,15 @@
 #include "Config.hpp"
+
 #include "Token.hpp"
 #include "Utils.hpp"
 
-Config::Config(void) : max_connections(), default_file(), servers()
+#include <limits>
+
+Config::Config(void)
+	: connection_queue_length()
+	, default_file()
+	, servers()
+	, port_to_server_index()
 {
 }
 
@@ -12,19 +19,17 @@ Config::~Config(void)
 
 void Config::saveType(std::string type, std::string value)
 {
-	if (type == "max_connections")
-		return saveMaxConnections(value);
+	if (type == "connection_queue_length")
+		return saveConnectionQueueLength(value);
 	if (type == "default_file")
 		return saveDefaultFile(value);
 	throw InvalidLineException();
 }
 
-void Config::saveMaxConnections(std::string value)
+void Config::saveConnectionQueueLength(std::string value)
 {
-	if (!Utils::parseNumber(value, max_connections))
+	if (!Utils::parseNumber(value, connection_queue_length, std::numeric_limits<int>::max()))
 		throw InvalidLineException();
-
-	// max_connections = check_digit(value);
 }
 
 void Config::saveDefaultFile(std::string value)
@@ -56,7 +61,7 @@ void Config::init(std::istream &config)
 			{
 				if (t_line.at(ti).str.c_str()[0] == '#')
 				{
-					std::cout << line << " THIS IS A COMMENT" << std::endl;
+					// std::cout << line << " THIS IS A COMMENT" << std::endl;
 					continue;
 				}
 				else
@@ -93,20 +98,22 @@ void Config::init(std::istream &config)
 			saveType(type, value);
 		}
 	}
+
+	initMetadata();
 }
 
 // TODO: Remove
-static void print_vector(std::string prefix, std::vector<std::string> nums)
-{
-	std::cout << prefix;
-	for (size_t i = 0; i < nums.size(); i++)
-	{
-		std::cout << " " << nums.at(i);
-	}
-	std::cout << std::endl;
-}
+// static void print_vector(std::string prefix, std::vector<std::string> nums)
+// {
+// 	std::cout << prefix;
+// 	for (size_t i = 0; i < nums.size(); i++)
+// 	{
+// 		std::cout << " " << nums.at(i);
+// 	}
+// 	std::cout << std::endl;
+// }
 
-PageData Config::savePage(std::string line, std::istream &config) // TODO: veranderen naar "save_location"
+LocationDirective Config::saveLocation(std::string line, std::istream &config)
 {
 	// std::cout << "LOCATION BEGINNING" << std::endl;
 	size_t page_start = line.find('/');
@@ -119,8 +126,8 @@ PageData Config::savePage(std::string line, std::istream &config) // TODO: veran
 	{
 		throw InvalidLineException();
 	}
-	PageData new_page;
-	new_page.page_path = line.substr(page_start, page_end - page_start);
+	LocationDirective new_page{};
+	new_page.uri = line.substr(page_start, page_end - page_start);
 	while (getline(config, line))
 	{
 		if (line.find('}') != line.npos)
@@ -132,73 +139,73 @@ PageData Config::savePage(std::string line, std::istream &config) // TODO: veran
 			std::string value = line.substr(line.find('=') + 1);
 			line.erase(remove_if(line.begin(), line.end(), isspace), line.end());
 			std::string type = line.substr(0, line.find('='));
-			std::cout << type << " = " << value << std::endl;
-			if (type == "allow_methods")
+			// std::cout << type << " = " << value << std::endl;
+			if (type == "get_allowed")
 			{
-				std::stringstream ss(value);
-				std::istream_iterator<std::string> begin(ss);
-				std::istream_iterator<std::string> end;
-				std::vector<std::string> vstrings(begin, end);
-				new_page.allowed_methods = vstrings;
-				print_vector("allow_methods =", new_page.allowed_methods);
+				new_page.get_allowed = parseBool(value);
+			}
+			else if (type == "post_allowed")
+			{
+				new_page.post_allowed = parseBool(value);
+			}
+			else if (type == "delete_allowed")
+			{
+				new_page.delete_allowed = parseBool(value);
 			}
 			else if (type == "autoindex")
 			{
-				if (value == "on")
-					new_page.autoindex = true;
-				else if (value == "off")
-					new_page.autoindex = false;
-				else
-					throw InvalidLineException();
+				new_page.autoindex = parseBool(value);
 			}
-			else if (type == "index_file")
+			else if (type == "index")
 			{
-				new_page.index_file = value;
+				new_page.index = value;
 			}
-			else if (type == "root_path")
+			else if (type == "root")
 			{
 				new_page.root = value;
 			}
 			else if (type == "cgi_path")
 			{
-				std::stringstream ss(value);
-				std::istream_iterator<std::string> begin(ss);
-				std::istream_iterator<std::string> end;
-				std::vector<std::string> vstrings(begin, end);
-				new_page.cgi_paths = vstrings;
+				// std::stringstream ss(value);
+				// std::istream_iterator<std::string> begin(ss);
+				// std::istream_iterator<std::string> end;
+				// std::vector<std::string> vstrings(begin, end);
+				// new_page.cgi_paths = vstrings;
 				// print_vector("cgi_paths =", new_page.cgi_paths);
+				new_page.cgi_paths.push_back(value);
 			}
 			else if (type == "cgi_ext")
 			{
-				std::stringstream ss(value);
-				std::istream_iterator<std::string> begin(ss);
-				std::istream_iterator<std::string> end;
-				std::vector<std::string> vstrings(begin, end);
-				new_page.cgi_ext = vstrings;
+				// std::stringstream ss(value);
+				// std::istream_iterator<std::string> begin(ss);
+				// std::istream_iterator<std::string> end;
+				// std::vector<std::string> vstrings(begin, end);
+				// new_page.cgi_ext = vstrings;
 				// print_vector("cgi_extensions =", new_page.cgi_ext);
+				new_page.cgi_ext.push_back(value);
 			}
 			else
 				throw InvalidLineException();
 		}
 	}
-	// std::cout << "LOCATION: " << new_page.page_path << std::endl;
+	// std::cout << "Location URI: " << new_page.uri << std::endl;
 	return new_page;
 }
 
 // "new_server" zou ik kunnen rewriten zodat het meteen in de "serverdata" gezet wordt
-// dan hoeven functies zoals savePage en save_error_pages geen "new_server" mee te krijgen
+// dan hoeven functies zoals saveLocation en saveErrorPages geen "new_server" mee te krijgen
 void Config::newServer(std::string line, std::istream &config)
 {
 	// std::cout << "			NEW_SERVER" << std::endl;
-	ServerData new_server;
+	ServerDirective new_server{};
 
 	int unclosed = 0;
-	std::cout << line << std::endl;
+	// std::cout << line << std::endl;
 	while (getline(config, line))
 	{
 		if (line[0] != '\0')
 		{
-			std::cout << line << std::endl;
+			// std::cout << line << std::endl;
 			if (line.find('}') != line.npos)
 			{
 				if (unclosed == 0)
@@ -210,7 +217,7 @@ void Config::newServer(std::string line, std::istream &config)
 				unclosed++;
 			if (line.find("location") != line.npos)
 			{
-				new_server.page_data.push_back(savePage(line, config));
+				new_server.locations.push_back(saveLocation(line, config));
 				unclosed--;
 			}
 			else if (line.find('=') != line.npos)
@@ -225,12 +232,12 @@ void Config::newServer(std::string line, std::istream &config)
 				{
 					if (t_line.at(ti).str.c_str()[0] == '#')
 					{
-						std::cout << line << " THIS IS A COMMENT" << std::endl;
+						// std::cout << line << " THIS IS A COMMENT" << std::endl;
 						continue;
 					}
 					else if (t_line.at(ti).str == "error_page")
 					{
-						unsigned long e_code;
+						int e_code;
 						ti++;
 						if (ti < t_line.size() && t_line.at(ti).type == WHITESPACE)
 							ti++;
@@ -238,8 +245,7 @@ void Config::newServer(std::string line, std::istream &config)
 							throw InvalidLineException();
 						if (ti < t_line.size() && t_line.at(ti).type == WORD)
 						{
-							// digit stuff
-							if (!Utils::parseNumber(t_line.at(ti).str, e_code))
+							if (!Utils::parseNumber(t_line.at(ti).str, e_code, std::numeric_limits<int>::max()))
 								throw InvalidLineException();
 							ti++;
 						}
@@ -293,26 +299,21 @@ void Config::newServer(std::string line, std::istream &config)
 					new_server.server_names.push_back(value);
 				else if (type == "listen")
 				{
-					unsigned long tmp_port;
-					if (!Utils::parseNumber(value, tmp_port))
-						throw InvalidLineException();
-					new_server.ports.push_back(tmp_port);
+					uint16_t port;
+					if (!Utils::parseNumber(value, port, static_cast<uint16_t>(65535)))
+						throw InvalidPortException();
+					new_server.ports.push_back(port);
 				}
-				else if (type == "root_path")
-					new_server.root_path = value;
-				else if (type == "index_file")
-					new_server.index_file = value;
 				else if (type == "client_max_body_size")
 				{
-					if (!Utils::parseNumber(value, new_server.client_max_body_size))
+					if (!Utils::parseNumber(value, new_server.client_max_body_size, std::numeric_limits<size_t>::max()))
 						throw InvalidLineException();
-					// new_server.client_max_body_size = check_digit(value);
 				}
 				else if (type == "http_redirection")
 					new_server.http_redirection = value;
 				else
 				{
-					std::cout << "Error on line:" << line << std::endl;
+					std::cerr << "Error on line:" << line << std::endl;
 					throw InvalidLineException();
 					exit(EXIT_FAILURE);
 				}
@@ -328,13 +329,13 @@ void Config::printConfigInfo(void)
 {
 	std::cout << std::endl;
 	std::cout << std::endl;
-	std::cout << "max_connections: " << max_connections << std::endl;
+	std::cout << "connection_queue_length: " << connection_queue_length << std::endl;
 	std::cout << "default_file: " << default_file << std::endl;
 
 	std::cout << std::endl;
 	for (size_t i = 0; i < servers.size(); i++)
 	{
-		const ServerData &server = servers.at(i);
+		const ServerDirective &server = servers.at(i);
 
 		for (const std::string &server_name : server.server_names)
 		{
@@ -346,36 +347,34 @@ void Config::printConfigInfo(void)
 			std::cout << server.ports.at(j) << ", ";
 		}
 		std::cout << std::endl;
-		std::cout << "root_path: " << server.root_path << std::endl;
-		std::cout << "index_file: " << server.index_file << std::endl;
 		std::cout << "client_max_body_size: " << server.client_max_body_size << std::endl;
 		std::cout << "http_redirection: " << server.http_redirection << std::endl;
 		for (auto it = server.error_pages.begin(); it != server.error_pages.end(); ++it)
 		{
 			std::cout << "error page: " << it->first << ": " << it->second << std::endl;
 		}
-		for (size_t h = 0; h < server.page_data.size(); h++)
+		for (size_t h = 0; h < server.locations.size(); h++)
 		{
-			std::cout << "page_path: " << server.page_data.at(h).page_path << std::endl;
-			std::cout << "allowed_methods: ";
-			for (size_t k = 0; k < server.page_data.at(h).allowed_methods.size(); k++)
-			{
-				std::cout << server.page_data.at(h).allowed_methods.at(k) << ", ";
-			}
+			const LocationDirective &location = server.locations.at(h);
+
+			std::cout << "uri: " << location.uri << std::endl;
+			std::cout << "get_allowed: " << location.get_allowed << std::endl;
+			std::cout << "post_allowed: " << location.post_allowed << std::endl;
+			std::cout << "delete_allowed: " << location.delete_allowed << std::endl;
 			std::cout << std::endl;
-			std::cout << "autoindex: " << server.page_data.at(h).autoindex << std::endl;
-			std::cout << "index_file: " << server.page_data.at(h).index_file << std::endl;
-			std::cout << "root: " << server.page_data.at(h).root << std::endl;
+			std::cout << "autoindex: " << location.autoindex << std::endl;
+			std::cout << "index: " << location.index << std::endl;
+			std::cout << "root: " << location.root << std::endl;
 			std::cout << "cgi_paths: ";
-			for (size_t l = 0; l < server.page_data.at(h).cgi_paths.size(); l++)
+			for (size_t l = 0; l < location.cgi_paths.size(); l++)
 			{
-				std::cout << server.page_data.at(h).cgi_paths.at(l) << ", ";
+				std::cout << location.cgi_paths.at(l) << ", ";
 			}
 			std::cout << std::endl;
 			std::cout << "cgi_extensions: ";
-			for (size_t m = 0; m < server.page_data.at(h).cgi_ext.size(); m++)
+			for (size_t m = 0; m < location.cgi_ext.size(); m++)
 			{
-				std::cout << server.page_data.at(h).cgi_ext.at(m) << ", ";
+				std::cout << location.cgi_ext.at(m) << ", ";
 			}
 			std::cout << std::endl;
 			std::cout << std::endl;
@@ -389,33 +388,27 @@ void Config::initMetadata(void)
 	{
 		size_t server_index = server_it - servers.begin();
 
-		for (const std::string &port : server_it->ports)
+		for (const uint16_t &port : server_it->ports)
 		{
-			// We don't care about the returned bool
-			// that indicates whether the key was already present,
-			// since this maps the first usage of the port
-			port_to_default_server_index.emplace(
+			auto pair = port_to_server_index.emplace(
 				port,
 				server_index
 			);
 
-			uint16_t port_number;
-			if (!Utils::parseNumber(port, port_number)) throw InvalidPortException();
-			port_numbers.emplace(port_number);
-
-			for (const std::string &server_name : server_it->server_names)
+			// If the key was already present
+			if (!pair.second)
 			{
-				auto pair = http_host_header_to_server_index.emplace(
-					server_name + ":" + port,
-					server_index
-				);
-
-				// If the key was already present
-				if (!pair.second)
-				{
-					throw ConflictingServerNameException();
-				}
+				throw DuplicatePortException();
 			}
 		}
 	}
+}
+
+bool Config::parseBool(const std::string &value)
+{
+	if (value == "true")
+		return true;
+	else if (value == "false")
+		return false;
+	throw InvalidLineException();
 }

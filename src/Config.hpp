@@ -13,28 +13,29 @@
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+#include <cctype>
 
-struct PageData // TODO: Rename to LocationData?
+struct LocationDirective
 {
-	std::string page_path;
-	std::vector<std::string> allowed_methods;
+	std::string uri;
+	bool get_allowed;
+	bool post_allowed;
+	bool delete_allowed;
 	bool autoindex;
-	std::string index_file;
+	std::string index;
 	std::string root;
-	std::vector<std::string> cgi_paths;
-	std::vector<std::string> cgi_ext;
+	std::vector<std::string> cgi_paths; // TODO: Needed?
+	std::vector<std::string> cgi_ext; // TODO: Needed?
 };
 
-struct ServerData
+struct ServerDirective
 {
-	std::vector<std::string> ports;
+	std::vector<uint16_t> ports;
 	std::vector<std::string> server_names;
-	std::string root_path;
-	std::string index_file;
 	size_t client_max_body_size;
 	std::string http_redirection;
 	std::map<Status::Status, std::string> error_pages;
-	std::vector<PageData> page_data;
+	std::vector<LocationDirective> locations;
 };
 
 class Config
@@ -44,14 +45,42 @@ public:
 	virtual ~Config(void);
 
 	void init(std::istream &config);
+	void printConfigInfo(void); // TODO: Remove
 
-	size_t max_connections;
+	int connection_queue_length;
 	std::string default_file;
-	std::vector<ServerData> servers;
+	std::vector<ServerDirective> servers;
+	std::unordered_map<uint16_t, size_t> port_to_server_index;
 
-	std::unordered_map<std::string, size_t> http_host_header_to_server_index;
-	std::unordered_map<std::string, size_t> port_to_default_server_index;
-	std::unordered_set<uint16_t> port_numbers;
+	struct ConfigException : public std::runtime_error
+	{
+		ConfigException(const std::string &message) : std::runtime_error(message) {};
+	};
+
+	struct InvalidLineException : public ConfigException
+	{
+		InvalidLineException() : ConfigException("Error: Invalid line in config") {};
+	};
+
+	struct InvalidFileException : public ConfigException
+	{
+		InvalidFileException() : ConfigException("Error: Unable to open config") {};
+	};
+
+	struct EmptyTypeException : public ConfigException
+	{
+		EmptyTypeException() : ConfigException("Error: Empty type in config") {};
+	};
+
+	struct DuplicatePortException : public ConfigException
+	{
+		DuplicatePortException() : ConfigException("Error: Duplicate port in config") {};
+	};
+
+	struct InvalidPortException : public ConfigException
+	{
+		InvalidPortException() : ConfigException("Error: Invalid port in config") {};
+	};
 
 private:
 	Config(const Config &src);
@@ -62,14 +91,14 @@ private:
 	// std::string getRoot(void);
 	// std::string getIndex_file(void);
 	void saveType(std::string type, std::string value);
-	void saveMaxConnections(std::string value);
+	void saveConnectionQueueLength(std::string value);
 	void saveDefaultFile(std::string value);
 	void newServer(std::string line, std::istream &config);
-	void saveErrorPages(std::string line, ServerData *new_server);
-	PageData savePage(std::string line, std::istream &config);
+	void saveErrorPages(std::string line, ServerDirective *new_server);
+	LocationDirective saveLocation(std::string line, std::istream &config);
 	// int checkLine(std::string line);
-	void printConfigInfo(void);
 	void initMetadata(void);
+	bool parseBool(const std::string &value);
 
 	// typedef int (*t_jump_function)(std::string line);
 };

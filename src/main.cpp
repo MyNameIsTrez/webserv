@@ -23,12 +23,12 @@ int main(int argc, char *argv[])
 			throw InvalidFileException();
 		config.init(config_file);
 	}
-	catch (const ConfigException &a)
+	catch (const Config::ConfigException &a)
 	{
 		std::cout << a.what() << std::endl;
 		return EXIT_FAILURE;
 	}
-	config.print_config_info();
+	// config.printConfigInfo();
 
 	// TODO: Error handling
 	Server server(config);
