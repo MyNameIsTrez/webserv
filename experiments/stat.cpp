@@ -9,12 +9,15 @@
 // c++ stat.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 int main(void)
 {
-	const char *path = "stat.cpp";
+	// const char *path = "stat.cpp";
 	// const char *path = ".";
+	// const char *path = "../public/foo/no_perms.html";
+	const char *path = "../public/foo/x.html";
 	struct stat status;
 
 	if (stat(path, &status) == -1)
 	{
+		printf("errno: %d\n", errno);
 		perror("stat");
 		return EXIT_FAILURE;
 	}

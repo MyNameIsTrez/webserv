@@ -8,6 +8,7 @@
 !experiments/*.[ch]pp
 !experiments/cgi.py
 !experiments/in.txt
+!experiments/webserv.json
 
 !fuzzing/scripts/*.sh
 !fuzzing/src/*.cpp
@@ -22,7 +23,7 @@
 
 !rfcs/*.pdf
 
-!src/*.[ch]pp
+!src/*.[cht]pp
 
 !tests/config_exceptions/*.conf
 !tests/sent/*.txt

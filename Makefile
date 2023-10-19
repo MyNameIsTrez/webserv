@@ -4,7 +4,7 @@ NAME := webserv
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wshadow -Wno-c99-designator
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -std=c++2b
 
 ################################################################################
 
@@ -39,7 +39,7 @@ $(NAME): $(OBJFILES)
 
 .PHONY: run
 run: all
-	./webserv webserv.conf
+	./webserv
 
 .PHONY: drun
 drun:

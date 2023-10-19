@@ -30,6 +30,7 @@
 - [ ] Use the config's max_connections?
 - [ ] Use the config's default_file?
 - [ ] Ask Milan to parse something like limit_except
+- [ ] Make sure the Config *requires* every Location to have a root
 
 ## Victor
 
@@ -129,7 +130,7 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 - "Use the reference browser of the team. Open the network part of it, and try to connect to the server using it." - What do they mean by "try to conncet to the server using it"? Do they just mean going to the URL with the browser's address bar?
 - "It should be compatible to serve a fully static website." - WTF do they mean with "compatible"?
 - "In the configuration file setup multiple ports and use different websites." - Do they want the web server to edit /etc/hosts or /private/etc/hosts so the user is redirected to our 127.0.0.1 server when they go to for example foo.com? Or do they want the server to be running on different IPs than just 127.0.0.1?
-- "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along?
+- "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along? Do they *want* a warning to be thrown when two servers with the same ports but different server_names are run, cause that'd be weird since nginx handles it fine.
 - "Check if there is no hanging connection." - Does Siege report this?
 
 # Decide whether these clients should be redirected to different pages

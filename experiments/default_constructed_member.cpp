@@ -4,9 +4,9 @@
 
 struct Inner
 {
-	// Inner(void) : name("Trez") {
-	// 	std::cerr << "Inside Inner" << std::endl;
-	// }
+	Inner(void) {
+		std::cerr << "Inside Inner" << std::endl;
+	}
 
 	std::string name;
 	int b;
@@ -23,6 +23,7 @@ void recurse(int depth)
 	if (depth == 0) return;
 
 	Outer outer;
+	// Outer outer{}; // Zero-initializes a and inner.b
 
 	// a and b are random memory!
 	// name is *NOT* random memory, since it is a default constructed string!

@@ -1,6 +1,11 @@
 #include <filesystem>
 #include <iostream>
 
+static void wowie(const std::string &str)
+{
+    std::cout << "foo: '" << str << "'" << std::endl;
+}
+
 // clear && c++ -std=c++17 relative.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out
 // https://en.cppreference.com/w/cpp/filesystem/canonical
 int main()
@@ -23,8 +28,12 @@ int main()
     std::filesystem::create_directories(d2);
     std::filesystem::current_path(d1);
 
+
     auto p1 = std::filesystem::path("../../c2/./e");
     auto p2 = std::filesystem::path("../no-such-file");
+    // std::string foo = std::filesystem::weakly_canonical(p2);
+    // std::cout << "xd: '" << std::filesystem::weakly_canonical(p2) << "'" << std::endl;
+    wowie(std::filesystem::weakly_canonical(p2));
     auto p3 = std::filesystem::path("/../no-such-file");
     std::cout << "Current path is "
               << std::filesystem::current_path() << '\n'
