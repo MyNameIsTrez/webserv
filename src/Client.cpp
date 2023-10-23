@@ -186,9 +186,13 @@ void Client::respondWithFile(const std::string &path)
 
 void Client::respondWithDirectoryListing(const std::string &path)
 {
+	assert(this->response.empty());
+
 	// TODO: Write
 	(void)path;
 	assert(false);
+
+	this->prependResponseHeader();
 }
 
 void Client::respondWithRedirect(const std::string &path)
@@ -196,6 +200,7 @@ void Client::respondWithRedirect(const std::string &path)
 	// TODO: Write
 	(void)path;
 	assert(false);
+	// client.status = Status::REDIRECT;
 }
 
 void Client::respondWithCreateFile(const std::string &path)

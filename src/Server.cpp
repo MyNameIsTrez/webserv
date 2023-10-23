@@ -748,8 +748,6 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 		// This uses the fact that bytes_read here is guaranteed to be > 0
 		if (client.client_read_state != ClientReadState::HEADER)
 		{
-			assert(client.cgi_write_state != CGIWriteState::DONE); // TODO: Probably want to remove this?
-
 			if (client.cgi_write_state == CGIWriteState::NOT_WRITING)
 			{
 				_enableWritingToClient(client);
@@ -941,6 +939,8 @@ ResolvedLocation Server::_resolveToLocation(const std::string &request_target, c
 			}
 			else
 			{
+				// TODO: What to do here? Reachable with "curl localhost:8080"
+
 				// TODO: Should be unreachable
 				assert(false);
 			}
