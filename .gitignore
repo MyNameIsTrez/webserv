@@ -19,7 +19,7 @@
 !nginx/Dockerfile
 !nginx/nginx.conf
 
-!public/index.html
+!public/**
 
 !rfcs/*.pdf
 
