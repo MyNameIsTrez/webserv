@@ -6,6 +6,39 @@
 #include <string>
 #include <variant>
 #include <vector>
+#include <limits>
+
+namespace Utils
+{
+	// bool startsWith(const std::string &haystack, const std::string &needle);
+	template <class T>
+	bool parseNumber(const std::string &str, T &number, T max);
+}
+
+template <class T>
+bool Utils::parseNumber(const std::string &str, T &number, T max)
+{
+	number = 0;
+
+	for (size_t i = 0; i < str.length(); i++)
+	{
+		char chr = str.at(i);
+		if (chr < '0' || chr > '9')
+			return false;
+
+		char digit = chr - '0';
+
+		if (number > max / 10)
+			return false;
+		number *= 10;
+
+		if (number > max - digit)
+			return false;
+		number += digit;
+	}
+
+	return true;
+}
 
 struct Token
 {
@@ -34,70 +67,137 @@ public:
 	{
 	}
 
-    char getWithoutWhitespace()
+	char getWithoutWhitespace()
 	{
 		char c;
 
-        while (true)
-        {
-            _file.get(c);
+		while (true)
+		{
+			_file.get(c);
 
 			if (!isspace(c))
 			{
 				break;
 			}
-            else if (!_file.good())
-            {
+			else if (!_file.good())
+			{
 				if (isspace(c))
 				{
-                	throw TokenExceptionRanOutOfNonWhitespaceCharacters();
+					throw TokenExceptionRanOutOfNonWhitespaceCharacters();
 				}
-                break;
-            }
-        }
+				break;
+			}
+		}
 
 		return c;
 	}
-    Token getToken()
+	Token getToken()
 	{
+		assert(!_file.eof());
+		prevPos = _file.tellg();
+		char c = getWithoutWhitespace();
+
 		Token token;
+		if (c == '"') // STRING
+		{
+			token.type = Token::STRING;
+			token.string = "";
+			_file.get(c);
+			while (c != '"')
+			{
+				token.string += c;
+				_file.get(c);
+			}
+		}
+		else if (c == '{') // OBJECT_OPEN
+		{
+			token.type = Token::OBJECT_OPEN;
+		}
+		else if (c == '}') // OBJECT_CLOSE
+		{
+			token.type = Token::OBJECT_CLOSE;
+		}
+		else if (c == '[') // ARRAY_OPEN
+		{
+			token.type = Token::ARRAY_OPEN;
+		}
+		else if (c == ',') // COMMA
+		{
+			token.type = Token::ARRAY_CLOSE;
+		}
+		else if (c == ':') // COLON
+		{
+			token.type = Token::COLON;
+		}
+		else if (c >= '0' && c <= '9') // INTEGER
+		{
+			token.type = Token::INTEGER;
+			token.string = "";
+			token.string += c;
+			std::streampos prevCharPos = _file.tellg();
+			while (c >= '0' && c <= '9')
+			{
+				prevCharPos = _file.tellg();
+				_file.get(c);
 
-		// TODO: Tokenize
-		token.type = Token::BOOLEAN_TRUE;
-
-		// if (getchar() != 'a' || getchar() != 'l' || getchar() != 's' || getchar() != 'e')
-		// {
-		// 	throw TokenExceptionExpectedBoolean();
-		// }
-		// token.type = Token::BOOLEAN_TRUE;
+				if (_file.eof())
+					break;
+				else if (c >= '0' && c <= '9')
+					token.string += c;
+				else
+					_file.seekg(prevCharPos);
+			}
+		}
+		else if (c == 't') // BOOLEAN_TRUE
+		{
+			if (!(get() == 'r' && get() == 'u' && get() == 'e'))
+			{
+				throw TokenExceptionExpectedBoolean();
+			}
+			token.type = Token::BOOLEAN_TRUE;
+		}
+		else if (c == 'f') // BOOLEAN_FALSE
+		{
+			if (!(get() == 'a' && get() == 'l' && get() == 's' && get() == 'e'))
+			{
+				throw TokenExceptionExpectedBoolean();
+			}
+			token.type = Token::BOOLEAN_FALSE;
+		}
 
 		return token;
 	}
-    bool hasMoreTokens()
-    {
-        return !_file.eof();
-    }
-    void rollBackToken()
+	bool hasMoreTokens()
 	{
-        if (_file.eof())
-        {
-            _file.clear();
-        }
-        _file.seekg(prevPos);
+		return !_file.eof();
+	}
+	void rollBackToken()
+	{
+		if (_file.eof())
+		{
+			_file.clear();
+		}
+		_file.seekg(prevPos);
 	}
 
 private:
+	char get()
+	{
+		char c;
+		_file.get(c);
+		return (c);
+	}
 	struct TokenException : public std::runtime_error
 	{
-		TokenException(const std::string &message) : std::runtime_error(message) {};
+		TokenException(const std::string &message) : std::runtime_error(message){};
 	};
 	struct TokenExceptionRanOutOfNonWhitespaceCharacters : public TokenException
 	{
-		TokenExceptionRanOutOfNonWhitespaceCharacters() : TokenException("Token exception: Ran out of non-whitespace characters") {};
+		TokenExceptionRanOutOfNonWhitespaceCharacters() : TokenException("Token exception: Ran out of non-whitespace characters"){};
 	};
 	struct TokenExceptionExpectedBoolean : public TokenException
 	{
-		TokenExceptionExpectedBoolean() : TokenException("Token exception: Expected boolean") {};
+		TokenExceptionExpectedBoolean() : TokenException("Token exception: Expected boolean"){};
 	};
 
 	std::istream &_file;
@@ -111,9 +211,9 @@ public:
 	{
 		return std::get<bool>(_value);
 	}
-	int getInteger() const
+	size_t getInteger() const
 	{
-		return std::get<int>(_value);
+		return std::get<size_t>(_value);
 	}
 	std::string getString() const
 	{
@@ -132,7 +232,10 @@ public:
 	{
 		_value = boolean;
 	}
-	void setInteger();
+	void setInteger(size_t integer)
+	{
+		_value = integer;
+	}
 	void setString(const std::string string)
 	{
 		_value = string;
@@ -144,74 +247,73 @@ public:
 	}
 
 private:
-	std::variant<bool, int, std::string, std::vector<Node>, std::map<std::string, Node>> _value;
+	std::variant<bool, size_t, std::string, std::vector<Node>, std::map<std::string, Node>> _value;
 };
 
 class JSON
 {
 public:
 	JSON(std::istream &file)
-		: _root_initialized(false)
-		, _tokenizer(file)
+		: _root_initialized(false), _tokenizer(file)
 	{
 		while (_tokenizer.hasMoreTokens())
 		{
 			const Token token = _tokenizer.getToken();
-			switch (token.type)
+			switch (token.type) // TODO: immediately call parseObject() instead of switch
 			{
-				case Token::BOOLEAN_TRUE:
+			case Token::BOOLEAN_TRUE:
+			{
+				break;
+			}
+			case Token::BOOLEAN_FALSE:
+			{
+				break;
+			}
+			case Token::INTEGER:
+			{
+				break;
+			}
+			case Token::STRING:
+			{
+				_tokenizer.rollBackToken();
+				Node parsedString = _parseString();
+				if (!_root_initialized)
 				{
-					break;
+					root = parsedString;
+					_root_initialized = true;
 				}
-				case Token::BOOLEAN_FALSE:
+				break;
+			}
+			case Token::COMMA:
+			{
+				break;
+			}
+			case Token::COLON:
+			{
+				break;
+			}
+			case Token::ARRAY_OPEN:
+			{
+				break;
+			}
+			case Token::ARRAY_CLOSE:
+			{
+				break;
+			}
+			case Token::OBJECT_OPEN:
+			{
+				Node parsedObject = _parseObject();
+				if (!_root_initialized)
 				{
-					break;
+					root = parsedObject;
+					_root_initialized = true;
 				}
-				case Token::INTEGER:
-				{
-					break;
-				}
-				case Token::STRING:
-				{
-					_tokenizer.rollBackToken();
-					Node parsedString = _parseString();
-					if (!_root_initialized)
-					{
-						root = parsedString;
-						_root_initialized = true;
-					}
-					break;
-				}
-				case Token::COMMA:
-				{
-					break;
-				}
-				case Token::COLON:
-				{
-					break;
-				}
-				case Token::ARRAY_OPEN:
-				{
-					break;
-				}
-				case Token::ARRAY_CLOSE:
-				{
-					break;
-				}
-				case Token::OBJECT_OPEN:
-				{
-					Node parsedObject = _parseObject();
-					if (!_root_initialized)
-					{
-						root = parsedObject;
-						_root_initialized = true;
-					}
-					break;
-				}
-				case Token::OBJECT_CLOSE:
-				{
-					break;
-				}
+				break;
+			}
+			case Token::OBJECT_CLOSE:
+			{
+				break;
+			}
 			}
 		}
 	}
@@ -228,7 +330,18 @@ private:
 
 		return node;
 	}
-	Node _parseInteger();
+	Node _parseInteger() // TODO: checken
+	{
+		Node node;
+
+		Token token = _tokenizer.getToken();
+		size_t integer;
+		if (!Utils::parseNumber(token.string, integer, std::numeric_limits<size_t>::max()))
+			throw JSONExceptionInvalidInteger();
+		node.setInteger(integer);
+
+		return node;
+	}
 	Node _parseString()
 	{
 		Node node;
@@ -261,53 +374,54 @@ private:
 			Token valueToken = _tokenizer.getToken();
 			// const std::string &value = valueToken.string;
 
-			switch (valueToken.type)
+			switch (valueToken.type) // TODO: default instellen voor alle cases die we niet specifiek willen handelen
 			{
-				case Token::BOOLEAN_TRUE:
-				{
-					break;
-				}
-				case Token::BOOLEAN_FALSE:
-				{
-					break;
-				}
-				case Token::INTEGER:
-				{
-					break;
-				}
-				case Token::STRING:
-				{
-					_tokenizer.rollBackToken();
-					object.emplace(key, _parseString());
-					break;
-				}
-				case Token::COMMA:
-				{
-					break;
-				}
-				case Token::COLON:
-				{
-					break;
-				}
-				case Token::ARRAY_OPEN:
-				{
-					break;
-				}
-				case Token::ARRAY_CLOSE:
-				{
-					break;
-				}
-				case Token::OBJECT_OPEN:
-				{
-					break;
-				}
-				case Token::OBJECT_CLOSE:
-				{
-					break;
-				}
+			case Token::BOOLEAN_TRUE:
+			{
+				break;
+			}
+			case Token::BOOLEAN_FALSE:
+			{
+				break;
+			}
+			case Token::INTEGER:
+			{
+				break;
+			}
+			case Token::STRING:
+			{
+				_tokenizer.rollBackToken();
+				object.emplace(key, _parseString());
+				break;
+			}
+			case Token::COMMA: // remove
+			{
+				break;
+			}
+			case Token::COLON: // remove
+			{
+				break;
+			}
+			case Token::ARRAY_OPEN:
+			{
+				break;
+			}
+			case Token::ARRAY_CLOSE: // remove
+			{
+				break;
+			}
+			case Token::OBJECT_OPEN:
+			{
+				break;
+			}
+			case Token::OBJECT_CLOSE: // remove
+			{
+				break;
+			}
 			}
 
-			if (_tokenizer.getToken().type == Token::OBJECT_CLOSE) {
+			if (_tokenizer.getToken().type == Token::OBJECT_CLOSE)
+			{
 				break;
 			}
 		}
@@ -319,25 +433,28 @@ private:
 
 	struct JSONException : public std::runtime_error
 	{
-		JSONException(const std::string &message) : std::runtime_error(message) {};
+		JSONException(const std::string &message) : std::runtime_error(message){};
 	};
 	struct JSONExceptionNoMoreTokens : public JSONException
 	{
-		JSONExceptionNoMoreTokens() : JSONException("JSON exception: No more tokens") {};
+		JSONExceptionNoMoreTokens() : JSONException("JSON exception: No more tokens"){};
 	};
 	struct JSONExceptionExpectedStringKey : public JSONException
 	{
-		JSONExceptionExpectedStringKey() : JSONException("JSON exception: Expected string key") {};
+		JSONExceptionExpectedStringKey() : JSONException("JSON exception: Expected string key"){};
 	};
 	struct JSONExceptionExpectedColon : public JSONException
 	{
-		JSONExceptionExpectedColon() : JSONException("JSON exception: Expected colon") {};
+		JSONExceptionExpectedColon() : JSONException("JSON exception: Expected colon"){};
+	};
+	struct JSONExceptionInvalidInteger : public JSONException
+	{
+		JSONExceptionInvalidInteger() : JSONException("JSON exception: Invalid integer"){};
 	};
 
 	bool _root_initialized;
 	Tokenizer _tokenizer;
 };
-
 
 struct ServerDirective
 {
@@ -383,11 +500,11 @@ public:
 private:
 	struct ConfigException : public std::runtime_error
 	{
-		ConfigException(const std::string &message) : std::runtime_error(message) {};
+		ConfigException(const std::string &message) : std::runtime_error(message){};
 	};
 	struct ConfigExceptionUnknownKey : public ConfigException
 	{
-		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key") {};
+		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key"){};
 	};
 };
 
