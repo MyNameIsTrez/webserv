@@ -65,6 +65,12 @@ public:
 		// TODO: Tokenize
 		token.type = Token::BOOLEAN_TRUE;
 
+		// if (getchar() != 'a' || getchar() != 'l' || getchar() != 's' || getchar() != 'e')
+		// {
+		// 	throw TokenExceptionExpectedBoolean();
+		// }
+		// token.type = Token::BOOLEAN_TRUE;
+
 		return token;
 	}
     bool hasMoreTokens()
@@ -88,6 +94,10 @@ private:
 	struct TokenExceptionRanOutOfNonWhitespaceCharacters : public TokenException
 	{
 		TokenExceptionRanOutOfNonWhitespaceCharacters() : TokenException("Token exception: Ran out of non-whitespace characters") {};
+	};
+	struct TokenExceptionExpectedBoolean : public TokenException
+	{
+		TokenExceptionExpectedBoolean() : TokenException("Token exception: Expected boolean") {};
 	};
 
 	std::istream &_file;
@@ -331,7 +341,7 @@ private:
 
 struct ServerDirective
 {
-	std::vector<std::string> server_names;
+	std::vector<uint16_t> ports;
 };
 
 class Config
@@ -347,15 +357,15 @@ public:
 			{
 				const std::string &key = server_property_it.first;
 
-				if (key == "server_names")
+				if (key == "listen")
 				{
 					const Node &server_names_node = server_property_it.second;
 
 					for (const auto &server_name_node : server_names_node.getArray())
 					{
-						const std::string &server_name = server_name_node.getString();
+						const uint16_t &port = server_name_node.getInteger();
 
-						server_directive.server_names.push_back(server_name);
+						server_directive.ports.push_back(port);
 					}
 				}
 				else
@@ -390,9 +400,9 @@ public:
 	{
 		for (const auto &server : _config.servers)
 		{
-			for (const std::string &server_name : server.server_names)
+			for (const uint16_t &port : server.ports)
 			{
-				std::cout << "server_name: '" << server_name << "'" << std::endl;
+				std::cout << "port: '" << port << "'" << std::endl;
 			}
 		}
 	}
@@ -405,6 +415,9 @@ private:
 int main()
 {
 	std::ifstream file("webserv.json");
+
+	// TODO:
+	// if (!file.is_open()) throw ??;
 
 	JSON json(file);
 
