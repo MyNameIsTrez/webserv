@@ -3,21 +3,31 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <iostream>
 
-// c++ getaddrinfo.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
+// clear && c++ getaddrinfo.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined && ./a.out google.com
 int main(int argc, char *argv[])
 {
 	if (argc != 2)
 	{
-		printf("Usage: %s <hostname>\n", argv[0]);
+		std::cerr << "Usage: " << argv[0] << " <hostname>" << std::endl;
 		return EXIT_FAILURE;
 	}
 
 	const char *hostname = argv[1];
 
-	addrinfo hint;
-	addrinfo *result;
+	// You can use this to have getaddrinfo() fill in the required port numbers
+	// in result, as well as the address, family, and protocol info
+	// It is either a numeric port number expressed as a string("80"),
+	// or a defined service name("http")
+	// It will fill in the corresponding port number in the returned sockaddr structs,
+	// so you can pass them straight to connect() or bind()
+	const char *service = NULL;
+	// const char *service = "80";
+	// const char *service = "81";
+	// const char *service = "8080";
 
+	addrinfo hint;
 	bzero(&hint, sizeof(hint));
 
 	// AF stands for Address Family
@@ -29,47 +39,50 @@ int main(int argc, char *argv[])
 	// Leaving this commented out means it'll give both streams (TCP) and datagrams (UDP)
 	// hint.ai_socktype = SOCK_STREAM;
 
-	// You can use this to have getaddrinfo() fill in the required port numbers
-	// in result, as well as the address, family, and protocol info
-	// It is either a numeric port number expressed as a string("80"),
-	// or a defined service name("http")
-	// It will fill in the corresponding port number in the returned sockaddr structs,
-	// so you can pass them straight to connect() or bind()
-	const char *service_name = NULL;
+	addrinfo *result;
 
-	if (getaddrinfo(hostname, service_name, &hint, &result))
+	// TODO: Replace &hint with NULL?
+	int status = getaddrinfo(hostname, service, &hint, &result);
+	if (status != 0)
 	{
-		perror("getaddrinfo");
+		std::cerr << "getaddrinfo: " << status << " " << gai_strerror(status) << std::endl;
 		return EXIT_FAILURE;
 	}
 
 	addrinfo *tmp = result;
 	while (tmp)
 	{
-		printf("Entry:\n");
-		printf("\tType: %d\n", tmp->ai_socktype);
-		printf("\tFamily: %d\n", tmp->ai_family);
+		std::cout << "Entry:" << std::endl;
+		std::cout << "\tFamily: " << tmp->ai_family << std::endl;
+		std::cout << "\tType: " << tmp->ai_socktype << std::endl;
+		std::cout << "\tProtocol: " << tmp->ai_protocol << std::endl;
 
-		// IPv4 will also fit with INET6_ADDRSTRLEN, since it is 46:
+		// IPv4 will also fit within INET6_ADDRSTRLEN:
 		// https://stackoverflow.com/a/7477384/13279557
 		char address_string[INET6_ADDRSTRLEN];
 		void *address;
+
+		in_port_t port;
 
 		if (tmp->ai_family == AF_INET)
 		{
 			// IPv4
 			address = &((sockaddr_in *)tmp->ai_addr)->sin_addr;
+			port = ((sockaddr_in *)tmp->ai_addr)->sin_port;
 		}
 		else
 		{
 			// IPv6
 			address = &((sockaddr_in6 *)tmp->ai_addr)->sin6_addr;
+			port = ((sockaddr_in6 *)tmp->ai_addr)->sin6_port;
 		}
 
 		// Network representation to printable string
 		inet_ntop(tmp->ai_family, address, address_string, INET6_ADDRSTRLEN);
+		std::cout << "\tAddress: " << address_string << std::endl;
 
-		printf("\tAddress: %s\n", address_string);
+		// inet_ntop(tmp->ai_family, address, address_string, INET6_ADDRSTRLEN);
+		std::cout << "\tPort: " << port << std::endl;
 
 		tmp = tmp->ai_next;
 	}

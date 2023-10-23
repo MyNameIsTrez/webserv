@@ -8,21 +8,14 @@
 
 ## Sander
 
-- [x] Set up regular NGINX server
-- [x] Run Siege on NGINX server
-- [x] Set up clang format
-- [ ] Run Codam tester on NGINX server
-- [ ] CGI without creating child zombie processes
 - [ ] Set up Docker that has Valgrind
 - [ ] Verify that Valgrind detects uninitialized member variables
-- [ ] Fuzz the config
 - [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
 - [ ] Write test that POSTs a body with several null bytes to the CGI, expecting the null bytes *not* to the body, and for the uppercased text displayed in the browser doesn't end at the first null byte
 - [ ] Every mention of "client" can dangle if the map decides to rearrange its data (growing, for example); double-check that none dangle before handing in
 - [ ] Make sure all error code pages are correctly sent: 3xx is redirect; 4xx is not available; 5xx is server error
-- [ ] Make sure that having two clients POSTing/GETing the server at the same time works
 - [ ] Make sure the maps and vectors aren't growing over time with Siege
 - [ ] Consider permanently fixing rare "Address already in use" by [killing any previous process and waiting till it has been reaped](https://stackoverflow.com/q/17894720/13279557)
 - [ ] Make sure the server doesn't crash if the CGI script crashed
@@ -30,6 +23,16 @@
 - [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
 - [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
 - [ ] Proper `autoindex on;` and `autoindex off;` for the `/` root
+- [ ] Verify that all tests in `tests/config_exceptions/` throw an exception
+- [ ] Verify that duplicate config keys always throw exceptions
+- [ ] Make sure that `listen 127.0.0.1:80;` doesn't crash our program (since we expect a simple number like `80`)
+- [ ] Verify that same behavior as nginx happens when location/server_name is missing in webserv
+- [ ] Use the config's max_connections?
+- [ ] Use the config's default_file?
+- [ ] Ask Milan to parse something like limit_except
+- [ ] Make sure the Config *requires* every Location to have a root
+- [ ] Let the accesses happen relative to the config file?
+- [ ] Do we want the / location to exist by default?
 
 ## Victor
 
@@ -129,7 +132,7 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 - "Use the reference browser of the team. Open the network part of it, and try to connect to the server using it." - What do they mean by "try to conncet to the server using it"? Do they just mean going to the URL with the browser's address bar?
 - "It should be compatible to serve a fully static website." - WTF do they mean with "compatible"?
 - "In the configuration file setup multiple ports and use different websites." - Do they want the web server to edit /etc/hosts or /private/etc/hosts so the user is redirected to our 127.0.0.1 server when they go to for example foo.com? Or do they want the server to be running on different IPs than just 127.0.0.1?
-- "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along?
+- "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along? Do they *want* a warning to be thrown when two servers with the same ports but different server_names are run, cause that'd be weird since nginx handles it fine.
 - "Check if there is no hanging connection." - Does Siege report this?
 
 # Decide whether these clients should be redirected to different pages

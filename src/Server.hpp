@@ -17,6 +17,17 @@ namespace FdType
 	};
 }
 
+struct ResolvedLocation
+{
+	bool has_index;
+	bool autoindex;
+	std::string path;
+	bool resolved;
+	bool get_allowed;
+	bool post_allowed;
+	bool delete_allowed;
+};
+
 class Server
 {
 public:
@@ -45,6 +56,7 @@ private:
 	void _disableEvent(size_t pfd_index, short int event);
 
 	void _enableWritingToClient(Client &client);
+	void _enableWritingToCGI(Client &client);
 	void _disableReadingFromClient(Client &client);
 
 	void _addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events);
@@ -66,7 +78,14 @@ private:
 	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
-	void _startCGI(Client &client, int fd, FdType::FdType fd_type);
+	void _startCGI(Client &client, int fd);
+	ResolvedLocation _resolveToLocation(const std::string &request_target, const ServerDirective &server);
+	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
+	void _respondWithFile(const std::string &path);
+	void _respondWithDirectoryListing(const std::string &path);
+	void _respondWithRedirect(const std::string &path);
+	void _createFile(const std::string &path);
+	void _deleteFile(const std::string &path);
 
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
@@ -79,7 +98,6 @@ private:
 
 	struct SystemException : public std::runtime_error
 	{
-		// TODO: Use strerror(), since this is only thrown on C functions that set errno? (double-check that)
 		SystemException(const std::string &function_name)
 			: runtime_error("System exception in function '" + function_name + "': " + strerror(errno))
 		{

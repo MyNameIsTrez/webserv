@@ -8,6 +8,7 @@
 !experiments/*.[ch]pp
 !experiments/cgi.py
 !experiments/in.txt
+!experiments/webserv.json
 
 !fuzzing/scripts/*.sh
 !fuzzing/src/*.cpp
@@ -18,13 +19,15 @@
 !nginx/Dockerfile
 !nginx/nginx.conf
 
-!public/index.html
+!public/**
 
 !rfcs/*.pdf
 
-!src/*.[ch]pp
+!src/*.[cht]pp
 
-!tests/*.txt
+!tests/config_exceptions/*.conf
+!tests/sent/*.txt
+!tests/working/*.conf
 
 !YoupiBanane/**
 

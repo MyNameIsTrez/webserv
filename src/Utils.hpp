@@ -1,21 +1,12 @@
 #pragma once
-#ifndef UTILS_HPP
-#define UTILS_HPP
 
 #include <string>
 
-template <typename T>
-bool convert_digits(std::string input, T &dst)
+namespace Utils
 {
-	dst = 0;
-	for (size_t i = 0; i < input.size(); i++)
-	{
-		if (input[i] < '0' || input[i] > '9')
-			return (false);
-		dst *= 10;
-		dst += static_cast<T>(input[i] - '0');
-	}
-	return (true);
+	bool startsWith(const std::string &haystack, const std::string &needle);
+	template <class T>
+	bool parseNumber(const std::string &str, T &number, T max);
 }
 
-#endif
+#include "Utils.tpp"

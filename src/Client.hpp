@@ -73,6 +73,12 @@ public:
 
 	void appendReadString(char *received, ssize_t bytes_read);
 
+	void respondWithFile(const std::string &path);
+	void respondWithDirectoryListing(const std::string &path);
+	void respondWithRedirect(const std::string &path);
+	void respondWithCreateFile(const std::string &path);
+	void respondWithDeleteFile(const std::string &path);
+
 	void prependResponseHeader(void);
 
 	Status::Status status;
@@ -98,7 +104,8 @@ public:
 	std::string request_method;
 	std::string request_target;
 	std::string protocol;
-	std::unordered_map<std::string, std::string> header_map;
+	std::unordered_map<std::string, std::string> headers;
+	uint16_t port;
 	std::string body;
 	size_t body_index;
 	std::string response;
@@ -112,21 +119,22 @@ public:
 private:
 	Client(void);
 
-	void _parseHeaders(void);
-
-	void _parseRequestLine(std::string line);
+	std::vector<std::string> _getHeaderLines(void);
+	void _parseRequestLine(const std::string &line);
 	bool _isValidRequestLine(void);
 	bool _isValidRequestMethod(void);
 	bool _isValidRequestTarget(void);
 	bool _isValidProtocol(void);
+	void _fillHeaders(const std::vector<std::string> &header_lines);
+	void _useHeaders(void);
 
 	void _parseBodyAppend(const std::string &extra_body);
-	void _hex_to_num(std::string &line, size_t &num);
+	void _hexToNum(std::string &line, size_t &num);
 
 	void _addStatusLine(void);
 
 	void _generateEnv(void);
-	// std::string _replace_all(std::string input, const std::string& needle, const std::string& replacement);
+	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
 	size_t _content_length;
 	std::string _header;

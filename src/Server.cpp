@@ -2,17 +2,20 @@
 
 #include "Client.hpp"
 #include "Config.hpp"
+#include "Utils.hpp"
 
 #include <cassert>
 #include <iostream>
+#include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/wait.h>
 #include <unordered_set>
 
 // TODO: Move some/all of these defines to a config file
-#define MAX_CONNECTION_QUEUE_LEN 10
+#define CONNECTION_QUEUE_LEN 10
 #define MAX_CGI_WRITE_LEN 100
 #define MAX_CLIENT_WRITE_LEN 100
 #define CHILD 0
@@ -39,41 +42,32 @@ Server::Server(const Config &config)
 	  _clients(),
 	  _pfds()
 {
-	for (const auto &server_data : _config.serverdata)
+	for (const auto &element : _config.port_to_server_index)
 	{
-		// TODO: Remove
-		// for (const auto &error_page : server_data.error_pages)
-		// {
-		// 	std::cerr << "error page: " << error_page.first << " -> " << error_page.second << std::endl;
-		// }
+		uint16_t port = element.first;
+		std::cerr << "Port number: " << port << std::endl;
 
-		for (const auto &port : server_data.ports)
-		{
-			std::cerr << "Port: " << port << std::endl;
+		// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
+		// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
+		int port_fd;
+		if ((port_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
 
-			int server_fd;
+		// Prevents "bind: Address already in use" error
+		int option = 1; // "the parameter should be non-zero to enable a boolean option"
+		if (setsockopt(port_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
 
-			// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
-			// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-			if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
+		sockaddr_in servaddr{};
+		servaddr.sin_family = AF_INET;
+		servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
+		servaddr.sin_port = htons(port);
 
-			// Prevents "bind: Address already in use" error after:
-			// 1. Starting a CGI script, 2. Doing Ctrl+\ on the server, 3. Restarting the server
-			int option = 1; // "the parameter should be non-zero to enable a boolean option"
-			if (setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
+		if ((bind(port_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
 
-			sockaddr_in servaddr{};
-			servaddr.sin_family = AF_INET;
-			servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-			servaddr.sin_port = htons(port);
+		if ((listen(port_fd, CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
 
-			if ((bind(server_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
+		_addFd(port_fd, FdType::SERVER, POLLIN);
 
-			if ((listen(server_fd, MAX_CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
-
-			_addFd(server_fd, FdType::SERVER, POLLIN);
-			std::cerr << "Added server fd " << server_fd << std::endl;
-		}
+		std::cerr << "Added port fd " << port_fd << std::endl;
 	}
 
 	signal(SIGINT, _sigIntHandler);
@@ -136,6 +130,7 @@ void Server::run(void)
 		if (_pfds.size() == 1)
 		{
 			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
+			std::cout << "Gootbye" << std::endl;
 			return;
 		}
 		else if (shutting_down_gracefully) {
@@ -347,6 +342,18 @@ void Server::_enableWritingToClient(Client &client)
 	_enableEvent(client_pfd_index, POLLOUT);
 
 	client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+}
+
+void Server::_enableWritingToCGI(Client &client)
+{
+	assert(client.cgi_write_state != CGIWriteState::DONE);
+	assert(client.server_to_cgi_fd != -1);
+
+	std::cerr << "    In _enableWritingToCGI()" << std::endl;
+	size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
+	_enableEvent(server_to_cgi_pfd_index, POLLOUT);
+
+	client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 }
 
 void Server::_disableReadingFromClient(Client &client)
@@ -620,20 +627,138 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 
 		client.appendReadString(received, bytes_read);
 
-		// If we've just started reading/entirely read this client's body, start a CGI script
-		if (previous_read_state == ClientReadState::HEADER && client.client_read_state != ClientReadState::HEADER)
-		{
-			// TODO: Only run the below code if the request wants to start the CGI AND it is a POST request
+		bool just_done_reading_header =
+			        previous_read_state == ClientReadState::HEADER
+			&& client.client_read_state != ClientReadState::HEADER;
 
-			_startCGI(client, fd, fd_type);
+		if (just_done_reading_header)
+		{
+			const std::string &target = client.request_target;
+			const std::string &method = client.request_method;
+
+			if (Utils::startsWith(target, "/cgi-bin/"))
+			{
+				if (target.back() == '/')
+				{
+					throw Client::ClientException(Status::FORBIDDEN);
+				}
+				else
+				{
+					if (method == "DELETE")
+					{
+						throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+					}
+					else
+					{
+						_startCGI(client, fd);
+					}
+				}
+			}
+			else
+			{
+				if (_config.port_to_server_index.find(client.port) == _config.port_to_server_index.end()) throw Client::ClientException(Status::NOT_FOUND);
+
+				size_t server_index = _config.port_to_server_index.at(client.port);
+				const ServerDirective &server = _config.servers.at(server_index);
+
+				const ResolvedLocation location = _resolveToLocation(target, server);
+
+				if (!location.resolved)
+				{
+					// TODO: Is this status code the most appropriate?
+					throw Client::ClientException(Status::NOT_FOUND);
+				}
+
+				if (!_isAllowedMethod(location, method))
+				{
+					throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+				}
+
+				if (target.back() == '/')
+				{
+					if (method == "GET")
+					{
+						if (location.has_index)
+						{
+							client.respondWithFile(location.path);
+						}
+						else if (location.autoindex)
+						{
+							client.respondWithDirectoryListing(location.path);
+						}
+						else
+						{
+							// TODO: Make sure this is impossible in the config
+							assert(false);
+							// throw Client::ClientException(Status::FORBIDDEN);
+						}
+					}
+					else
+					{
+						throw Client::ClientException(Status::FORBIDDEN);
+					}
+				}
+				else
+				{
+					std::cerr << "    location.path: " << location.path << std::endl;
+					struct stat status;
+					if (stat(location.path.c_str(), &status) == -1)
+					{
+						if (errno == ENOENT)
+						{
+							throw Client::ClientException(Status::NOT_FOUND);
+						}
+						// TODO: Explicitly handle other errnos?
+						else
+						{
+							// TODO: Maybe throw ClientException to make the server never crash?
+							// throw SystemException("stat");
+							// TODO: I'm not sure what to throw in case an unknown error occurs
+							throw Client::ClientException(Status::BAD_REQUEST);
+						}
+					}
+					else if (S_ISDIR(status.st_mode))
+					{
+						if (method == "DELETE")
+						{
+							throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+						}
+						else
+						{
+							client.respondWithRedirect(target + "/");
+						}
+					}
+					else if (method == "GET")
+					{
+						client.respondWithFile(location.path);
+					}
+					else if (method == "POST")
+					{
+						client.respondWithCreateFile(location.path);
+					}
+					else
+					{
+						client.respondWithDeleteFile(location.path);
+					}
+				}
+			}
 		}
 
-		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_write_state != CGIWriteState::DONE)
+		// If we've just read body bytes, enable POLLOUT
+		// This uses the fact that bytes_read here is guaranteed to be > 0
+		if (client.client_read_state != ClientReadState::HEADER)
 		{
-			assert(client.server_to_cgi_fd != -1);
-			size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			_enableEvent(server_to_cgi_pfd_index, POLLOUT);
+			if (client.cgi_write_state == CGIWriteState::NOT_WRITING)
+			{
+				_enableWritingToClient(client);
+			}
+			else if (client.cgi_write_state == CGIWriteState::WRITING_TO_CGI)
+			{
+				if (!client.body.empty())
+				{
+					_enableWritingToCGI(client);
+				}
+			}
 		}
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
@@ -698,11 +823,9 @@ void Server::_removeClientAttachments(int fd)
 	}
 }
 
-void Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
+void Server::_startCGI(Client &client, int fd)
 {
 	std::cerr << "  Starting CGI..." << std::endl;
-
-	assert(fd_type == FdType::CLIENT);
 
 	int server_to_cgi_pipe[2];
 	int cgi_to_server_pipe[2];
@@ -726,11 +849,13 @@ void Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
 
 		std::cerr << "    The child is going to start the CGI script" << std::endl;
-		// TODO: Define CGI script path in the configuration file?
+		// TODO: Define CGI script path "/usr/bin/python3" in the configuration file?
+		// TODO: Define "cgi-bin" in the configuration file?
+		// TODO: Dynamically create argv[0] by taking the last directory of "/usr/bin/python3///"?
 		const char *path = "/usr/bin/python3";
 		char *const argv[] = {(char *)"python3", (char *)"cgi-bin/print.py", NULL};
 
-		// TODO: Construct cgi_env using header_map
+		// TODO: Construct cgi_env using headers map
 		char *cgi_env[] = {NULL};
 		execve(path, argv, cgi_env);
 
@@ -768,6 +893,79 @@ void Server::_startCGI(Client &client, int fd, FdType::FdType fd_type)
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 	std::cerr << "    Added cgi_to_server fd " << cgi_to_server_fd << std::endl;
+}
+
+// TODO: Move this method to the Config class?
+ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const ServerDirective &server)
+{
+	ResolvedLocation resolved{};
+
+	size_t longest_uri_length = 0;
+
+	for (const LocationDirective &location : server.locations)
+	{
+		if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
+		{
+			longest_uri_length = location.uri.length();
+
+			resolved.resolved = true;
+
+			if (location.get_allowed)
+				resolved.get_allowed = true;
+			if (location.post_allowed)
+				resolved.post_allowed = true;
+			if (location.delete_allowed)
+				resolved.delete_allowed = true;
+
+			// TODO: Make sure the Config *requires* every Server to have a root
+
+			const std::string &root = location.root.empty() ? server.root : location.root;
+
+			if (request_target.back() != '/')
+			{
+				// TODO: Make sure the Config *requires* every Location to have *either* "index" or "autoindex", and *requires* it to NOT have both
+				resolved.path = root + request_target;
+			}
+			else if (!location.index.empty())
+			{
+				resolved.has_index = true;
+				// TODO: Do we want to use smth like path.join() instead of inserting "/"?
+				resolved.path = root + request_target + location.index;
+			}
+			else if (location.autoindex)
+			{
+				resolved.autoindex = true;
+				resolved.path = root + request_target;
+			}
+			else
+			{
+				// TODO: What to do here? Reachable with "curl localhost:8080"
+
+				// TODO: Should be unreachable
+				assert(false);
+			}
+		}
+	}
+
+	return resolved;
+}
+
+bool Server::_isAllowedMethod(const ResolvedLocation &location, const std::string &method)
+{
+	if (method == "GET" && !location.get_allowed)
+	{
+		return false;
+	}
+	else if (method == "POST" && !location.post_allowed)
+	{
+		return false;
+	}
+	else if (method == "DELETE" && !location.delete_allowed)
+	{
+		return false;
+	}
+
+	return true;
 }
 
 void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)

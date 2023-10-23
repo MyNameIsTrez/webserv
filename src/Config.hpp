@@ -10,29 +10,33 @@
 #include <map>
 #include <sstream>
 #include <string>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
+#include <cctype>
 
-struct PageData // TODO: Rename to LocationData?
+struct LocationDirective
 {
-	std::string page_path;
-	std::vector<std::string> allowed_methods;
+	std::string uri;
+	bool get_allowed;
+	bool post_allowed;
+	bool delete_allowed;
 	bool autoindex;
-	std::string index_file;
+	std::string index;
 	std::string root;
-	std::vector<std::string> cgi_paths;
-	std::vector<std::string> cgi_ext;
+	std::vector<std::string> cgi_paths; // TODO: Needed?
+	std::vector<std::string> cgi_ext; // TODO: Needed?
 };
 
-struct ServerData
+struct ServerDirective
 {
-	std::vector<unsigned long> ports;
-	std::string server_name;
-	std::string root_path;
-	std::string index_file;
+	std::string root; // TODO: Make this mandatory
+	std::vector<uint16_t> ports;
+	std::vector<std::string> server_names;
 	size_t client_max_body_size;
 	std::string http_redirection;
 	std::map<Status::Status, std::string> error_pages;
-	std::vector<PageData> page_data;
+	std::vector<LocationDirective> locations;
 };
 
 class Config
@@ -42,30 +46,62 @@ public:
 	virtual ~Config(void);
 
 	void init(std::istream &config);
+	void printConfigInfo(void); // TODO: Remove
 
-	void save_type(std::string type, std::string value);
-	// int get_port(size_t index);
-	// std::string get_root(void);
-	// std::string get_index_file(void);
-	void save_max_connections(std::string value);
-	void save_default_file(std::string value);
-	void new_server(std::string line, std::istream &config);
-	void save_error_pages(std::string line, ServerData *new_server);
-	PageData save_page(std::string line, std::istream &config);
-	// int check_line(std::string line);
-	// void print_server_info(size_t index);
+	int connection_queue_length;
+	std::string default_file;
+	std::vector<ServerDirective> servers;
+	std::unordered_map<uint16_t, size_t> port_to_server_index;
 
-	// typedef int (*t_jump_function)(std::string line);
+	struct ConfigException : public std::runtime_error
+	{
+		ConfigException(const std::string &message) : std::runtime_error(message) {};
+	};
 
-	void print_config_info(void);
+	struct InvalidLineException : public ConfigException
+	{
+		InvalidLineException() : ConfigException("Error: Invalid line in config") {};
+	};
 
-	unsigned long _max_connections;
-	std::string _default_file;
-	std::vector<ServerData> serverdata; // renamen naar "servers"
+	struct InvalidFileException : public ConfigException
+	{
+		InvalidFileException() : ConfigException("Error: Unable to open config") {};
+	};
+
+	struct EmptyTypeException : public ConfigException
+	{
+		EmptyTypeException() : ConfigException("Error: Empty type in config") {};
+	};
+
+	struct DuplicatePortException : public ConfigException
+	{
+		DuplicatePortException() : ConfigException("Error: Duplicate port in config") {};
+	};
+
+	struct InvalidPortException : public ConfigException
+	{
+		InvalidPortException() : ConfigException("Error: Invalid port in config") {};
+	};
 
 private:
 	Config(const Config &src);
 	Config &operator=(const Config &src);
+
+	// TODO: Remove all commented out lines
+	// int getPort(size_t index);
+	// std::string getRoot(void);
+	// std::string getIndex_file(void);
+	void saveType(std::string type, std::string value);
+	void saveConnectionQueueLength(std::string value);
+	void saveDefaultFile(std::string value);
+	void newServer(std::string line, std::istream &config);
+	void saveErrorPages(std::string line, ServerDirective *new_server);
+	LocationDirective saveLocation(std::string line, std::istream &config);
+	// int checkLine(std::string line);
+	void initMetadata(void);
+	bool parseBool(const std::string &value);
+
+	// typedef int (*t_jump_function)(std::string line);
 };
 
 struct ConfigException : public std::runtime_error
@@ -75,15 +111,25 @@ struct ConfigException : public std::runtime_error
 
 struct InvalidLineException : public ConfigException
 {
-	InvalidLineException() : ConfigException("Error: Invalid line in config file"){};
+	InvalidLineException() : ConfigException("Error: Invalid line in config") {};
 };
 
 struct InvalidFileException : public ConfigException
 {
-	InvalidFileException() : ConfigException("Error: Unable to open config file"){};
+	InvalidFileException() : ConfigException("Error: Unable to open config") {};
 };
 
 struct EmptyTypeException : public ConfigException
 {
-	EmptyTypeException() : ConfigException("Error: Empty type in config file"){};
+	EmptyTypeException() : ConfigException("Error: Empty type in config") {};
+};
+
+struct ConflictingServerNameException : public ConfigException
+{
+	ConflictingServerNameException() : ConfigException("Error: Conflicting server name in config") {};
+};
+
+struct InvalidPortException : public ConfigException
+{
+	InvalidPortException() : ConfigException("Error: Invalid port in config") {};
 };
