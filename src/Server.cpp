@@ -344,6 +344,18 @@ void Server::_enableWritingToClient(Client &client)
 	client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
 }
 
+void Server::_enableWritingToCGI(Client &client)
+{
+	assert(client.cgi_write_state != CGIWriteState::DONE);
+	assert(client.server_to_cgi_fd != -1);
+
+	std::cerr << "    In _enableWritingToCGI()" << std::endl;
+	size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
+	_enableEvent(server_to_cgi_pfd_index, POLLOUT);
+
+	client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
+}
+
 void Server::_disableReadingFromClient(Client &client)
 {
 	std::cerr << "    In _disableReadingFromClient()" << std::endl;
@@ -668,11 +680,11 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 					{
 						if (location.has_index)
 						{
-							_respondWithFile(location.path);
+							client.respondWithFile(location.path);
 						}
 						else if (location.autoindex)
 						{
-							_respondWithDirectoryListing(location.path);
+							client.respondWithDirectoryListing(location.path);
 						}
 						else
 						{
@@ -688,6 +700,7 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 				}
 				else
 				{
+					std::cerr << "    location.path: " << location.path << std::endl;
 					struct stat status;
 					if (stat(location.path.c_str(), &status) == -1)
 					{
@@ -712,34 +725,42 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 						}
 						else
 						{
-							_respondWithRedirect(target + "/");
+							client.respondWithRedirect(target + "/");
 						}
 					}
 					else if (method == "GET")
 					{
-						_respondWithFile(location.path);
+						client.respondWithFile(location.path);
 					}
 					else if (method == "POST")
 					{
-						_createFile(location.path);
+						client.respondWithCreateFile(location.path);
 					}
 					else
 					{
-						_deleteFile(location.path);
+						client.respondWithDeleteFile(location.path);
 					}
 				}
 			}
 		}
 
-		// TODO: Unhardcode this so it doesn't only work for server_to_cgi
-		// If we've just read body bytes, enable server_to_cgi POLLOUT
+		// If we've just read body bytes, enable POLLOUT
 		// This uses the fact that bytes_read here is guaranteed to be > 0
-		if (client.client_read_state != ClientReadState::HEADER && !client.body.empty() && client.cgi_write_state != CGIWriteState::DONE)
+		if (client.client_read_state != ClientReadState::HEADER)
 		{
-			assert(client.server_to_cgi_fd != -1);
-			size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-			std::cerr << "    Enabling server_to_cgi POLLOUT" << std::endl;
-			_enableEvent(server_to_cgi_pfd_index, POLLOUT);
+			assert(client.cgi_write_state != CGIWriteState::DONE); // TODO: Probably want to remove this?
+
+			if (client.cgi_write_state == CGIWriteState::NOT_WRITING)
+			{
+				_enableWritingToClient(client);
+			}
+			else if (client.cgi_write_state == CGIWriteState::WRITING_TO_CGI)
+			{
+				if (!client.body.empty())
+				{
+					_enableWritingToCGI(client);
+				}
+			}
 		}
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
@@ -879,8 +900,6 @@ void Server::_startCGI(Client &client, int fd)
 // TODO: Move this method to the Config class?
 ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const ServerDirective &server)
 {
-	(void)request_target;
-
 	ResolvedLocation resolved{};
 
 	size_t longest_uri_length = 0;
@@ -893,29 +912,36 @@ ResolvedLocation Server::_resolveToLocation(const std::string &request_target, c
 
 			resolved.resolved = true;
 
-			resolved.get_allowed = location.get_allowed;
-			resolved.post_allowed = location.post_allowed;
-			resolved.delete_allowed = location.delete_allowed;
+			if (location.get_allowed)
+				resolved.get_allowed = true;
+			if (location.post_allowed)
+				resolved.post_allowed = true;
+			if (location.delete_allowed)
+				resolved.delete_allowed = true;
 
-			// TODO: What if location.uri doesn't start with a "/"? Should we prepend "/" here?
-			std::string location_path = location.root + location.uri;
+			// TODO: Make sure the Config *requires* every Server to have a root
 
-			// TODO: Make sure the Config *requires* every Location to have a root
+			const std::string &root = location.root.empty() ? server.root : location.root;
 
-			if (!location.index.empty())
+			if (request_target.back() != '/')
+			{
+				// TODO: Make sure the Config *requires* every Location to have *either* "index" or "autoindex", and *requires* it to NOT have both
+				resolved.path = root + request_target;
+			}
+			else if (!location.index.empty())
 			{
 				resolved.has_index = true;
 				// TODO: Do we want to use smth like path.join() instead of inserting "/"?
-				resolved.path = location_path + "/" + location.index;
+				resolved.path = root + request_target + location.index;
 			}
 			else if (location.autoindex)
 			{
 				resolved.autoindex = true;
-				resolved.path = location_path;
+				resolved.path = root + request_target;
 			}
 			else
 			{
-				// TODO: Make sure the Config *requires* every Location to have *either* "index" or "autoindex", and *requires* it to NOT have both
+				// TODO: Should be unreachable
 				assert(false);
 			}
 		}
@@ -940,36 +966,6 @@ bool Server::_isAllowedMethod(const ResolvedLocation &location, const std::strin
 	}
 
 	return true;
-}
-
-void Server::_respondWithFile(const std::string &path)
-{
-	// TODO: Write
-	(void)path;
-}
-
-void Server::_respondWithDirectoryListing(const std::string &path)
-{
-	// TODO: Write
-	(void)path;
-}
-
-void Server::_respondWithRedirect(const std::string &path)
-{
-	// TODO: Write
-	(void)path;
-}
-
-void Server::_createFile(const std::string &path)
-{
-	// TODO: Write
-	(void)path;
-}
-
-void Server::_deleteFile(const std::string &path)
-{
-	// TODO: Write
-	(void)path;
 }
 
 void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)

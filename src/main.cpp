@@ -12,23 +12,37 @@ int main(int argc, char *argv[])
 		return EXIT_FAILURE;
 	}
 
-	// TODO: Default configuration if argc<=1?
+	// Config config;
+	// try
+	// {
+	// 	// TODO: Change "webserv.conf" to "webserv.json"?
+	// 	std::ifstream config_file(argc == 2 ? argv[1] : "webserv.conf");
+	// 	if (!config_file.is_open())
+	// 		throw InvalidFileException();
+	// 	config.init(config_file);
+	// }
+	// catch (const Config::ConfigException &a)
+	// {
+	// 	std::cout << a.what() << std::endl;
+	// 	return EXIT_FAILURE;
+	// }
+
+	// config.printConfigInfo();
 
 	Config config;
-	try
-	{
-		// TODO: Change "webserv.conf" to "webserv.json"?
-		std::ifstream config_file(argc == 2 ? argv[1] : "webserv.conf");
-		if (!config_file.is_open())
-			throw InvalidFileException();
-		config.init(config_file);
-	}
-	catch (const Config::ConfigException &a)
-	{
-		std::cout << a.what() << std::endl;
-		return EXIT_FAILURE;
-	}
-	// config.printConfigInfo();
+	config.servers = {
+		{
+			.root="public",
+			.locations={
+				{
+					// .uri="/rfcs",
+					.uri="/",
+					.get_allowed=true
+				}
+			}
+		}
+	};
+	config.port_to_server_index.emplace(8080, 0);
 
 	// TODO: Error handling
 	Server server(config);

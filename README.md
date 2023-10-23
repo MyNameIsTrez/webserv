@@ -38,6 +38,7 @@ This will print localhost's response: (by search-and-replacing example.com)
 - View the help menu with `nginx -h`
 - Reload configuration file without closing connections with `nginx -s reload`
 - View the website with `http://localhost:8080/`
+- View the nginx log with `cat /var/log/nginx/access.log`
 
 ## Running siege
 

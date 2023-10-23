@@ -31,6 +31,8 @@
 - [ ] Use the config's default_file?
 - [ ] Ask Milan to parse something like limit_except
 - [ ] Make sure the Config *requires* every Location to have a root
+- [ ] Let the accesses happen relative to the config file?
+- [ ] Do we want the / location to exist by default?
 
 ## Victor
 

@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <iostream>
 #include <filesystem>
 #include <poll.h>
@@ -169,6 +170,46 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		// We keep reading regardless of whether we saw the end of the body,
 		// so we can still read the EOF any disconnected client sent
 	}
+}
+
+void Client::respondWithFile(const std::string &path)
+{
+	assert(this->response.empty());
+
+	std::ifstream file(path);
+	std::stringstream file_body;
+	file_body << file.rdbuf();
+	this->response = file_body.str();
+
+	this->prependResponseHeader();
+}
+
+void Client::respondWithDirectoryListing(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+	assert(false);
+}
+
+void Client::respondWithRedirect(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+	assert(false);
+}
+
+void Client::respondWithCreateFile(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+	assert(false);
+}
+
+void Client::respondWithDeleteFile(const std::string &path)
+{
+	// TODO: Write
+	(void)path;
+	assert(false);
 }
 
 void Client::prependResponseHeader(void)
