@@ -93,7 +93,10 @@ public:
 	}
 	Token getToken()
 	{
-		assert(!_file.eof());
+		if (_file.eof())
+		{
+			throw;
+		}
 		prevPos = _file.tellg();
 		char c = getWithoutWhitespace();
 
@@ -121,9 +124,13 @@ public:
 		{
 			token.type = Token::ARRAY_OPEN;
 		}
-		else if (c == ',') // COMMA
+		else if (c == ']') // ARRAY_CLOSE
 		{
 			token.type = Token::ARRAY_CLOSE;
+		}
+		else if (c == ',') // COMMA
+		{
+			token.type = Token::COMMA;
 		}
 		else if (c == ':') // COLON
 		{
@@ -132,12 +139,10 @@ public:
 		else if (c >= '0' && c <= '9') // INTEGER
 		{
 			token.type = Token::INTEGER;
-			token.string = "";
-			token.string += c;
-			std::streampos prevCharPos = _file.tellg();
+			token.string = c;
 			while (c >= '0' && c <= '9')
 			{
-				prevCharPos = _file.tellg();
+				std::streampos prevCharPos = _file.tellg();
 				_file.get(c);
 
 				if (_file.eof())
@@ -145,7 +150,10 @@ public:
 				else if (c >= '0' && c <= '9')
 					token.string += c;
 				else
+				{
 					_file.seekg(prevCharPos);
+					break;
+				}
 			}
 		}
 		else if (c == 't') // BOOLEAN_TRUE
@@ -199,6 +207,10 @@ private:
 	{
 		TokenExceptionExpectedBoolean() : TokenException("Token exception: Expected boolean"){};
 	};
+	struct TokenExceptionNoMoreTokens : public TokenException
+	{
+		TokenExceptionNoMoreTokens() : TokenException("Token exception: No more tokens"){};
+	};
 
 	std::istream &_file;
 	size_t prevPos;
@@ -209,23 +221,58 @@ struct Node
 public:
 	bool getBoolean() const
 	{
-		return std::get<bool>(_value);
+		try
+		{
+			return std::get<bool>(_value);
+		}
+		catch (const std::bad_variant_access &a) // werkt gewoon
+		{
+			throw NODEExceptionGetBoolean();
+		}
 	}
 	size_t getInteger() const
 	{
-		return std::get<size_t>(_value);
+		try
+		{
+			return std::get<size_t>(_value);
+		}
+		catch (const std::bad_variant_access &a) // werkt gewoon
+		{
+			throw NODEExceptionGetInteger();
+		}
 	}
 	std::string getString() const
 	{
-		return std::get<std::string>(_value);
+		try
+		{
+			return std::get<std::string>(_value);
+		}
+		catch (const std::bad_variant_access &a) // werkt gewoon
+		{
+			throw NODEExceptionGetString();
+		}
 	}
 	std::vector<Node> getArray() const
 	{
-		return std::get<std::vector<Node>>(_value);
+		try
+		{
+			return std::get<std::vector<Node>>(_value);
+		}
+		catch (const std::bad_variant_access &a) // werkt gewoon
+		{
+			throw NODEExceptionGetArray();
+		}
 	}
 	std::map<std::string, Node> getObject() const
 	{
-		return std::get<std::map<std::string, Node>>(_value);
+		try
+		{
+			return std::get<std::map<std::string, Node>>(_value);
+		}
+		catch (const std::bad_variant_access &a) // werkt gewoon
+		{
+			throw NODEExceptionGetObject();
+		}
 	}
 
 	void setBoolean(bool boolean)
@@ -240,7 +287,10 @@ public:
 	{
 		_value = string;
 	}
-	void setArray();
+	void setArray(std::vector<Node> array)
+	{
+		_value = array;
+	}
 	void setObject(const std::map<std::string, Node> object)
 	{
 		_value = object;
@@ -248,74 +298,43 @@ public:
 
 private:
 	std::variant<bool, size_t, std::string, std::vector<Node>, std::map<std::string, Node>> _value;
+
+	struct NodeException : public std::runtime_error
+	{
+		NodeException(const std::string &message) : std::runtime_error(message){};
+	};
+	struct NODEExceptionGetBoolean : public NodeException
+	{
+		NODEExceptionGetBoolean() : NodeException("Node exception: Attempt to get boolean failed"){};
+	};
+	struct NODEExceptionGetInteger : public NodeException
+	{
+		NODEExceptionGetInteger() : NodeException("Node exception: Attempt to get integer failed"){};
+	};
+	struct NODEExceptionGetString : public NodeException
+	{
+		NODEExceptionGetString() : NodeException("Node exception: Attempt to get string failed"){};
+	};
+	struct NODEExceptionGetArray : public NodeException
+	{
+		NODEExceptionGetArray() : NodeException("Node exception: Attempt to get array failed"){};
+	};
+	struct NODEExceptionGetObject : public NodeException
+	{
+		NODEExceptionGetObject() : NodeException("Node exception: Attempt to get object failed"){};
+	};
 };
 
 class JSON
 {
 public:
 	JSON(std::istream &file)
-		: _root_initialized(false), _tokenizer(file)
+		: _tokenizer(file)
 	{
-		while (_tokenizer.hasMoreTokens())
-		{
-			const Token token = _tokenizer.getToken();
-			switch (token.type) // TODO: immediately call parseObject() instead of switch
-			{
-			case Token::BOOLEAN_TRUE:
-			{
-				break;
-			}
-			case Token::BOOLEAN_FALSE:
-			{
-				break;
-			}
-			case Token::INTEGER:
-			{
-				break;
-			}
-			case Token::STRING:
-			{
-				_tokenizer.rollBackToken();
-				Node parsedString = _parseString();
-				if (!_root_initialized)
-				{
-					root = parsedString;
-					_root_initialized = true;
-				}
-				break;
-			}
-			case Token::COMMA:
-			{
-				break;
-			}
-			case Token::COLON:
-			{
-				break;
-			}
-			case Token::ARRAY_OPEN:
-			{
-				break;
-			}
-			case Token::ARRAY_CLOSE:
-			{
-				break;
-			}
-			case Token::OBJECT_OPEN:
-			{
-				Node parsedObject = _parseObject();
-				if (!_root_initialized)
-				{
-					root = parsedObject;
-					_root_initialized = true;
-				}
-				break;
-			}
-			case Token::OBJECT_CLOSE:
-			{
-				break;
-			}
-			}
-		}
+		const Token token = _tokenizer.getToken();
+		if (token.type != Token::OBJECT_OPEN)
+			throw JSONExceptionExpectedObject();
+		root = _parseObject();
 	}
 
 	Node root;
@@ -330,7 +349,7 @@ private:
 
 		return node;
 	}
-	Node _parseInteger() // TODO: checken
+	Node _parseInteger()
 	{
 		Node node;
 
@@ -351,7 +370,64 @@ private:
 
 		return node;
 	}
-	Node _parseArray();
+	Node _parseArray()
+	{
+		Node node;
+
+		std::vector<Node> array;
+
+		while (true)
+		{
+			Token valueToken = _tokenizer.getToken();
+			if (valueToken.type == Token::ARRAY_CLOSE)
+			{
+				break;
+			}
+			switch (valueToken.type)
+			{
+			case Token::INTEGER:
+			{
+				_tokenizer.rollBackToken();
+				array.push_back(_parseInteger());
+				break;
+			}
+			case Token::STRING:
+			{
+				_tokenizer.rollBackToken();
+				array.push_back(_parseString());
+				break;
+			}
+			case Token::ARRAY_OPEN:
+			{
+				array.push_back(_parseArray());
+				break;
+			}
+			case Token::OBJECT_OPEN:
+			{
+				array.push_back(_parseObject());
+				break;
+			}
+			default:
+			{
+				throw JSONExceptionUnexpectedToken();
+				break;
+			}
+			}
+			Token token = _tokenizer.getToken();
+			if (token.type == Token::ARRAY_CLOSE)
+			{
+				break;
+			}
+			if (token.type != Token::COMMA)
+			{
+				throw JSONExceptionExpectedComma();
+			}
+		}
+
+		node.setArray(array);
+
+		return node;
+	}
 	Node _parseObject()
 	{
 		Node node;
@@ -360,10 +436,11 @@ private:
 
 		while (true)
 		{
-			if (!_tokenizer.hasMoreTokens())
-				throw JSONExceptionNoMoreTokens();
-
 			Token keyToken = _tokenizer.getToken();
+			if (keyToken.type == Token::OBJECT_CLOSE)
+			{
+				break;
+			}
 			if (keyToken.type != Token::STRING)
 				throw JSONExceptionExpectedStringKey();
 			const std::string &key = keyToken.string;
@@ -372,20 +449,21 @@ private:
 				throw JSONExceptionExpectedColon();
 
 			Token valueToken = _tokenizer.getToken();
-			// const std::string &value = valueToken.string;
 
-			switch (valueToken.type) // TODO: default instellen voor alle cases die we niet specifiek willen handelen
+			switch (valueToken.type)
 			{
 			case Token::BOOLEAN_TRUE:
-			{
-				break;
-			}
 			case Token::BOOLEAN_FALSE:
 			{
+				_tokenizer.rollBackToken();
+				std::string str;
+				object.emplace(key, _parseBoolean());
 				break;
 			}
 			case Token::INTEGER:
 			{
+				_tokenizer.rollBackToken();
+				object.emplace(key, _parseInteger());
 				break;
 			}
 			case Token::STRING:
@@ -394,28 +472,19 @@ private:
 				object.emplace(key, _parseString());
 				break;
 			}
-			case Token::COMMA: // remove
-			{
-				break;
-			}
-			case Token::COLON: // remove
-			{
-				break;
-			}
 			case Token::ARRAY_OPEN:
 			{
-				break;
-			}
-			case Token::ARRAY_CLOSE: // remove
-			{
+				object.emplace(key, _parseArray());
 				break;
 			}
 			case Token::OBJECT_OPEN:
 			{
+				object.emplace(key, _parseObject());
 				break;
 			}
-			case Token::OBJECT_CLOSE: // remove
+			default:
 			{
+				throw JSONExceptionUnexpectedToken();
 				break;
 			}
 			}
@@ -435,24 +504,35 @@ private:
 	{
 		JSONException(const std::string &message) : std::runtime_error(message){};
 	};
-	struct JSONExceptionNoMoreTokens : public JSONException
-	{
-		JSONExceptionNoMoreTokens() : JSONException("JSON exception: No more tokens"){};
-	};
 	struct JSONExceptionExpectedStringKey : public JSONException
 	{
 		JSONExceptionExpectedStringKey() : JSONException("JSON exception: Expected string key"){};
+	};
+	struct JSONExceptionExpectedIntegerKey : public JSONException
+	{
+		JSONExceptionExpectedIntegerKey() : JSONException("JSON exception: Expected integer key"){};
 	};
 	struct JSONExceptionExpectedColon : public JSONException
 	{
 		JSONExceptionExpectedColon() : JSONException("JSON exception: Expected colon"){};
 	};
+	struct JSONExceptionExpectedComma : public JSONException
+	{
+		JSONExceptionExpectedComma() : JSONException("JSON exception: Expected comma"){};
+	};
+	struct JSONExceptionExpectedObject : public JSONException
+	{
+		JSONExceptionExpectedObject() : JSONException("JSON exception: Expected object"){};
+	};
 	struct JSONExceptionInvalidInteger : public JSONException
 	{
 		JSONExceptionInvalidInteger() : JSONException("JSON exception: Invalid integer"){};
 	};
+	struct JSONExceptionUnexpectedToken : public JSONException
+	{
+		JSONExceptionUnexpectedToken() : JSONException("JSON exception: Unexpected token"){};
+	};
 
-	bool _root_initialized;
 	Tokenizer _tokenizer;
 };
 
