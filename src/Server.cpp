@@ -492,11 +492,9 @@ void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue
 
 			_disableReadingFromClient(client);
 
-			_enableWritingToClient(client);
+			client.respondWithError();
 
-			client.response = "";
-			client.response_index = 0;
-			client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
+			_enableWritingToClient(client);
 
 			should_continue = true;
 		}
@@ -700,7 +698,7 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 				}
 				else
 				{
-					std::cerr << "    location.path: " << location.path << std::endl;
+					std::cerr << "    location.path: '" << location.path << "'" << std::endl;
 					struct stat status;
 					if (stat(location.path.c_str(), &status) == -1)
 					{
@@ -725,7 +723,7 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 						}
 						else
 						{
-							client.respondWithRedirect(target + "/");
+							throw Client::ClientException(Status::MOVED_PERMANENTLY);
 						}
 					}
 					else if (method == "GET")

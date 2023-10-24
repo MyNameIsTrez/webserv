@@ -6,6 +6,7 @@
 #include <assert.h>
 #include <cstdio>
 #include <cstdlib>
+#include <dirent.h>
 #include <fstream>
 #include <iostream>
 #include <filesystem>
@@ -19,6 +20,7 @@
 
 const char *Client::status_text_table[] = {
 	[Status::OK] = "OK",
+	[Status::MOVED_PERMANENTLY] = "Moved Permanently",
 	[Status::BAD_REQUEST] = "Bad Request",
 	[Status::FORBIDDEN] = "Forbidden",
 	[Status::NOT_FOUND] = "Not Found",
@@ -47,12 +49,16 @@ Client::Client(int client_fd)
 	  cgi_to_server_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
+	  _response_content_type("text/html"),
 	  _content_length(),
 	  _header(),
 	  _is_chunked(),
 	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
-	  _chunked_read_state(READING_CONTENT_LEN)
+	  _chunked_read_state(READING_CONTENT_LEN),
+	  _server_name(),
+	  _port_str(),
+	  _response_headers()
 {
 }
 
@@ -76,12 +82,16 @@ Client::Client(Client const &src)
 	  cgi_to_server_fd(src.cgi_to_server_fd),
 	  cgi_pid(src.cgi_pid),
 	  cgi_exit_status(src.cgi_exit_status),
+	  _response_content_type(src._response_content_type),
 	  _content_length(src._content_length),
 	  _header(src._header),
 	  _is_chunked(src._is_chunked),
 	  _chunked_remaining_content_length(src._chunked_remaining_content_length),
 	  _chunked_body_buffer(src._chunked_body_buffer),
-	  _chunked_read_state(src._chunked_read_state)
+	  _chunked_read_state(src._chunked_read_state),
+	  _server_name(src._server_name),
+	  _port_str(src._port_str),
+	  _response_headers(src._response_headers)
 {
 }
 
@@ -112,11 +122,15 @@ Client &Client::operator=(Client const &src)
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
 	this->cgi_pid = src.cgi_pid;
 	this->cgi_exit_status = src.cgi_exit_status;
+	this->_response_content_type = src._response_content_type;
 	this->_content_length = src._content_length;
 	this->_header = src._header;
 	this->_is_chunked = src._is_chunked;
 	this->_chunked_body_buffer = src._chunked_body_buffer;
 	this->_chunked_remaining_content_length = src._chunked_remaining_content_length;
+	this->_server_name = src._server_name;
+	this->_port_str = src._port_str;
+	this->_response_headers = src._response_headers;
 	return *this;
 }
 
@@ -172,6 +186,24 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 	}
 }
 
+void Client::respondWithError(void)
+{
+	std::string title = std::to_string(this->status) + " " + status_text_table[this->status];
+
+	this->response =
+		"<html>\n"
+		"<head><title>" + title + "</title></head>\n"
+		"<body>\n"
+		"<center><h1>" + title + "</h1></center>\n"
+		"<hr><center>nginx</center>\n"
+		"</body>\n"
+		"</html>\n";
+
+	this->response_index = 0;
+
+	this->prependResponseHeader();
+}
+
 void Client::respondWithFile(const std::string &path)
 {
 	assert(this->response.empty());
@@ -181,6 +213,10 @@ void Client::respondWithFile(const std::string &path)
 	file_body << file.rdbuf();
 	this->response = file_body.str();
 
+	// TODO: Adapt based on the path's extension?
+	// this->_response_content_type = "text/html";
+	// this->_response_content_type = "text/plain";
+
 	this->prependResponseHeader();
 }
 
@@ -188,23 +224,99 @@ void Client::respondWithDirectoryListing(const std::string &path)
 {
 	assert(this->response.empty());
 
-	// TODO: Write
-	(void)path;
-	assert(false);
+	this->response =
+		"<!DOCTYPE html>\n"
+		"<html>\n"
+		"	<head>\n"
+		"		<title>Index of " + this->request_target + "</title>\n"
+		"		<style>\n"
+		"			body {\n"
+		"				background-color: gray;\n"
+		"				font-size: large;\n"
+		"			}\n"
+		"			a {\n"
+		"				padding-left: 2px;\n"
+		"				margin-left: 4px;\n"
+		"			}\n"
+		"			button {\n"
+		"				background-color: gray;\n"
+		"				padding-left: 3px;\n"
+		"				padding-right: 3px;\n"
+		"				border: 0px;\n"
+		"				margin: 2px;\n"
+		"				cursor: pointer;\n"
+		"			}\n"
+		"			hr {\n"
+		"				border-color: black;\n"
+		"				background-color: black;\n"
+		"				color: black;\n"
+		"			}\n"
+		"		</style>\n"
+		"		<script>\n"
+		"			function requestDelete(file) {\n"
+		"				console.log(file);\n"
+		"				// TODO: something something fetch() to delete request something something\n"
+		"			}\n"
+		"		</script>\n"
+		"	</head>\n"
+		"	<body>\n"
+		"	<h1>Index of " + this->request_target + "</h1>\n"
+		"	<hr>\n"
+		"	<pre>\n";
+
+	// TODO: DECIDE: Delete button right next to link or al the way to the right (Or maybe even something else? :thinking_emoji:) -->
+	// "		<button onclick=\"requestDelete(this.nextSibling.href)\">🗑</button><a href=\"public/foo.txt\">foo.txt</a><br>\n"
+
+	// this->response =
+	// 	"<html>\n"
+	// 	"<head><title>Index of /</title></head>\n"
+	// 	"<body>\n"
+	// 	"<h1>Index of /</h1><hr><pre><a href=\"../\">../</a>\n";
+
+	// <a href="bar/">bar/</a>                                               23-Oct-2023 08:00                   -
+	// <a href="foo/">foo/</a>                                               19-Oct-2023 13:51                   -
+
+	// <a href="bar/">bar/</a>                                               23-Oct-2023 09:11                   -
+	// <a href="foo/">foo/</a>                                               23-Oct-2023 08:13                   -
+	// <a href="a.html">a.html</a>                                             19-Oct-2023 14:46                   7
+
+	// this->response +=
+	// 	"</pre><hr></body>\n"
+	// 	"</html>\n";
+
+	for (const std::string &directory_name : _getSortedEntryNames(path, true))
+	{
+		this->response +=
+			"<a href=\""
+			+ directory_name
+			+ "\">"
+			+ directory_name
+			+ "</a>\n";
+	}
+
+	for (const std::string &non_directory_name : _getSortedEntryNames(path, false))
+	{
+		this->response +=
+			"<a href=\""
+			+ non_directory_name
+			+ "\">"
+			+ non_directory_name
+			+ "</a>\n";
+	}
+
+	this->response +=
+		"	</pre>\n"
+		"	<hr>\n"
+		"	</body>\n"
+		"</html>\n";
 
 	this->prependResponseHeader();
 }
 
-void Client::respondWithRedirect(const std::string &path)
-{
-	// TODO: Write
-	(void)path;
-	assert(false);
-	// client.status = Status::REDIRECT;
-}
-
 void Client::respondWithCreateFile(const std::string &path)
 {
+	assert(this->response.empty());
+
 	// TODO: Write
 	(void)path;
 	assert(false);
@@ -212,6 +324,8 @@ void Client::respondWithCreateFile(const std::string &path)
 
 void Client::respondWithDeleteFile(const std::string &path)
 {
+	assert(this->response.empty());
+
 	// TODO: Write
 	(void)path;
 	assert(false);
@@ -224,23 +338,33 @@ void Client::prependResponseHeader(void)
 
 	_addStatusLine();
 
-	// TODO: Do we ever want to send anything besides the status line when status is not OK?
-	if (this->status == Status::OK)
+	// TODO: Add?
+	// this->_addResponseHeader("Server", "nginx");
+
+	// TODO: Add?
+	// this->_addResponseHeader("Date", "Tue, 24 Oct 2023 08:27:34 GMT");
+
+	_addResponseHeader("Content-Type", this->_response_content_type);
+
+	// TODO: Use cgi_exit_status
+	std::stringstream len_ss;
+	len_ss << response_body.size();
+
+	// TODO: Use _replaceAll(str, "\n", "\r\n"):
+	// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
+
+	_addResponseHeader("Content-Length", len_ss.str());
+
+	// TODO: Add more special status cases?
+	if (this->status == Status::MOVED_PERMANENTLY)
 	{
-		// TODO: Unhardcode the Content-Type?
-		this->response += "Content-Type: text/plain\r\n";
-
-		// TODO: Use cgi_exit_status
-		std::stringstream len_ss;
-		len_ss << response_body.size();
-		// TODO: Use _replaceAll(str, "\n", "\r\n"):
-		// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
-
-		this->response +=
-			"Content-Length: "
-			+ len_ss.str()
-			+ "\r\n";
+		this->_addResponseHeader("Location", "http://" + this->_server_name + ":" + this->_port_str + this->request_target + "/");
 	}
+
+	// TODO: Add?
+	// this->_addResponseHeader("Connection", "keep-alive");
+
+	this->response += this->_response_headers;
 
 	this->response +=
 		"\r\n"
@@ -329,7 +453,7 @@ void Client::_fillHeaders(const std::vector<std::string> &header_lines)
 
 		// Assign key to everything before the ':' seperator
 		size_t i = line.find(":");
-		if (i == std::string::npos) throw ClientException(Status::BAD_REQUEST);
+		if (i == std::string::npos || i == 0) throw ClientException(Status::BAD_REQUEST);
 		std::string key = line.substr(0, i);
 
 		// Capitalize letters and replace '-' with '_'
@@ -405,11 +529,17 @@ void Client::_useHeaders(void)
 		}
 		else
 		{
-			// If there is no port after the colon
+			// If there is no server name before the colon
+			if (colon_index == 0) throw ClientException(Status::BAD_REQUEST);
+
+			this->_server_name = host.substr(0, colon_index);
+
+			// If there is no character after the colon
 			if (colon_index == host.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
 
-			std::string port_str = host.substr(colon_index + 1);
-			if (!Utils::parseNumber(port_str, this->port, static_cast<uint16_t>(65535))) throw Client::ClientException(Status::BAD_REQUEST);
+			this->_port_str = host.substr(colon_index + 1);
+
+			if (!Utils::parseNumber(this->_port_str, this->port, static_cast<uint16_t>(65535))) throw Client::ClientException(Status::BAD_REQUEST);
 		}
 	}
 }
@@ -558,6 +688,55 @@ void Client::_hexToNum(std::string &line, size_t &num)
 		}
 	}
 	line.erase(0, i);
+}
+
+std::vector<std::string> Client::_getSortedEntryNames(const std::string &path, bool only_return_directory_entries)
+{
+	std::vector<std::string> names;
+
+	DIR *dirp = opendir(path.c_str());
+	// TODO: I don't think BAD_REQUEST is the most accurate. Which one should be used instead?
+	if (dirp == NULL) throw ClientException(Status::BAD_REQUEST);
+
+	const dirent *dp;
+	while ((dp = readdir(dirp)) != NULL)
+	{
+		std::string name = dp->d_name;
+
+		if (name == ".")
+		{
+			continue;
+		}
+
+		if (only_return_directory_entries)
+		{
+			if (dp->d_type != DT_DIR)
+			{
+				continue;
+			}
+			name += "/";
+		}
+		else
+		{
+			if (dp->d_type == DT_DIR)
+			{
+				continue;
+			}
+		}
+
+		names.push_back(name);
+	}
+
+	closedir(dirp);
+
+	std::sort(names.begin(), names.end());
+
+	return names;
+}
+
+void Client::_addResponseHeader(const std::string &response_header_key, const std::string &response_header_value)
+{
+	this->_response_headers += response_header_key + ": " + response_header_value + "\r\n";
 }
 
 void Client::_addStatusLine(void)

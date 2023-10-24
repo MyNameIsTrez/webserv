@@ -81,11 +81,6 @@ private:
 	void _startCGI(Client &client, int fd);
 	ResolvedLocation _resolveToLocation(const std::string &request_target, const ServerDirective &server);
 	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
-	void _respondWithFile(const std::string &path);
-	void _respondWithDirectoryListing(const std::string &path);
-	void _respondWithRedirect(const std::string &path);
-	void _createFile(const std::string &path);
-	void _deleteFile(const std::string &path);
 
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);

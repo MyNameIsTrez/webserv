@@ -73,9 +73,9 @@ public:
 
 	void appendReadString(char *received, ssize_t bytes_read);
 
+	void respondWithError(void);
 	void respondWithFile(const std::string &path);
 	void respondWithDirectoryListing(const std::string &path);
-	void respondWithRedirect(const std::string &path);
 	void respondWithCreateFile(const std::string &path);
 	void respondWithDeleteFile(const std::string &path);
 
@@ -131,11 +131,16 @@ private:
 	void _parseBodyAppend(const std::string &extra_body);
 	void _hexToNum(std::string &line, size_t &num);
 
+	std::vector<std::string> _getSortedEntryNames(const std::string &path, bool only_return_directory_entries);
+
+	void _addResponseHeader(const std::string &response_header_key, const std::string &response_header_value);
+
 	void _addStatusLine(void);
 
 	void _generateEnv(void);
 	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
+	std::string _response_content_type;
 	size_t _content_length;
 	std::string _header;
 
@@ -150,4 +155,8 @@ private:
 		READING_CONTENT_LEN_ENDLINE,
 		READING_BODY_ENDLINE
 	} _chunked_read_state;
+
+	std::string _server_name;
+	std::string _port_str;
+	std::string _response_headers;
 };

@@ -37,7 +37,8 @@ int main(int argc, char *argv[])
 				{
 					// .uri="/rfcs",
 					.uri="/",
-					.get_allowed=true
+					.get_allowed=true,
+					.autoindex=true
 				}
 			}
 		}

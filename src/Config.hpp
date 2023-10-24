@@ -30,6 +30,7 @@ struct LocationDirective
 
 struct ServerDirective
 {
+	// TODO: Allow autoindex?
 	std::string root; // TODO: Make this mandatory
 	std::vector<uint16_t> ports;
 	std::vector<std::string> server_names;

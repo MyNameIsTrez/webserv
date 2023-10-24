@@ -33,6 +33,7 @@
 - [ ] Make sure the Config *requires* every Location to have a root
 - [ ] Let the accesses happen relative to the config file?
 - [ ] Do we want the / location to exist by default?
+- [ ] Handle favicon.ico
 
 ## Victor
 
