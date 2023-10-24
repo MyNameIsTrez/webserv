@@ -32,13 +32,24 @@ int main(int argc, char *argv[])
 	Config config;
 	config.servers = {
 		{
-			.root="public",
+			// .root=".",
+			.root="/home/sbos/Programming/webserv",
 			.locations={
 				{
-					// .uri="/rfcs",
 					.uri="/",
-					.get_allowed=true
-				}
+					.get_allowed=true,
+					.autoindex=true
+				},
+				// {
+				// 	.uri="/public",
+				// 	.get_allowed=true,
+				// 	.autoindex=true
+				// },
+				// {
+				// 	.uri="/rfcs",
+				// 	.get_allowed=true,
+				// 	.autoindex=true
+				// }
 			}
 		}
 	};

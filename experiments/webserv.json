@@ -1,9 +1,9 @@
 {
 	"servers": [
 		{
-			"server_names": [
-				"a",
-				"b"
+			"listen": [
+				8080,
+				8081
 			]
 		}
 	]
