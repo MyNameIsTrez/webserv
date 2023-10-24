@@ -49,7 +49,7 @@ Client::Client(int client_fd)
 	  cgi_to_server_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
-	  _response_content_type("text/html"),
+	  _response_content_type("application/octet-stream"),
 	  _content_length(),
 	  _header(),
 	  _is_chunked(),
@@ -195,11 +195,13 @@ void Client::respondWithError(void)
 		"<head><title>" + title + "</title></head>\n"
 		"<body>\n"
 		"<center><h1>" + title + "</h1></center>\n"
-		"<hr><center>nginx</center>\n"
+		"<hr><center>webserv</center>\n"
 		"</body>\n"
 		"</html>\n";
 
 	this->response_index = 0;
+
+	this->_response_content_type = "text/html";
 
 	this->prependResponseHeader();
 }
@@ -213,9 +215,83 @@ void Client::respondWithFile(const std::string &path)
 	file_body << file.rdbuf();
 	this->response = file_body.str();
 
-	// TODO: Adapt based on the path's extension?
-	// this->_response_content_type = "text/html";
-	// this->_response_content_type = "text/plain";
+	// TODO: Split into unordered_map() and unordered_set()
+
+	if (_getFileExtension(path) == ".c")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".cpp")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".h")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".hpp")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".log")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".md")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".mk")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".py")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".tpp")
+	{
+		this->_response_content_type = "text/plain";
+	}
+	else if (_getFileExtension(path) == ".txt")
+	{
+		this->_response_content_type = "text/plain";
+	}
+
+	if (_getFileExtension(path) == ".html")
+	{
+		this->_response_content_type = "text/html";
+	}
+	else if (_getFileExtension(path) == ".mp3")
+	{
+		this->_response_content_type = "audio/mpeg";
+	}
+	else if (_getFileExtension(path) == ".png")
+	{
+		this->_response_content_type = "image/png";
+	}
+	else if (_getFileExtension(path) == ".pdf")
+	{
+		this->_response_content_type = "application/pdf";
+	}
+	else if (_getFileExtension(path) == ".gif")
+	{
+		this->_response_content_type = "image/gif";
+	}
+	else if (_getFileExtension(path) == ".json")
+	{
+		this->_response_content_type = "application/json";
+	}
+	else if (_getFileExtension(path) == ".mp4")
+	{
+		this->_response_content_type = "video/mp4";
+	}
+
+	std::cerr << "name: " << _getFileName(path) << std::endl;
+	if (_getFileName(path) == "Makefile")
+	{
+		this->_response_content_type = "text/plain";
+	}
 
 	this->prependResponseHeader();
 }
@@ -310,6 +386,8 @@ void Client::respondWithDirectoryListing(const std::string &path)
 		"	</body>\n"
 		"</html>\n";
 
+	this->_response_content_type = "text/html";
+
 	this->prependResponseHeader();
 }
 
@@ -339,7 +417,7 @@ void Client::prependResponseHeader(void)
 	_addStatusLine();
 
 	// TODO: Add?
-	// this->_addResponseHeader("Server", "nginx");
+	// this->_addResponseHeader("Server", "webserv");
 
 	// TODO: Add?
 	// this->_addResponseHeader("Date", "Tue, 24 Oct 2023 08:27:34 GMT");
@@ -748,6 +826,20 @@ void Client::_addStatusLine(void)
 		+ " "
 		+ status_text_table[this->status]
 		+ "\r\n";
+}
+
+std::string Client::_getFileExtension(const std::string &path)
+{
+	size_t period_index = path.find_last_of(".");
+	if (period_index == path.npos) return "";
+	return path.substr(period_index);
+}
+
+std::string Client::_getFileName(const std::string &path)
+{
+	size_t slash_index = path.find_last_of("/");
+	if (slash_index == path.npos || slash_index + 1 >= path.length()) return "";
+	return path.substr(slash_index + 1);
 }
 
 void Client::_generateEnv(void)

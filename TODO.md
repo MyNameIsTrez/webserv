@@ -34,19 +34,13 @@
 - [ ] Let the accesses happen relative to the config file?
 - [ ] Do we want the / location to exist by default?
 - [ ] Handle favicon.ico
+- [ ] Add CGI script `file_management.py` that's going to send a response that's identical to a regular directory listing, but has garbage can emoji buttons in front of every file
+- [ ] Make sure that the `/public/bar` in `http://localhost:8080/cgi-bin/file_management.py/public/bar/` gets sent to `file_management.py` so it can send a directory listing of that path
 
 ## Victor
 
-- [ ] Incoming request header parsing (using class that caches reading/writing progress?)
-- [ ] Incoming request body parsing (using class that caches reading/writing progress?)
-- [ ] Parse content_length from header
-- [ ] Parse request methods GET/POST/DELETE from header into a string/enum
-- [ ] Does Transfer-Encoding need to accept capitalized "chunked" value?
-
 ## Milan
 
-- [x] Main webserv while-loop that uses poll()
-- [ ] NGINX's configuration format parser
 - [ ] Sanitize the config fields, like the port not being -1, for example
 
 ### Config parsing
