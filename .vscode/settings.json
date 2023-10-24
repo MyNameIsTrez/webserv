@@ -67,6 +67,22 @@
 		"utility": "cpp",
 		"vector": "cpp",
 		"__tree": "cpp",
-		"map": "cpp"
-	}
+		"map": "cpp",
+		"*.tpp": "cpp",
+		"*.tcc": "cpp",
+		"clocale": "cpp",
+		"codecvt": "cpp",
+		"compare": "cpp",
+		"concepts": "cpp",
+		"unordered_set": "cpp",
+		"memory_resource": "cpp",
+		"numeric": "cpp",
+		"random": "cpp",
+		"numbers": "cpp",
+		"ranges": "cpp",
+		"span": "cpp",
+		"cinttypes": "cpp",
+		"variant": "cpp"
+	},
+	"C_Cpp.default.cppStandard": "c++23"
 }
