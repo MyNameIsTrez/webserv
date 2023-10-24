@@ -172,6 +172,10 @@ public:
 			}
 			token.type = Token::BOOLEAN_FALSE;
 		}
+		else
+		{
+			throw TokenExceptionUnexpectedCharacter();
+		}
 
 		return token;
 	}
@@ -210,6 +214,10 @@ private:
 	struct TokenExceptionNoMoreTokens : public TokenException
 	{
 		TokenExceptionNoMoreTokens() : TokenException("Token exception: No more tokens"){};
+	};
+	struct TokenExceptionUnexpectedCharacter : public TokenException
+	{
+		TokenExceptionUnexpectedCharacter() : TokenException("Token exception: Unexpected character"){};
 	};
 
 	std::istream &_file;
