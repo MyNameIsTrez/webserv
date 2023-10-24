@@ -1053,9 +1053,9 @@ void Server::_writeToClient(Client &client, int fd)
 
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
-		// TODO: Remove the client immediately?
-		// TODO: This should be reachable by commenting out the time.sleep(5) in print.py
-		assert(false);
+		// write() returns -1 every once in a while when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
+		_removeClient(client.client_fd);
+		return;
 	}
 
 	// sleep(5); // TODO: REMOVE
