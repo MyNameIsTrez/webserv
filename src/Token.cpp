@@ -32,7 +32,7 @@ Token add_word_token(const std::string &input, size_t &i)
 	while (true)
 	{
 		// TODO: Remove
-		// std::cerr << "input: '" << input << "', i: " << i << std::endl;
+		// Logger::info(std::string("input: '") + input + "', i: " + i);
 
 		// Include word
 		while (i < input.length() && !isspace(input[i]) && input[i] != '=')

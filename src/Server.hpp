@@ -37,6 +37,7 @@ public:
 	void run(void);
 
 private:
+	Server(void);
 	Server(Server const &src);
 	Server &operator=(Server const &src);
 

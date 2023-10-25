@@ -1,5 +1,6 @@
 #include "Client.hpp"
 
+#include "Logger.hpp"
 #include "Utils.hpp"
 
 #include <algorithm>
@@ -192,7 +193,7 @@ void Client::respondWithError(void)
 
 	this->response =
 		"<html>\n"
-		"<head><title>" + title + "</title></head>\n"
+	 	"<head><title>" + title + "</title></head>\n"
 		"<body>\n"
 		"<center><h1>" + title + "</h1></center>\n"
 		"<hr><center>webserv</center>\n"
@@ -287,7 +288,7 @@ void Client::respondWithFile(const std::string &path)
 		this->_response_content_type = "video/mp4";
 	}
 
-	std::cerr << "name: " << _getFileName(path) << std::endl;
+	Logger::info(std::string("name: ") + _getFileName(path));
 	if (_getFileName(path) == "Makefile")
 	{
 		this->_response_content_type = "text/plain";
@@ -478,18 +479,18 @@ void Client::_parseRequestLine(const std::string &line)
 	if (request_method_end_pos == std::string::npos) throw ClientException(Status::BAD_REQUEST);
 	this->request_method = line.substr(0, request_method_end_pos);
 	request_method_end_pos++;
-	std::cerr << "    Request method: '" << this->request_method << "'" << std::endl;
+	Logger::info(std::string("    Request method: '") + this->request_method + "'");
 
 	// Find and set the request target
 	size_t path_end_pos = line.find_last_of(" ");
 	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1) throw ClientException(Status::BAD_REQUEST);
 	this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	path_end_pos++;
-	std::cerr << "    Request target: '" << this->request_target << "'" << std::endl;
+	Logger::info(std::string("    Request target: '") + this->request_target + "'");
 
 	// Set the protocol
 	this->protocol = line.substr(path_end_pos);
-	std::cerr << "    HTTP version: '" << this->protocol << "'" << std::endl;
+	Logger::info(std::string("    HTTP version: '") + this->protocol + "'");
 }
 
 bool Client::_isValidRequestLine(void)
@@ -565,7 +566,7 @@ void Client::_fillHeaders(const std::vector<std::string> &header_lines)
 
 		// Add key and value to the map
 		this->headers.emplace(key, value);
-		std::cerr << "    Header key: '" << key << "', value: '" << value << "'" << std::endl;
+		Logger::info(std::string("    Header key: '") + key + "', value: '" + value + "'");
 	}
 }
 
@@ -585,7 +586,7 @@ void Client::_useHeaders(void)
 
 		if (!Utils::parseNumber(content_length_it->second, this->_content_length, std::numeric_limits<size_t>::max())) throw ClientException(Status::BAD_REQUEST);
 
-		std::cerr << "    Content length: " << this->_content_length << std::endl;
+		Logger::info(std::string("    Content length: ") + std::to_string(this->_content_length));
 	}
 
 	const auto &host_it = this->headers.find("HOST");
@@ -626,7 +627,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 {
 	if (this->_is_chunked)
 	{
-		std::cerr << "Parsing chunked body substring" << std::endl;
+		Logger::info(std::string("Parsing chunked body substring"));
 		this->_chunked_body_buffer.append(extra_body);
 		while (true)
 		{
@@ -698,7 +699,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 	// If request is not chunked
 	else
 	{
-		std::cerr << "Parsing non-chunked body substring" << std::endl;
+		Logger::info(std::string("Parsing non-chunked body substring"));
 		// If not all of extra_body should fit into the body
 		if (this->body.size() + extra_body.size() >= this->_content_length)
 		{

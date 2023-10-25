@@ -1,5 +1,6 @@
 #include "Config.hpp"
 
+#include "Logger.hpp"
 #include "Token.hpp"
 #include "Utils.hpp"
 
@@ -313,7 +314,7 @@ void Config::newServer(std::string line, std::istream &config)
 					new_server.http_redirection = value;
 				else
 				{
-					std::cerr << "Error on line:" << line << std::endl;
+					Logger::error(std::string("Error on line: ") + line);
 					throw InvalidLineException();
 					exit(EXIT_FAILURE);
 				}
@@ -386,7 +387,7 @@ void Config::initMetadata(void)
 {
 	for (auto server_it = servers.begin(); server_it < servers.end(); server_it++)
 	{
-		size_t server_index = server_it - servers.begin();
+		size_t server_index = static_cast<size_t>(server_it - servers.begin());
 
 		for (const uint16_t &port : server_it->ports)
 		{

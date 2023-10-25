@@ -61,27 +61,27 @@ public:
 
 	struct InvalidLineException : public ConfigException
 	{
-		InvalidLineException() : ConfigException("Error: Invalid line in config") {};
+		InvalidLineException() : ConfigException("Invalid line in config") {};
 	};
 
 	struct InvalidFileException : public ConfigException
 	{
-		InvalidFileException() : ConfigException("Error: Unable to open config") {};
+		InvalidFileException() : ConfigException("Unable to open config") {};
 	};
 
 	struct EmptyTypeException : public ConfigException
 	{
-		EmptyTypeException() : ConfigException("Error: Empty type in config") {};
+		EmptyTypeException() : ConfigException("Empty type in config") {};
 	};
 
 	struct DuplicatePortException : public ConfigException
 	{
-		DuplicatePortException() : ConfigException("Error: Duplicate port in config") {};
+		DuplicatePortException() : ConfigException("Duplicate port in config") {};
 	};
 
 	struct InvalidPortException : public ConfigException
 	{
-		InvalidPortException() : ConfigException("Error: Invalid port in config") {};
+		InvalidPortException() : ConfigException("Invalid port in config") {};
 	};
 
 private:
@@ -103,34 +103,4 @@ private:
 	bool parseBool(const std::string &value);
 
 	// typedef int (*t_jump_function)(std::string line);
-};
-
-struct ConfigException : public std::runtime_error
-{
-	ConfigException(const std::string &message) : std::runtime_error(message){};
-};
-
-struct InvalidLineException : public ConfigException
-{
-	InvalidLineException() : ConfigException("Error: Invalid line in config") {};
-};
-
-struct InvalidFileException : public ConfigException
-{
-	InvalidFileException() : ConfigException("Error: Unable to open config") {};
-};
-
-struct EmptyTypeException : public ConfigException
-{
-	EmptyTypeException() : ConfigException("Error: Empty type in config") {};
-};
-
-struct ConflictingServerNameException : public ConfigException
-{
-	ConflictingServerNameException() : ConfigException("Error: Conflicting server name in config") {};
-};
-
-struct InvalidPortException : public ConfigException
-{
-	InvalidPortException() : ConfigException("Error: Invalid port in config") {};
 };
