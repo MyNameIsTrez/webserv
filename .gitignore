@@ -16,6 +16,10 @@
 !fuzzing/Dockerfile
 !fuzzing/Makefile
 
+!llvmfuzzer/conf.dict
+!llvmfuzzer/*.cpp
+!llvmfuzzer/*.md
+
 !nginx/Dockerfile
 !nginx/nginx.conf
 
