@@ -38,6 +38,7 @@
 - [ ] Make sure that the `/public/bar` in `http://localhost:8080/cgi-bin/files.py/public/bar/` gets sent to `files.py` so it can send a directory listing of that path when there's a GET, and can delete/create a file with POST or DELETE.
 - [ ] Allow location logic to work in `cgi-bin/`, rather than having it be a special case directory. Update `README.md` appropriately.
 - [ ] Hardcode default error page in C++ if opening the error status html file threw an exception by concatenating the status code and status line in between it
+- [ ] Fuzz Victor's client request parser
 
 ## Victor
 

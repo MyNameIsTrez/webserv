@@ -14,24 +14,24 @@ int main(int argc, char *argv[])
 	}
 
 	// TODO: Rewrite
-	{
-		// TODO: Change "webserv.conf" to "webserv.json"?
-		std::ifstream config_file(argc == 2 ? argv[1] : "webserv.conf");
-		if (!config_file.is_open())
-			throw Config::InvalidFileException();
+	// {
+	// 	// TODO: Change "webserv.conf" to "webserv.json"?
+	// 	std::ifstream config_file(argc == 2 ? argv[1] : "webserv.conf");
+	// 	if (!config_file.is_open())
+	// 		throw Config::InvalidFileException();
 
-		Config config;
-		try
-		{
-			config.init(config_file);
-		}
-		catch (const Config::ConfigException &e)
-		{
-			Logger::error(e.what());
-			return EXIT_FAILURE;
-		}
-		// config.printConfigInfo();
-	}
+	// 	Config config;
+	// 	try
+	// 	{
+	// 		config.init(config_file);
+	// 	}
+	// 	catch (const Config::ConfigException &e)
+	// 	{
+	// 		Logger::error(e.what());
+	// 		return EXIT_FAILURE;
+	// 	}
+	// 	// config.printConfigInfo();
+	// }
 
 	Config config;
 	config.servers = {
