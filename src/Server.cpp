@@ -840,9 +840,8 @@ void Server::_startCGI(Client &client, int fd)
 		const char *path = "/usr/bin/python3";
 		char *const argv[] = {(char *)"python3", (char *)"cgi-bin/print.py", NULL};
 
-		// TODO: Construct cgi_env using headers map
-		char *cgi_env[] = {NULL};
-		execve(path, argv, cgi_env);
+		const auto &cgi_headers = _getCGIHeaders(client.headers);
+		execve(path, argv, const_cast<char **>(_getCGIEnv(cgi_headers).data()));
 
 		throw SystemException("execve");
 	}
@@ -878,6 +877,32 @@ void Server::_startCGI(Client &client, int fd)
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
 	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
+}
+
+std::vector<std::string> Server::_getCGIHeaders(const std::unordered_map<std::string, std::string> &headers)
+{
+	std::vector<std::string> cgi_headers;
+
+	for (const auto &it : headers)
+	{
+		cgi_headers.push_back(it.first + "=" + it.second);
+	}
+
+	return cgi_headers;
+}
+
+std::vector<const char *> Server::_getCGIEnv(const std::vector<std::string> &cgi_headers)
+{
+	std::vector<const char *> cgi_env;
+
+	for (const std::string &cgi_header : cgi_headers)
+	{
+		cgi_env.push_back(cgi_header.c_str());
+	}
+
+	cgi_env.push_back(NULL);
+
+	return cgi_env;
 }
 
 // TODO: Move this method to the Config class?
