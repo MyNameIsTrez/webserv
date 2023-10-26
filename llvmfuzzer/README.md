@@ -10,21 +10,21 @@ See the [documentation](https://llvm.org/docs/LibFuzzer.html) for more informati
 
 1. `mkdir -p corp_minimized && ./a.out -merge=1 ./corp_minimized ./corp`
 2. `./a.out -runs=0 ./corp_minimized`
-3. `llvm-profdata-14 merge -sparse default.profraw -o foo.profdata`
+3. `llvm-profdata-14 merge -sparse default.profraw -o fuzzer.profdata`
 
 ### Show coverage
 
-4. `llvm-cov-14 show ./a.out -instr-profile=foo.profdata`
+4. `llvm-cov-14 show ./a.out -instr-profile=fuzzer.profdata`
 
 All together now:\
-`rm -rf corp_minimized && mkdir -p corp_minimized && ./a.out -merge=1 ./corp_minimized ./corp && ./a.out -runs=0 ./corp_minimized && llvm-profdata-14 merge -sparse default.profraw -o foo.profdata && llvm-cov-14 show ./a.out -instr-profile=foo.profdata`
+`rm -rf corp_minimized && mkdir -p corp_minimized && ./a.out -merge=1 ./corp_minimized ./corp && ./a.out -runs=0 ./corp_minimized && llvm-profdata-14 merge -sparse default.profraw -o fuzzer.profdata && llvm-cov-14 show ./a.out -instr-profile=fuzzer.profdata`
 
 ### Convert to lcov
 
-4. `llvm-cov-14 export ./a.out -format=lcov -instr-profile=foo.profdata | sed 's#/llvmfuzzer/../#/#g' > lcov.info`
+4. `llvm-cov-14 export ./a.out -format=lcov -instr-profile=fuzzer.profdata | sed 's#/llvmfuzzer/../#/#g' > lcov.info`
 
 All together now:\
-`mkdir -p corp_minimized && ./a.out -merge=1 ./corp_minimized ./corp && ./a.out -runs=0 ./corp_minimized && llvm-profdata-14 merge -sparse default.profraw -o foo.profdata && llvm-cov-14 export ./a.out -format=lcov -instr-profile=foo.profdata | sed 's#/llvmfuzzer/../#/#g' > lcov.info`
+`mkdir -p corp_minimized && ./a.out -merge=1 ./corp_minimized ./corp && ./a.out -runs=0 ./corp_minimized && llvm-profdata-14 merge -sparse default.profraw -o fuzzer.profdata && llvm-cov-14 export ./a.out -format=lcov -instr-profile=fuzzer.profdata | sed 's#/llvmfuzzer/../#/#g' > lcov.info`
 
 ## Clean directory
 

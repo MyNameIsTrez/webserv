@@ -1,6 +1,4 @@
 // clear && clang++ -fsanitize=undefined,address -fprofile-instr-generate -fcoverage-mapping --coverage foo.cpp && ./a.out
-// clear && clang++ -fsanitize=undefined,memory -fprofile-instr-generate -fcoverage-mapping --coverage foo.cpp && ./a.out
-//
 // See https://llvm.org/docs/LibFuzzer.html for more information
 
 #include <stddef.h>
