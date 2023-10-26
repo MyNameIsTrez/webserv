@@ -1,0 +1,28 @@
+{
+	"connection_queue_length": 10,
+	"servers": [
+		{
+			"server_names": [
+				"a",
+				"b"
+			],
+			"http_redirection": "/",
+			"locations": {
+				"/test": {
+					"get_allowed": true
+				},
+				"/foo": {
+					"get_allowed": false
+				}
+			},
+			"listen": [
+				8000,
+				25565
+			]
+		},
+		{
+			"listen": 8080,
+			"http_redirection": "/"
+		}
+	]
+}
