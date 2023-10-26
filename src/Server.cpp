@@ -635,62 +635,36 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 			const std::string &target = client.request_target;
 			const std::string &method = client.request_method;
 
-			if (Utils::startsWith(target, "/cgi-bin/"))
+			// nginx just outright closes the connection
+			if (_config.port_to_server_index.find(client.port) == _config.port_to_server_index.end()) throw Client::ClientException(Status::NOT_FOUND);
+
+			size_t server_index = _config.port_to_server_index.at(client.port);
+			const ServerDirective &server = _config.servers.at(server_index);
+
+			const ResolvedLocation location = _resolveToLocation(target, server);
+
+			if (!location.resolved)
 			{
-				if (target.back() == '/')
-				{
-					throw Client::ClientException(Status::FORBIDDEN);
-				}
-				else
-				{
-					if (method == "DELETE")
-					{
-						throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
-					}
-					else
-					{
-						_startCGI(client, fd);
-					}
-				}
+				// TODO: Is this status code the most appropriate?
+				throw Client::ClientException(Status::NOT_FOUND);
 			}
-			else
+
+			if (!_isAllowedMethod(location, method))
 			{
-				if (_config.port_to_server_index.find(client.port) == _config.port_to_server_index.end()) throw Client::ClientException(Status::NOT_FOUND);
+				throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+			}
 
-				size_t server_index = _config.port_to_server_index.at(client.port);
-				const ServerDirective &server = _config.servers.at(server_index);
-
-				const ResolvedLocation location = _resolveToLocation(target, server);
-
-				if (!location.resolved)
+			if (target.back() == '/')
+			{
+				if (method == "GET")
 				{
-					// TODO: Is this status code the most appropriate?
-					throw Client::ClientException(Status::NOT_FOUND);
-				}
-
-				if (!_isAllowedMethod(location, method))
-				{
-					throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
-				}
-
-				if (target.back() == '/')
-				{
-					if (method == "GET")
+					if (location.has_index)
 					{
-						if (location.has_index)
-						{
-							client.respondWithFile(location.path);
-						}
-						else if (location.autoindex)
-						{
-							client.respondWithDirectoryListing(location.path);
-						}
-						else
-						{
-							// TODO: Make sure this is impossible in the config
-							assert(false);
-							// throw Client::ClientException(Status::FORBIDDEN);
-						}
+						client.respondWithFile(location.path);
+					}
+					else if (location.autoindex)
+					{
+						client.respondWithDirectoryListing(location.path);
 					}
 					else
 					{
@@ -699,46 +673,58 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 				}
 				else
 				{
-					Logger::info(std::string("    location.path: '") + location.path + "'");
-					struct stat status;
-					if (stat(location.path.c_str(), &status) == -1)
+					throw Client::ClientException(Status::FORBIDDEN);
+				}
+			}
+			else
+			{
+				Logger::info(std::string("    location.path: '") + location.path + "'");
+
+				struct stat status;
+				if (stat(location.path.c_str(), &status) == -1)
+				{
+					if (errno == ENOENT)
 					{
-						if (errno == ENOENT)
-						{
-							throw Client::ClientException(Status::NOT_FOUND);
-						}
-						// TODO: Explicitly handle other errnos?
-						else
-						{
-							// TODO: Maybe throw ClientException to make the server never crash?
-							// throw SystemException("stat");
-							// TODO: I'm not sure what to throw in case an unknown error occurs
-							throw Client::ClientException(Status::BAD_REQUEST);
-						}
+						throw Client::ClientException(Status::NOT_FOUND);
 					}
-					else if (S_ISDIR(status.st_mode))
+					// TODO: Explicitly handle other errnos?
+					else
 					{
-						if (method == "DELETE")
-						{
-							throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
-						}
-						else
-						{
-							throw Client::ClientException(Status::MOVED_PERMANENTLY);
-						}
+						// TODO: Maybe throw ClientException to make the server never crash?
+						// throw SystemException("stat");
+						// TODO: I'm not sure what to throw in case an unknown error occurs
+						throw Client::ClientException(Status::BAD_REQUEST);
 					}
-					else if (method == "GET")
+				}
+				else if (S_ISDIR(status.st_mode))
+				{
+					if (method == "DELETE")
 					{
-						client.respondWithFile(location.path);
-					}
-					else if (method == "POST")
-					{
-						client.respondWithCreateFile(location.path);
+						throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
 					}
 					else
 					{
-						client.respondWithDeleteFile(location.path);
+						throw Client::ClientException(Status::MOVED_PERMANENTLY);
 					}
+				}
+				else if (method == "GET")
+				{
+					if (Utils::startsWith(target, "/cgi-bin/"))
+					{
+						_startCGI(client, fd);
+					}
+					else
+					{
+						client.respondWithFile(location.path);
+					}
+				}
+				else if (method == "POST")
+				{
+					client.respondWithCreateFile(location.path);
+				}
+				else
+				{
+					client.respondWithDeleteFile(location.path);
 				}
 			}
 		}

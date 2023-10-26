@@ -96,58 +96,52 @@ public/
 ```py
 target = sanitize_request_target(target)
 
-if target.starts_with("/cgi-bin/"):
-	if target.ends_with("/"):
-		raise FORBIDDEN
+# nginx just outright closes the connection
+if port_to_server_index.find(port) == port_to_server_index.end():
+	raise NOT_FOUND
+
+server_index = port_to_server_index.at(port)
+server = servers.at(server_index)
+
+location = resolve_location(target, server)
+
+if not location.resolved:
+	raise NOT_FOUND
+
+if not is_allowed_method(location, method):
+	raise METHOD_NOT_ALLOWED
+
+if target.ends_with("/"):
+	if method == "GET":
+		if location.has_index:
+			respond_with_file(location.path)
+		elif location.autoindex:
+			respond_with_directory_listing(location.path)
+		else
+			raise FORBIDDEN
 	else:
+		raise FORBIDDEN
+else:
+	struct stat status
+	if stat(location.path, &status) == -1:
+		if errno == ENOENT:
+			raise NOT_FOUND
+		else:
+			raise BAD_REQUEST
+	elif status.type == DIRECTORY:
 		if method == "DELETE":
 			raise METHOD_NOT_ALLOWED
 		else:
+			raise MOVED_PERMANENTLY
+	elif method == "GET":
+		if target.starts_with("/cgi-bin/"):
 			start_cgi(target)
-else:
-	# nginx just outright closes the connection
-	if port_to_server_index.find(port) == port_to_server_index.end():
-		raise NOT_FOUND
-
-	server_index = port_to_server_index.at(port)
-	server = servers.at(server_index)
-
-	location = resolve_location(target, server)
-
-	if not location.resolved:
-		raise NOT_FOUND
-
-	if not is_allowed_method(location, method):
-		raise METHOD_NOT_ALLOWED
-
-	if target.ends_with("/"):
-		if method == "GET":
-			if location.has_index:
-				respond_with_file(location.path)
-			elif location.autoindex:
-				respond_with_directory_listing(location.path)
-			else
-				# TODO: What here?
 		else:
-			raise FORBIDDEN
-	else:
-		struct stat status
-		if stat(location.path, &status) == -1:
-			if errno == ENOENT:
-				raise NOT_FOUND
-			else:
-				raise BAD_REQUEST
-		elif status.type == DIRECTORY:
-			if method == "DELETE":
-				raise METHOD_NOT_ALLOWED
-			else:
-				raise MOVED_PERMANENTLY
-		elif method == "GET":
 			respond_with_file(location.path)
-		elif method == "POST":
-			create_file(location.path)
-		else:
-			delete_file(location.path)
+	elif method == "POST":
+		create_file(location.path)
+	else:
+		delete_file(location.path)
 ```
 
 ```c++
