@@ -124,12 +124,7 @@ if target.ends_with("/"):
 		raise FORBIDDEN
 else:
 	struct stat status
-	if stat(location.path, &status) == -1:
-		if errno == ENOENT:
-			raise NOT_FOUND
-		else:
-			raise BAD_REQUEST
-	elif status.type == DIRECTORY:
+	if stat(location.path, &status) != -1 and status.type == DIRECTORY:
 		if method == "DELETE":
 			raise METHOD_NOT_ALLOWED
 		else:
