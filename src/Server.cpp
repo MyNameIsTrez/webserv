@@ -918,41 +918,37 @@ ResolvedLocation Server::_resolveToLocation(const std::string &request_target, c
 		{
 			longest_uri_length = location.uri.length();
 
-			resolved.resolved = true;
+			resolved.has_index = false;
+			resolved.autoindex = false;
+			resolved.path = "";
 
-			if (location.get_allowed)
-				resolved.get_allowed = true;
-			if (location.post_allowed)
-				resolved.post_allowed = true;
-			if (location.delete_allowed)
-				resolved.delete_allowed = true;
+			resolved.get_allowed = location.get_allowed;
+			resolved.post_allowed = location.post_allowed;
+			resolved.delete_allowed = location.delete_allowed;
 
 			// TODO: Make sure the Config *requires* every Server to have a root
-
 			const std::string &root = location.root.empty() ? server.root : location.root;
 
 			if (request_target.back() != '/')
 			{
 				// TODO: Make sure the Config *requires* every Location to have *either* "index" or "autoindex", and *requires* it to NOT have both
 				resolved.path = root + request_target;
+				resolved.resolved = true;
 			}
 			else if (!location.index.empty())
 			{
 				resolved.has_index = true;
+
 				// TODO: Do we want to use smth like path.join() instead of inserting "/"?
 				resolved.path = root + request_target + location.index;
+				resolved.resolved = true;
 			}
 			else if (location.autoindex)
 			{
 				resolved.autoindex = true;
-				resolved.path = root + request_target;
-			}
-			else
-			{
-				// TODO: What to do here? Reachable with "curl localhost:8080"
 
-				// TODO: Should be unreachable
-				assert(false);
+				resolved.path = root + request_target;
+				resolved.resolved = true;
 			}
 		}
 	}
