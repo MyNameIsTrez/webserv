@@ -160,7 +160,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		if (!this->_isValidRequestTarget()) throw ClientException(Status::BAD_REQUEST);
 		if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
 
-		// Resolves "/.." to "/" to prevent escaping the public directory
+		// Resolves "/.." to "/" to prevent escaping directories
 		this->request_target = std::filesystem::weakly_canonical(this->request_target);
 
 		this->_fillHeaders(header_lines);
@@ -214,8 +214,14 @@ void Client::respondWithFile(const std::string &path)
 	assert(this->response.empty());
 
 	std::ifstream file(path);
+	if (!file.is_open())
+	{
+		throw ClientException(Status::NOT_FOUND);
+	}
+
 	std::stringstream file_body;
 	file_body << file.rdbuf();
+
 	this->response = file_body.str();
 
 	// TODO: Split into unordered_map() and unordered_set()
@@ -290,7 +296,7 @@ void Client::respondWithFile(const std::string &path)
 		this->_response_content_type = "video/mp4";
 	}
 
-	Logger::info(std::string("name: ") + _getFileName(path));
+	Logger::info(std::string("    File name: '") + _getFileName(path) + "'");
 	if (_getFileName(path) == "Makefile")
 	{
 		this->_response_content_type = "text/plain";
@@ -398,18 +404,36 @@ void Client::respondWithCreateFile(const std::string &path)
 {
 	assert(this->response.empty());
 
-	// TODO: Write
-	(void)path;
-	assert(false);
+	std::ofstream outfile;
+
+	outfile.open(path, std::fstream::in);
+
+	if (outfile)
+	{
+		Logger::debug("    File already exists");
+		throw ClientException(Status::BAD_REQUEST);
+	}
+
+	Logger::debug("    Creating file");
+	outfile.open(path, std::fstream::out);
+
+	// TODO: Is it necessary to flush manually before the ofstream's destructor gets called?
+	// TODO: Limit the body size somewhere before this point is even reached
+	outfile << this->body;
+
+	this->prependResponseHeader();
 }
 
 void Client::respondWithDeleteFile(const std::string &path)
 {
 	assert(this->response.empty());
 
-	// TODO: Write
-	(void)path;
-	assert(false);
+	if (!std::filesystem::remove(path))
+	{
+		throw ClientException(Status::NOT_FOUND);
+	}
+
+	this->prependResponseHeader();
 }
 
 void Client::prependResponseHeader(void)

@@ -338,6 +338,8 @@ void Server::_disableEvent(size_t pfd_index, short int event)
 
 void Server::_enableWritingToClient(Client &client)
 {
+	// TODO: Assert that response isn't empty?
+
 	Logger::info(std::string("    In _enableWritingToClient()"));
 	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
 	_enableEvent(client_pfd_index, POLLOUT);
@@ -347,6 +349,8 @@ void Server::_enableWritingToClient(Client &client)
 
 void Server::_enableWritingToCGI(Client &client)
 {
+	// TODO: Assert that response isn't empty?
+
 	assert(client.cgi_write_state != CGIWriteState::DONE);
 	assert(client.server_to_cgi_fd != -1);
 
@@ -681,22 +685,7 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 				Logger::info(std::string("    location.path: '") + location.path + "'");
 
 				struct stat status;
-				if (stat(location.path.c_str(), &status) == -1)
-				{
-					if (errno == ENOENT)
-					{
-						throw Client::ClientException(Status::NOT_FOUND);
-					}
-					// TODO: Explicitly handle other errnos?
-					else
-					{
-						// TODO: Maybe throw ClientException to make the server never crash?
-						// throw SystemException("stat");
-						// TODO: I'm not sure what to throw in case an unknown error occurs
-						throw Client::ClientException(Status::BAD_REQUEST);
-					}
-				}
-				else if (S_ISDIR(status.st_mode))
+				if (stat(location.path.c_str(), &status) != -1 && S_ISDIR(status.st_mode))
 				{
 					if (method == "DELETE")
 					{
@@ -1068,6 +1057,7 @@ void Server::_writeToClient(Client &client, int fd)
 
 	// sleep(5); // TODO: REMOVE
 
+	// TODO: What if client.response is still being appended to? Won't this remove early?
 	if (client.response_index == client.response.length())
 	{
 		// TODO: Finish this commented out code

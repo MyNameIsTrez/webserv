@@ -18,6 +18,7 @@
 - [Full example NGINX configuration](https://www.nginx.com/resources/wiki/start/topics/examples/full/)
 - [How NGINX processes a request](https://nginx.org/en/docs/http/request_processing.html)
 - [How NGINX redirection and try_files works](https://serverfault.com/a/1094257/1055398)
+- [HTTP header status flowchart](https://upload.wikimedia.org/wikipedia/commons/8/88/Http-headers-status.png)
 
 ## Setting up multiple servers with different hostnames
 

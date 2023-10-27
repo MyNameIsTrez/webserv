@@ -44,18 +44,15 @@ int main(int argc, char *argv[])
 				// 	.autoindex=true,
 				// },
 				{
-					.uri="/cgi-",
-					.get_allowed=true,
-					.autoindex=true,
-				},
-				{
 					.uri="/cgi-bin",
-					// .get_allowed=true,
+					.get_allowed=true,
 					.autoindex=true,
 				},
 				{
 					.uri="/public",
 					.get_allowed=true,
+					.post_allowed=true,
+					.delete_allowed=true,
 					.autoindex=true,
 				},
 				// {
