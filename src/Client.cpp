@@ -337,9 +337,9 @@ void Client::respondWithDirectoryListing(const std::string &path)
 		"		</script>\n"
 		"	</head>\n"
 		"	<body>\n"
-		"	<h1>Index of " + this->request_target + "</h1>\n"
-		"	<hr>\n"
-		"	<pre>\n";
+		"		<h1>Index of " + this->request_target + "</h1>\n"
+		"		<hr>\n"
+		"		<pre>\n";
 
 	// TODO: DECIDE: Delete button right next to link or al the way to the right (Or maybe even something else? :thinking_emoji:) -->
 	// "		<button onclick=\"requestDelete(this.nextSibling.href)\">🗑</button><a href=\"public/foo.txt\">foo.txt</a><br>\n"
@@ -364,7 +364,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &directory_name : _getSortedEntryNames(path, true))
 	{
 		this->response +=
-			"<a href=\""
+			"		<a href=\""
 			+ directory_name
 			+ "\">"
 			+ directory_name
@@ -374,7 +374,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &non_directory_name : _getSortedEntryNames(path, false))
 	{
 		this->response +=
-			"<a href=\""
+			"		<a href=\""
 			+ non_directory_name
 			+ "\">"
 			+ non_directory_name
@@ -382,8 +382,8 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	}
 
 	this->response +=
-		"	</pre>\n"
-		"	<hr>\n"
+		"		</pre>\n"
+		"		<hr>\n"
 		"	</body>\n"
 		"</html>\n";
 

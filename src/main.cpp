@@ -38,20 +38,30 @@ int main(int argc, char *argv[])
 		{
 			.root=".",
 			.locations={
-				{
-					.uri="/",
-					.get_allowed=true,
-					.autoindex=true
-				},
 				// {
-				// 	.uri="/public",
+				// 	.uri="/",
 				// 	.get_allowed=true,
-				// 	.autoindex=true
+				// 	.autoindex=true,
 				// },
+				{
+					.uri="/cgi-",
+					.get_allowed=true,
+					.autoindex=true,
+				},
+				{
+					.uri="/cgi-bin",
+					// .get_allowed=true,
+					.autoindex=true,
+				},
+				{
+					.uri="/public",
+					.get_allowed=true,
+					.autoindex=true,
+				},
 				// {
 				// 	.uri="/rfcs",
 				// 	.get_allowed=true,
-				// 	.autoindex=true
+				// 	.autoindex=true,
 				// }
 			}
 		}
