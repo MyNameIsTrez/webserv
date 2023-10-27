@@ -25,6 +25,9 @@
 
 !src/*.[cht]pp
 
+!src/config/*.[ch]pp
+!src/config/config.json
+
 !tests/**
 
 !YoupiBanane/**
