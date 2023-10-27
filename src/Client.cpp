@@ -156,7 +156,9 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		const auto header_lines = this->_getHeaderLines();
 
 		this->_parseRequestLine(header_lines[0]);
-		if (!this->_isValidRequestLine()) throw ClientException(Status::BAD_REQUEST);
+		if (!this->_isValidRequestMethod()) throw ClientException(Status::METHOD_NOT_ALLOWED);
+		if (!this->_isValidRequestTarget()) throw ClientException(Status::BAD_REQUEST);
+		if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
 
 		// Resolves "/.." to "/" to prevent escaping the public directory
 		this->request_target = std::filesystem::weakly_canonical(this->request_target);
@@ -491,11 +493,6 @@ void Client::_parseRequestLine(const std::string &line)
 	// Set the protocol
 	this->protocol = line.substr(path_end_pos);
 	Logger::info(std::string("    HTTP version: '") + this->protocol + "'");
-}
-
-bool Client::_isValidRequestLine(void)
-{
-	return this->_isValidRequestMethod() && this->_isValidRequestTarget() && this->_isValidProtocol();
 }
 
 bool Client::_isValidRequestMethod(void)
