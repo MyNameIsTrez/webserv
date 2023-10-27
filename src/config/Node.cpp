@@ -1,3 +1,5 @@
+#include "Node.hpp"
+
 #include "Config.hpp"
 
 bool Node::getBoolean() const

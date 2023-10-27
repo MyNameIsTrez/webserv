@@ -1,4 +1,7 @@
+#include "JSON.hpp"
+
 #include "Config.hpp"
+#include "../Utils.hpp"
 
 JSON::JSON(std::istream &file) : _tokenizer(file)
 {
@@ -117,6 +120,10 @@ Node JSON::_parseObject()
 			throw JSONExceptionExpectedStringKey();
 		const std::string &key = keyToken.string;
 
+		if (object.find(key) != object.end())
+		{
+			throw JSONExceptionDuplicateKey();
+		}
 		if (_tokenizer.getToken().type != Token::COLON)
 			throw JSONExceptionExpectedColon();
 

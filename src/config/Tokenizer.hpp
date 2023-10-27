@@ -1,8 +1,6 @@
 #pragma once
-#ifndef TOKENIZER_HPP
-#define TOKENIZER_HPP
 
-#include "Config.hpp"
+#include "Token.hpp"
 
 class Tokenizer
 {
@@ -45,5 +43,3 @@ private:
 	std::istream &_file;
 	size_t prevPos;
 };
-
-#endif

@@ -1,8 +1,7 @@
 #pragma once
-#ifndef JSON_HPP
-#define JSON_HPP
 
-#include "Config.hpp"
+#include "Tokenizer.hpp"
+#include "Node.hpp"
 
 class JSON
 {
@@ -50,8 +49,10 @@ private:
 	{
 		JSONExceptionUnexpectedToken() : JSONException("JSON exception: Unexpected token"){};
 	};
+	struct JSONExceptionDuplicateKey : public JSONException
+	{
+		JSONExceptionDuplicateKey() : JSONException("JSON exception: Duplicate key"){};
+	};
 
 	Tokenizer _tokenizer;
 };
-
-#endif

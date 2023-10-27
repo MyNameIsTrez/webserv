@@ -1,3 +1,5 @@
+#include "Tokenizer.hpp"
+
 #include "Config.hpp"
 
 Tokenizer::Tokenizer(std::istream &file) : _file(file) {}

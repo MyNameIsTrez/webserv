@@ -1,8 +1,11 @@
 #pragma once
-#ifndef NODE_HPP
-#define NODE_HPP
 
-#include "Config.hpp"
+#include <cstddef>
+#include <map>
+#include <stdexcept>
+#include <string>
+#include <variant>
+#include <vector>
 
 struct Node
 {
@@ -47,5 +50,3 @@ private:
 		NodeExceptionGetObject() : NodeException("Node exception: Attempt to get object failed"){};
 	};
 };
-
-#endif

@@ -1,6 +1,4 @@
 #pragma once
-#ifndef TOKEN_HPP
-#define TOKEN_HPP
 
 #include "Config.hpp"
 
@@ -22,5 +20,3 @@ struct Token
 
 	std::string string;
 };
-
-#endif

@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Client.hpp"
-#include "Config.hpp"
+#include "config/Config.hpp"
 
 #include <cstring>
 
