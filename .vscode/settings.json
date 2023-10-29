@@ -2,6 +2,7 @@
 	"editor.formatOnSave": true,
 	"editor.defaultFormatter": "ms-vscode.cpptools",
 	"files.associations": {
+		"webserv.json": "json",
 		"string": "cpp",
 		"istream": "cpp",
 		"__bit_reference": "cpp",
@@ -84,5 +85,16 @@
 		"cinttypes": "cpp",
 		"variant": "cpp"
 	},
-	"C_Cpp.default.cppStandard": "c++23"
+	"C_Cpp.default.cppStandard": "c++23",
+	"json.schemas": [
+		{
+			"fileMatch": [
+				"/*webserv.json"
+			],
+			"url": "./webserv_schema.json"
+		}
+	],
+	"[json]": {
+		"editor.defaultFormatter": "vscode.json-language-features"
+	}
 }

@@ -1,0 +1,30 @@
+{
+	"servers": [
+		{
+			"client_max_body_size": 0,
+			"connection_queue_length": 1,
+			"ports": [
+				8080,
+				8081
+			],
+			"server_names": [
+				"localhost",
+				"127.0.0.1"
+			],
+			"locations": {
+				"/public": {
+					"get_allowed": true,
+					"post_allowed": false,
+					"delete_allowed": false,
+					"autoindex": false,
+					"index": "",
+					"root": ""
+				}
+			},
+			"error_pages": {
+				"400": "error_pages/400.html",
+				"404": "error_pages/404.html"
+			}
+		}
+	]
+}

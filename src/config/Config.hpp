@@ -18,9 +18,11 @@ class JSON;
 struct LocationDirective
 {
 	std::string uri;
+
 	bool get_allowed;
 	bool post_allowed;
 	bool delete_allowed;
+
 	bool autoindex;
 	std::string index;
 	std::string root;
@@ -28,13 +30,14 @@ struct LocationDirective
 
 struct ServerDirective
 {
-	std::vector<uint16_t> ports;
-	std::vector<std::string> server_names;
-	size_t client_max_body_size;
-	// std::string http_redirection; // TODO: Willen we dit er weer in zetten?
-	std::map<Status::Status, std::string> error_pages;
-	std::vector<LocationDirective> locations;
 	size_t connection_queue_length;
+	size_t client_max_body_size;
+	std::vector<uint16_t> ports;
+
+	std::vector<std::string> server_names;
+	// std::string http_redirection; // TODO: Willen we dit er weer in zetten?
+	std::vector<LocationDirective> locations;
+	std::map<Status::Status, std::string> error_pages;
 };
 
 class Config
@@ -52,28 +55,44 @@ public:
 	};
 
 private:
+	struct ConfigExceptionExpectedConnectionQueueLength : public ConfigException
+	{
+		ConfigExceptionExpectedConnectionQueueLength() : ConfigException("Config exception: Expected connection_queue_length"){};
+	};
+	struct ConfigExceptionExpectedClientMaxBodySize : public ConfigException
+	{
+		ConfigExceptionExpectedClientMaxBodySize() : ConfigException("Config exception: Expected client_max_body_size"){};
+	};
+	struct ConfigExceptionExpectedListen : public ConfigException
+	{
+		ConfigExceptionExpectedListen() : ConfigException("Config exception: Expected listen"){};
+	};
+
+	struct ConfigExceptionPortIsHigherThan65535 : public ConfigException
+	{
+		ConfigExceptionPortIsHigherThan65535() : ConfigException("Config exception: Port is higher than 65535"){};
+	};
+	struct ConfigExceptionDuplicatePort : public ConfigException
+	{
+		ConfigExceptionDuplicatePort() : ConfigException("Config exception: Duplicate port"){};
+	};
+
+	struct ConfigExceptionClientMaxBodySizeIsSmallerThanZero : public ConfigException
+	{
+		ConfigExceptionClientMaxBodySizeIsSmallerThanZero() : ConfigException("Config exception: client_max_body_size is smaller than zero"){};
+	};
+	struct ConfigExceptionConnectionQueueLengthIsSmallerThanOne : public ConfigException
+	{
+		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){};
+	};
+
+	struct ConfigExceptionInvalidErrorPageCode : public ConfigException
+	{
+		ConfigExceptionInvalidErrorPageCode() : ConfigException("Config exception: Invalid error page code"){};
+	};
+
 	struct ConfigExceptionUnknownKey : public ConfigException
 	{
 		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key"){};
-	};
-	struct ConfigExceptionServerExpectedConnectionQueueLength : public ConfigException
-	{
-		ConfigExceptionServerExpectedConnectionQueueLength() : ConfigException("Config exception: Server expected connection_queue_length"){};
-	};
-	struct ConfigExceptionServerExpectedClientMaxBodySize : public ConfigException
-	{
-		ConfigExceptionServerExpectedClientMaxBodySize() : ConfigException("Config exception: Server expected client_max_body_size"){};
-	};
-	struct ConfigExceptionServerExpectedListen : public ConfigException
-	{
-		ConfigExceptionServerExpectedListen() : ConfigException("Config exception: Server expected listen"){};
-	};
-	struct ConfigExceptionServerInvalidErrorPageCode : public ConfigException
-	{
-		ConfigExceptionServerInvalidErrorPageCode() : ConfigException("Config exception: Server invalid error page code"){};
-	};
-	struct ConfigExceptionServerDuplicatePort : public ConfigException
-	{
-		ConfigExceptionServerDuplicatePort() : ConfigException("Config exception: Server duplicate port"){};
 	};
 };

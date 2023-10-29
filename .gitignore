@@ -5,6 +5,8 @@
 
 !cgi-bin/*.py
 
+!error_pages/*.html
+
 !experiments/*.[ch]pp
 !experiments/cgi.py
 !experiments/in.txt
@@ -39,3 +41,5 @@
 !./subject.pdf
 !./TODO.md
 !./webserv.conf
+!webserv_schema.json
+!webserv.json

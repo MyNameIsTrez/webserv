@@ -17,25 +17,49 @@ void Config::init(const JSON &json)
 		{
 			if (server.find("connection_queue_length") == server.end())
 			{
-				throw ConfigExceptionServerExpectedConnectionQueueLength();
+				throw ConfigExceptionExpectedConnectionQueueLength();
 			}
 			if (server.find("client_max_body_size") == server.end())
 			{
-				throw ConfigExceptionServerExpectedClientMaxBodySize();
+				throw ConfigExceptionExpectedClientMaxBodySize();
 			}
-			if (server.find("listen") == server.end())
+			if (server.find("ports") == server.end())
 			{
-				throw ConfigExceptionServerExpectedListen();
+				throw ConfigExceptionExpectedListen();
 			}
+
 			const std::string &key = server_property_it.first;
 
-			if (key == "listen")
+			if (key == "connection_queue_length")
 			{
-				const Node &ports_node = server_property_it.second;
-
-				for (const auto &port_node : ports_node.getArray())
+				server_directive.connection_queue_length = server_property_it.second.getInteger();
+				// TODO: Test what happens with listen() if we allow 0.
+				// TODO: If it works, lower the limit here along with changing the exception's name
+				if (server_directive.connection_queue_length < 1)
 				{
-					const uint16_t &port = port_node.getInteger();
+					throw ConfigExceptionConnectionQueueLengthIsSmallerThanOne();
+				}
+			}
+			else if (key == "client_max_body_size")
+			{
+				server_directive.client_max_body_size = server_property_it.second.getInteger();
+				// TODO: Do we maybe want a higher minimum value?
+				if (server_directive.client_max_body_size < 0)
+				{
+					throw ConfigExceptionClientMaxBodySizeIsSmallerThanZero();
+				}
+			}
+			else if (key == "ports")
+			{
+				for (const auto &port_node : server_property_it.second.getArray())
+				{
+					const size_t port_size_t = port_node.getInteger();
+					if (port_size_t > std::numeric_limits<uint16_t>::max())
+					{
+						throw ConfigExceptionPortIsHigherThan65535();
+					}
+					const uint16_t port = port_size_t;
+
 					server_directive.ports.push_back(port);
 					auto pair = port_to_server_index.emplace(
 						port,
@@ -44,28 +68,18 @@ void Config::init(const JSON &json)
 					// If the key was already present
 					if (!pair.second)
 					{
-						throw ConfigExceptionServerDuplicatePort();
+						throw ConfigExceptionDuplicatePort();
 					}
 				}
 			}
 			else if (key == "server_names")
 			{
-				const Node &server_names_node = server_property_it.second;
-
-				for (const auto &server_name_node : server_names_node.getArray())
+				for (const auto &server_name_node : server_property_it.second.getArray())
 				{
 					const std::string &server_name = server_name_node.getString();
 
 					server_directive.server_names.push_back(server_name);
 				}
-			}
-			else if (key == "client_max_body_size")
-			{
-				server_directive.client_max_body_size = server_property_it.second.getInteger();
-			}
-			else if (key == "connection_queue_length")
-			{
-				server_directive.connection_queue_length = server_property_it.second.getInteger();
 			}
 			// else if (key == "http_redirection") // TODO: Willen we dit er weer in zetten?
 			// {
@@ -73,9 +87,7 @@ void Config::init(const JSON &json)
 			// }
 			else if (key == "locations")
 			{
-				const Node &locations_node = server_property_it.second;
-
-				for (const auto &location_node : locations_node.getObject())
+				for (const auto &location_node : server_property_it.second.getObject())
 				{
 					LocationDirective location_directive{};
 
@@ -121,8 +133,9 @@ void Config::init(const JSON &json)
 					int error_code;
 					if (!Utils::parseNumber(error_page_node.first, error_code, std::numeric_limits<int>::max()))
 					{
-						throw ConfigExceptionServerInvalidErrorPageCode();
+						throw ConfigExceptionInvalidErrorPageCode();
 					}
+
 					const std::string &page_path = error_page_node.second.getString();
 
 					server_directive.error_pages.emplace(static_cast<Status::Status>(error_code), page_path);
