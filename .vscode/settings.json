@@ -2,7 +2,6 @@
 	"editor.formatOnSave": true,
 	"editor.defaultFormatter": "ms-vscode.cpptools",
 	"files.associations": {
-		"webserv.json": "json",
 		"string": "cpp",
 		"istream": "cpp",
 		"__bit_reference": "cpp",
