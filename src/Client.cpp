@@ -372,7 +372,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &directory_name : _getSortedEntryNames(path, true))
 	{
 		this->response +=
-			"		<a href=\""
+			"<a href=\""
 			+ directory_name
 			+ "\">"
 			+ directory_name
@@ -382,7 +382,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &non_directory_name : _getSortedEntryNames(path, false))
 	{
 		this->response +=
-			"		<a href=\""
+			"<a href=\""
 			+ non_directory_name
 			+ "\">"
 			+ non_directory_name
