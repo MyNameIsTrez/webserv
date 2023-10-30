@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Client.hpp"
-#include "Config.hpp"
+#include "config/Config.hpp"
 
 #include <cstring>
 
@@ -22,7 +22,7 @@ struct ResolvedLocation
 	bool has_index;
 	bool autoindex;
 	std::string path;
-	bool resolved;
+
 	bool get_allowed;
 	bool post_allowed;
 	bool delete_allowed;

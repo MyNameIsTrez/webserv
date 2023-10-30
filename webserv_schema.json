@@ -1,0 +1,77 @@
+{
+	"$schema": "http://json-schema.org/draft-07/schema#",
+	"title": "webserv schema",
+	"description": "webserv is a C++ project at Codam",
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"servers": {
+			"type": "array",
+			"items": {
+				"type": "object",
+				"required": [
+					"connection_queue_length",
+					"client_max_body_size",
+					"ports"
+				],
+				"properties": {
+					"connection_queue_length": {
+						"type": "integer",
+						"minimum": 1
+					},
+					"client_max_body_size": {
+						"type": "integer",
+						"minimum": 0
+					},
+					"ports": {
+						"type": "array",
+						"items": {
+							"type": "integer",
+							"minimum": 0,
+							"maximum": 65535
+						}
+					},
+					"server_names": {
+						"type": "array",
+						"items": {
+							"type": "string"
+						}
+					},
+					"locations": {
+						"type": "object",
+						"additionalProperties": {
+							"type": "object",
+							"additionalProperties": false,
+							"properties": {
+								"get_allowed": {
+									"type": "boolean"
+								},
+								"post_allowed": {
+									"type": "boolean"
+								},
+								"delete_allowed": {
+									"type": "boolean"
+								},
+								"autoindex": {
+									"type": "boolean"
+								},
+								"index": {
+									"type": "string"
+								},
+								"root": {
+									"type": "string"
+								}
+							}
+						}
+					},
+					"error_pages": {
+						"type": "object",
+						"additionalProperties": {
+							"type": "string"
+						}
+					}
+				}
+			}
+		}
+	}
+}

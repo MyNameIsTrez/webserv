@@ -106,9 +106,6 @@ server = servers.at(server_index)
 
 location = resolve_location(target, server)
 
-if not location.resolved:
-	raise NOT_FOUND
-
 if not is_allowed_method(location, method):
 	raise METHOD_NOT_ALLOWED
 

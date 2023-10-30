@@ -1,7 +1,7 @@
 #include "Server.hpp"
 
+#include "config/Config.hpp"
 #include "Client.hpp"
-#include "Config.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 
@@ -134,7 +134,8 @@ void Server::run(void)
 			Logger::info(std::string("Gootbye"));
 			return;
 		}
-		else if (shutting_down_gracefully) {
+		else if (shutting_down_gracefully)
+		{
 			// TODO: Do we want to use : iteration in other spots too?
 			for (pollfd pfd : _pfds)
 			{
@@ -152,7 +153,7 @@ void Server::run(void)
 				Logger::info(std::string("  poll() got interrupted by a signal handler"));
 				continue;
 			}
-			 throw SystemException("poll");
+			throw SystemException("poll");
 		}
 		// else if (event_count == 0)
 		// {
@@ -631,7 +632,7 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 		client.appendReadString(received, bytes_read);
 
 		bool just_done_reading_header =
-			        previous_read_state == ClientReadState::HEADER
+			previous_read_state == ClientReadState::HEADER
 			&& client.client_read_state != ClientReadState::HEADER;
 
 		if (just_done_reading_header)
@@ -646,12 +647,6 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 			const ServerDirective &server = _config.servers.at(server_index);
 
 			const ResolvedLocation location = _resolveToLocation(target, server);
-
-			if (!location.resolved)
-			{
-				// TODO: Is this status code the most appropriate?
-				throw Client::ClientException(Status::NOT_FOUND);
-			}
 
 			if (!_isAllowedMethod(location, method))
 			{
@@ -915,29 +910,21 @@ ResolvedLocation Server::_resolveToLocation(const std::string &request_target, c
 			resolved.post_allowed = location.post_allowed;
 			resolved.delete_allowed = location.delete_allowed;
 
-			// TODO: Make sure the Config *requires* every Server to have a root
-			const std::string &root = location.root.empty() ? server.root : location.root;
-
 			if (request_target.back() != '/')
 			{
-				// TODO: Make sure the Config *requires* every Location to have *either* "index" or "autoindex", and *requires* it to NOT have both
-				resolved.path = root + request_target;
-				resolved.resolved = true;
+				resolved.path = location.root + request_target;
 			}
 			else if (!location.index.empty())
 			{
 				resolved.has_index = true;
 
-				// TODO: Do we want to use smth like path.join() instead of inserting "/"?
-				resolved.path = root + request_target + location.index;
-				resolved.resolved = true;
+				resolved.path = location.root + request_target + location.index;
 			}
 			else if (location.autoindex)
 			{
 				resolved.autoindex = true;
 
-				resolved.path = root + request_target;
-				resolved.resolved = true;
+				resolved.path = location.root + request_target;
 			}
 		}
 	}
@@ -1064,8 +1051,8 @@ void Server::_writeToClient(Client &client, int fd)
 		// If this is a CGI request
 		// if ()
 		// {
-			// Remove the client once we've sent the entire response
-			_removeClient(client.client_fd);
+		// Remove the client once we've sent the entire response
+		_removeClient(client.client_fd);
 		// }
 		// // If this isn't a CGI request
 		// else

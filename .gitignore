@@ -5,6 +5,8 @@
 
 !cgi-bin/*.py
 
+!error_pages/*.html
+
 !experiments/*.[ch]pp
 !experiments/cgi.py
 !experiments/in.txt
@@ -29,6 +31,9 @@
 
 !src/*.[cht]pp
 
+!src/config/*.[ch]pp
+!src/config/config.json
+
 !tests/**
 
 !YoupiBanane/**
@@ -40,3 +45,5 @@
 !./subject.pdf
 !./TODO.md
 !./webserv.conf
+!webserv_schema.json
+!webserv.json
