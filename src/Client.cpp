@@ -16,9 +16,6 @@
 #include <unistd.h>
 #include <vector>
 
-// TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN Server.cpp!
-#define MAX_RECEIVED_LEN 100
-
 const char *Client::status_text_table[] = {
 	[Status::OK] = "OK",
 	[Status::MOVED_PERMANENTLY] = "Moved Permanently",

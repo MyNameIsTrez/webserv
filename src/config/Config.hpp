@@ -29,7 +29,7 @@ struct LocationDirective
 
 struct ServerDirective
 {
-	size_t connection_queue_length;
+	int connection_queue_length;
 	size_t client_max_body_size;
 	std::vector<uint16_t> ports;
 
@@ -79,6 +79,10 @@ private:
 	struct ConfigExceptionClientMaxBodySizeIsSmallerThanZero : public ConfigException
 	{
 		ConfigExceptionClientMaxBodySizeIsSmallerThanZero() : ConfigException("Config exception: client_max_body_size is smaller than zero"){};
+	};
+	struct ConfigExceptionConnectionQueueLengthIsTooHigh : public ConfigException
+	{
+		ConfigExceptionConnectionQueueLengthIsTooHigh() : ConfigException("Config exception: connection_queue_length is too high"){};
 	};
 	struct ConfigExceptionConnectionQueueLengthIsSmallerThanOne : public ConfigException
 	{

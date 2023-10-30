@@ -2,6 +2,7 @@
 
 #include "config/Config.hpp"
 #include "Client.hpp"
+#include "defines.hpp"
 #include "Logger.hpp"
 #include "Utils.hpp"
 
@@ -14,17 +15,6 @@
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unordered_set>
-
-// TODO: Move some/all of these defines to a config file
-#define CONNECTION_QUEUE_LEN 10
-
-#define MAX_CGI_WRITE_LEN 100
-#define MAX_CLIENT_WRITE_LEN 100
-#define MAX_RECEIVED_LEN 100
-
-#define CHILD 0
-#define PIPE_READ_INDEX 0
-#define PIPE_WRITE_INDEX 1
 
 // TODO: Turn these into static ints inside of a class?
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
@@ -45,10 +35,13 @@ Server::Server(const Config &config)
 	  _clients(),
 	  _pfds()
 {
-	for (const auto &element : _config.port_to_server_index)
+	for (const auto &it : _config.port_to_server_index)
 	{
-		uint16_t port = element.first;
+		uint16_t port = it.first;
 		Logger::info(std::string("Port number: ") + std::to_string(port));
+
+		size_t server_index = it.second;
+		Logger::info(std::string("Server index: ") + std::to_string(server_index));
 
 		// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
 		// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
@@ -64,9 +57,11 @@ Server::Server(const Config &config)
 		servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 		servaddr.sin_port = htons(port);
 
-		if ((bind(port_fd, (sockaddr *)&servaddr, sizeof(servaddr))) == -1) throw SystemException("bind");
+		if (bind(port_fd, (sockaddr *)&servaddr, sizeof(servaddr)) == -1) throw SystemException("bind");
 
-		if ((listen(port_fd, CONNECTION_QUEUE_LEN)) == -1) throw SystemException("listen");
+		int connection_queue_length = config.servers.at(server_index).connection_queue_length;
+
+		if (listen(port_fd, connection_queue_length) == -1) throw SystemException("listen");
 
 		_addFd(port_fd, FdType::SERVER, POLLIN);
 

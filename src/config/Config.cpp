@@ -32,7 +32,13 @@ void Config::init(const JSON &json)
 
 			if (key == "connection_queue_length")
 			{
-				server_directive.connection_queue_length = server_property_it.second.getInteger();
+				size_t connection_queue_length_size_t = server_property_it.second.getInteger();
+				if (connection_queue_length_size_t > std::numeric_limits<int>::max())
+				{
+					throw ConfigExceptionConnectionQueueLengthIsTooHigh();
+				}
+				server_directive.connection_queue_length = connection_queue_length_size_t;
+
 				// TODO: Test what happens with listen() if we allow 0.
 				// TODO: If it works, lower the limit here along with changing the exception's name
 				if (server_directive.connection_queue_length < 1)
