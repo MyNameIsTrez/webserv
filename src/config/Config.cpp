@@ -89,11 +89,18 @@ void Config::init(const JSON &json)
 			{
 				for (const auto &location_node : server_property_it.second.getObject())
 				{
+					const auto &location_object = location_node.second.getObject();
+
+					if (location_object.find("autoindex") != location_object.end() && location_object.find("index") != location_object.end())
+					{
+						throw ConfigExceptionBothAutoindexAndIndex();
+					}
+
 					LocationDirective location_directive{};
 
 					location_directive.uri = location_node.first;
 
-					for (const auto &location_property_it : location_node.second.getObject())
+					for (const auto &location_property_it : location_object)
 					{
 						const std::string &property_key = location_property_it.first;
 

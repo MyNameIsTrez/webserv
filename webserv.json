@@ -12,12 +12,17 @@
 				"127.0.0.1"
 			],
 			"locations": {
-				"/public": {
+				"/public/": {
 					"get_allowed": true,
 					"post_allowed": true,
 					"delete_allowed": true,
 					"autoindex": true,
-					"index": "index.html",
+					"root": "."
+				},
+				"/": {
+					"get_allowed": true,
+					"post_allowed": true,
+					"delete_allowed": true,
 					"root": "."
 				}
 			},

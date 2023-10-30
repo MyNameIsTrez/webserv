@@ -86,6 +86,11 @@ private:
 		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){};
 	};
 
+	struct ConfigExceptionBothAutoindexAndIndex : public ConfigException
+	{
+		ConfigExceptionBothAutoindexAndIndex() : ConfigException("Config exception: Both autoindex and index"){};
+	};
+
 	struct ConfigExceptionInvalidErrorPageCode : public ConfigException
 	{
 		ConfigExceptionInvalidErrorPageCode() : ConfigException("Config exception: Invalid error page code"){};
