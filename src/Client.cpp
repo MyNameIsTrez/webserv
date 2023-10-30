@@ -417,6 +417,12 @@ void Client::respondWithCreateFile(const std::string &path)
 	Logger::debug("    Creating file");
 	outfile.open(path, std::fstream::out);
 
+	if (!outfile)
+	{
+		Logger::debug("    Couldn't create file");
+		throw ClientException(Status::BAD_REQUEST);
+	}
+
 	// TODO: Is it necessary to flush manually before the ofstream's destructor gets called?
 	// TODO: Limit the body size somewhere before this point is even reached
 	outfile << this->body;
