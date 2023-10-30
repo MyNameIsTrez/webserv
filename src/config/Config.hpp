@@ -3,7 +3,6 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
-#include <map>
 #include <sstream>
 #include <string>
 #include <variant>
@@ -37,7 +36,7 @@ struct ServerDirective
 	std::vector<std::string> server_names;
 	// std::string http_redirection; // TODO: Willen we dit er weer in zetten?
 	std::vector<LocationDirective> locations;
-	std::map<Status::Status, std::string> error_pages;
+	std::unordered_map<Status::Status, std::string> error_pages;
 };
 
 class Config

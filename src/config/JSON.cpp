@@ -107,7 +107,7 @@ Node JSON::_parseObject()
 {
 	Node node;
 
-	std::map<std::string, Node> object;
+	std::unordered_map<std::string, Node> object;
 
 	while (true)
 	{

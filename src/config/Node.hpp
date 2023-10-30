@@ -1,9 +1,9 @@
 #pragma once
 
 #include <cstddef>
-#include <map>
 #include <stdexcept>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -14,16 +14,16 @@ public:
 	size_t getInteger() const;
 	std::string getString() const;
 	std::vector<Node> getArray() const;
-	std::map<std::string, Node> getObject() const;
+	std::unordered_map<std::string, Node> getObject() const;
 
 	void setBoolean(bool boolean);
 	void setInteger(size_t integer);
 	void setString(const std::string string);
 	void setArray(std::vector<Node> array);
-	void setObject(const std::map<std::string, Node> object);
+	void setObject(const std::unordered_map<std::string, Node> object);
 
 private:
-	std::variant<bool, size_t, std::string, std::vector<Node>, std::map<std::string, Node>> _value;
+	std::variant<bool, size_t, std::string, std::vector<Node>, std::unordered_map<std::string, Node>> _value;
 
 	struct NodeException : public std::runtime_error
 	{

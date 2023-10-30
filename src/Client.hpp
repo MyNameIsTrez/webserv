@@ -73,7 +73,7 @@ public:
 
 	void appendReadString(char *received, ssize_t bytes_read);
 
-	void respondWithError(void);
+	void respondWithError(const std::unordered_map<Status::Status, std::string> &error_pages);
 	void respondWithFile(const std::string &path);
 	void respondWithDirectoryListing(const std::string &path);
 	void respondWithCreateFile(const std::string &path);

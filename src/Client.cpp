@@ -189,18 +189,39 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 	}
 }
 
-void Client::respondWithError(void)
+void Client::respondWithError(const std::unordered_map<Status::Status, std::string> &error_pages)
 {
-	std::string title = std::to_string(this->status) + " " + status_text_table[this->status];
+	bool opened_file = false;
 
-	this->response =
-		"<html>\n"
-	 	"<head><title>" + title + "</title></head>\n"
-		"<body>\n"
-		"<center><h1>" + title + "</h1></center>\n"
-		"<hr><center>webserv</center>\n"
-		"</body>\n"
-		"</html>\n";
+	const auto &error_page_it = error_pages.find(this->status);
+
+	if (error_page_it != error_pages.end())
+	{
+		std::ifstream file(error_page_it->second);
+		if (file.is_open())
+		{
+			opened_file = true;
+
+			std::stringstream file_body;
+			file_body << file.rdbuf();
+
+			this->response = file_body.str();
+		}
+	}
+
+	if (!opened_file)
+	{
+		std::string title = std::to_string(this->status) + " " + status_text_table[this->status];
+
+		this->response =
+			"<html>\n"
+			"<head><title>" + title + "</title></head>\n"
+			"<body>\n"
+			"<center><h1>" + title + "</h1></center>\n"
+			"<hr><center>webserv</center>\n"
+			"</body>\n"
+			"</html>\n";
+	}
 
 	this->response_index = 0;
 

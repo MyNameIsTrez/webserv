@@ -17,12 +17,14 @@
 
 // TODO: Move some/all of these defines to a config file
 #define CONNECTION_QUEUE_LEN 10
+
 #define MAX_CGI_WRITE_LEN 100
 #define MAX_CLIENT_WRITE_LEN 100
+#define MAX_RECEIVED_LEN 100
+
 #define CHILD 0
 #define PIPE_READ_INDEX 0
 #define PIPE_WRITE_INDEX 1
-#define MAX_RECEIVED_LEN 100
 
 // TODO: Turn these into static ints inside of a class?
 const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
@@ -498,7 +500,10 @@ void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue
 
 			_disableReadingFromClient(client);
 
-			client.respondWithError();
+			size_t server_index = _config.port_to_server_index.at(client.port);
+			const ServerDirective &server = _config.servers.at(server_index);
+
+			client.respondWithError(server.error_pages);
 
 			_enableWritingToClient(client);
 

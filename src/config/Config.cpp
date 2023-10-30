@@ -12,7 +12,7 @@ void Config::init(const JSON &json)
 	{
 		ServerDirective server_directive{};
 
-		const std::map<std::string, Node> &server = server_it.getObject();
+		const std::unordered_map<std::string, Node> &server = server_it.getObject();
 		for (const auto &server_property_it : server)
 		{
 			if (server.find("connection_queue_length") == server.end())
