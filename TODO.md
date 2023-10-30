@@ -39,6 +39,7 @@
 - [ ] Allow location logic to work in `cgi-bin/`, rather than having it be a special case directory. Update `README.md` appropriately.
 - [ ] Hardcode default error page in C++ if opening the error status html file threw an exception by concatenating the status code and status line in between it
 - [ ] Fuzz Victor's client request parser
+- [ ] Talk with Marius about what is meant with "Define a HTTP redirection"
 
 ## Victor
 
