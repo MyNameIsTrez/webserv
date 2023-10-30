@@ -24,7 +24,7 @@ static void run(int argc, char *argv[], char *buf)
 	{
 		config.init(config_stream);
 	}
-	catch (const ConfigException &a)
+	catch (const Config::ConfigException &e)
 	{
 	}
 }

@@ -1,5 +1,6 @@
 #include "config/Config.hpp"
 #include "config/JSON.hpp"
+#include "Logger.hpp"
 #include "Server.hpp"
 
 #include <cstdlib>
@@ -28,9 +29,9 @@ int main(int argc, char *argv[])
 
 		config.init(json);
 	}
-	catch (const Config::ConfigException &a)
+	catch (const Config::ConfigException &e)
 	{
-		std::cout << a.what() << std::endl;
+		Logger::error(e.what());
 		return EXIT_FAILURE;
 	}
 

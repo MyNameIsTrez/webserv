@@ -30,7 +30,7 @@ int main()
 
 
     auto p1 = std::filesystem::path("../../c2/./e");
-    auto p2 = std::filesystem::path("../no-such-file");
+    auto p2 = std::filesystem::path("..///no-such-file");
     // std::string foo = std::filesystem::weakly_canonical(p2);
     // std::cout << "xd: '" << std::filesystem::weakly_canonical(p2) << "'" << std::endl;
     wowie(std::filesystem::weakly_canonical(p2));

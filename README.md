@@ -18,6 +18,7 @@
 - [Full example NGINX configuration](https://www.nginx.com/resources/wiki/start/topics/examples/full/)
 - [How NGINX processes a request](https://nginx.org/en/docs/http/request_processing.html)
 - [How NGINX redirection and try_files works](https://serverfault.com/a/1094257/1055398)
+- [HTTP header status flowchart](https://upload.wikimedia.org/wikipedia/commons/8/88/Http-headers-status.png)
 
 ## Setting up multiple servers with different hostnames
 
@@ -94,45 +95,46 @@ public/
 ```
 
 ```py
-request_target = sanitize_request_target(request_target)
+target = sanitize_request_target(target)
 
-if request_target.starts_with("/cgi-bin/"):
-	if request_target.ends_with("/"):
-		respond_with_error()
+# nginx just outright closes the connection
+if port_to_server_index.find(port) == port_to_server_index.end():
+	raise NOT_FOUND
+
+server_index = port_to_server_index.at(port)
+server = servers.at(server_index)
+
+location = resolve_location(target, server)
+
+if not is_allowed_method(location, method):
+	raise METHOD_NOT_ALLOWED
+
+if target.ends_with("/"):
+	if method == "GET":
+		if location.has_index:
+			respond_with_file(location.path)
+		elif location.autoindex:
+			respond_with_directory_listing(location.path)
+		else
+			raise FORBIDDEN
 	else:
-		if method == "DELETE":
-			respond_with_error()
-		else:
-			start_cgi(request_target)
+		raise FORBIDDEN
 else:
-	location = resolve_location(request_target)
-
-	if not is_allowed_method(location, method):
-		respond_with_error()
-
-	if request_target.ends_with("/"):
-		if method == "GET":
-			if location.is_index_file_defined:
-				respond_with_file(location.path)
-			elif location.is_autoindex_on:
-				respond_with_directory_listing(location.path)
-			else
-				respond_with_error()
+	struct stat status
+	if stat(location.path, &status) != -1 and status.type == DIRECTORY:
+		if method == "DELETE":
+			raise METHOD_NOT_ALLOWED
 		else:
-			respond_with_error()
+			raise MOVED_PERMANENTLY
+	elif method == "GET":
+		if target.starts_with("/cgi-bin/"):
+			start_cgi(target)
+		else:
+			respond_with_file(location.path)
+	elif method == "POST":
+		create_file(location.path)
 	else:
-		status = stat(request_target)
-		if status.type == DIRECTORY:
-			if method == "DELETE":
-				respond_with_error(405)
-			else:
-				respond_with_redirect(request_target + "/")
-		elif method == "GET":
-			respond_with_file(request_target)
-		elif method == "POST":
-			create_file(request_target)
-		else:
-			delete_file(request_target)
+		delete_file(location.path)
 ```
 
 ```c++

@@ -37,7 +37,7 @@ endif
 
 ################################################################################
 
-CFILES := src/Config.cpp src/Token.cpp fuzzing/src/main.cpp
+CFILES := src/Config.cpp src/Token.cpp src/Logger.cpp fuzzing/src/main.cpp
 
 ################################################################################
 

@@ -14,11 +14,11 @@
 			"locations": {
 				"/public": {
 					"get_allowed": true,
-					"post_allowed": false,
-					"delete_allowed": false,
-					"autoindex": false,
-					"index": "",
-					"root": ""
+					"post_allowed": true,
+					"delete_allowed": true,
+					"autoindex": true,
+					"index": "index.html",
+					"root": "."
 				}
 			},
 			"error_pages": {

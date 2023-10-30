@@ -22,7 +22,7 @@ struct ResolvedLocation
 	bool has_index;
 	bool autoindex;
 	std::string path;
-	bool resolved;
+
 	bool get_allowed;
 	bool post_allowed;
 	bool delete_allowed;
@@ -37,6 +37,7 @@ public:
 	void run(void);
 
 private:
+	Server(void);
 	Server(Server const &src);
 	Server &operator=(Server const &src);
 
@@ -79,6 +80,8 @@ private:
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
 	void _startCGI(Client &client, int fd);
+	std::vector<std::string> _getCGIHeaders(const std::unordered_map<std::string, std::string> &headers);
+	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);
 	ResolvedLocation _resolveToLocation(const std::string &request_target, const ServerDirective &server);
 	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
 

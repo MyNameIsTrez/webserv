@@ -1,5 +1,6 @@
 #include "Client.hpp"
 
+#include "Logger.hpp"
 #include "Utils.hpp"
 
 #include <algorithm>
@@ -155,9 +156,11 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		const auto header_lines = this->_getHeaderLines();
 
 		this->_parseRequestLine(header_lines[0]);
-		if (!this->_isValidRequestLine()) throw ClientException(Status::BAD_REQUEST);
+		if (!this->_isValidRequestMethod()) throw ClientException(Status::METHOD_NOT_ALLOWED);
+		if (!this->_isValidRequestTarget()) throw ClientException(Status::BAD_REQUEST);
+		if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
 
-		// Resolves "/.." to "/" to prevent escaping the public directory
+		// Resolves "/.." to "/" to prevent escaping directories
 		this->request_target = std::filesystem::weakly_canonical(this->request_target);
 
 		this->_fillHeaders(header_lines);
@@ -192,7 +195,7 @@ void Client::respondWithError(void)
 
 	this->response =
 		"<html>\n"
-		"<head><title>" + title + "</title></head>\n"
+	 	"<head><title>" + title + "</title></head>\n"
 		"<body>\n"
 		"<center><h1>" + title + "</h1></center>\n"
 		"<hr><center>webserv</center>\n"
@@ -211,8 +214,14 @@ void Client::respondWithFile(const std::string &path)
 	assert(this->response.empty());
 
 	std::ifstream file(path);
+	if (!file.is_open())
+	{
+		throw ClientException(Status::NOT_FOUND);
+	}
+
 	std::stringstream file_body;
 	file_body << file.rdbuf();
+
 	this->response = file_body.str();
 
 	// TODO: Split into unordered_map() and unordered_set()
@@ -287,7 +296,7 @@ void Client::respondWithFile(const std::string &path)
 		this->_response_content_type = "video/mp4";
 	}
 
-	std::cerr << "name: " << _getFileName(path) << std::endl;
+	Logger::info(std::string("    File name: '") + _getFileName(path) + "'");
 	if (_getFileName(path) == "Makefile")
 	{
 		this->_response_content_type = "text/plain";
@@ -336,9 +345,9 @@ void Client::respondWithDirectoryListing(const std::string &path)
 		"		</script>\n"
 		"	</head>\n"
 		"	<body>\n"
-		"	<h1>Index of " + this->request_target + "</h1>\n"
-		"	<hr>\n"
-		"	<pre>\n";
+		"		<h1>Index of " + this->request_target + "</h1>\n"
+		"		<hr>\n"
+		"		<pre>\n";
 
 	// TODO: DECIDE: Delete button right next to link or al the way to the right (Or maybe even something else? :thinking_emoji:) -->
 	// "		<button onclick=\"requestDelete(this.nextSibling.href)\">🗑</button><a href=\"public/foo.txt\">foo.txt</a><br>\n"
@@ -363,7 +372,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &directory_name : _getSortedEntryNames(path, true))
 	{
 		this->response +=
-			"<a href=\""
+			"		<a href=\""
 			+ directory_name
 			+ "\">"
 			+ directory_name
@@ -373,7 +382,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &non_directory_name : _getSortedEntryNames(path, false))
 	{
 		this->response +=
-			"<a href=\""
+			"		<a href=\""
 			+ non_directory_name
 			+ "\">"
 			+ non_directory_name
@@ -381,8 +390,8 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	}
 
 	this->response +=
-		"	</pre>\n"
-		"	<hr>\n"
+		"		</pre>\n"
+		"		<hr>\n"
 		"	</body>\n"
 		"</html>\n";
 
@@ -395,18 +404,36 @@ void Client::respondWithCreateFile(const std::string &path)
 {
 	assert(this->response.empty());
 
-	// TODO: Write
-	(void)path;
-	assert(false);
+	std::ofstream outfile;
+
+	outfile.open(path, std::fstream::in);
+
+	if (outfile)
+	{
+		Logger::debug("    File already exists");
+		throw ClientException(Status::BAD_REQUEST);
+	}
+
+	Logger::debug("    Creating file");
+	outfile.open(path, std::fstream::out);
+
+	// TODO: Is it necessary to flush manually before the ofstream's destructor gets called?
+	// TODO: Limit the body size somewhere before this point is even reached
+	outfile << this->body;
+
+	this->prependResponseHeader();
 }
 
 void Client::respondWithDeleteFile(const std::string &path)
 {
 	assert(this->response.empty());
 
-	// TODO: Write
-	(void)path;
-	assert(false);
+	if (!std::filesystem::remove(path))
+	{
+		throw ClientException(Status::NOT_FOUND);
+	}
+
+	this->prependResponseHeader();
 }
 
 void Client::prependResponseHeader(void)
@@ -478,23 +505,18 @@ void Client::_parseRequestLine(const std::string &line)
 	if (request_method_end_pos == std::string::npos) throw ClientException(Status::BAD_REQUEST);
 	this->request_method = line.substr(0, request_method_end_pos);
 	request_method_end_pos++;
-	std::cerr << "    Request method: '" << this->request_method << "'" << std::endl;
+	Logger::info(std::string("    Request method: '") + this->request_method + "'");
 
 	// Find and set the request target
 	size_t path_end_pos = line.find_last_of(" ");
 	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1) throw ClientException(Status::BAD_REQUEST);
 	this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	path_end_pos++;
-	std::cerr << "    Request target: '" << this->request_target << "'" << std::endl;
+	Logger::info(std::string("    Request target: '") + this->request_target + "'");
 
 	// Set the protocol
 	this->protocol = line.substr(path_end_pos);
-	std::cerr << "    HTTP version: '" << this->protocol << "'" << std::endl;
-}
-
-bool Client::_isValidRequestLine(void)
-{
-	return this->_isValidRequestMethod() && this->_isValidRequestTarget() && this->_isValidProtocol();
+	Logger::info(std::string("    HTTP version: '") + this->protocol + "'");
 }
 
 bool Client::_isValidRequestMethod(void)
@@ -565,7 +587,7 @@ void Client::_fillHeaders(const std::vector<std::string> &header_lines)
 
 		// Add key and value to the map
 		this->headers.emplace(key, value);
-		std::cerr << "    Header key: '" << key << "', value: '" << value << "'" << std::endl;
+		Logger::info(std::string("    Header key: '") + key + "', value: '" + value + "'");
 	}
 }
 
@@ -585,7 +607,7 @@ void Client::_useHeaders(void)
 
 		if (!Utils::parseNumber(content_length_it->second, this->_content_length, std::numeric_limits<size_t>::max())) throw ClientException(Status::BAD_REQUEST);
 
-		std::cerr << "    Content length: " << this->_content_length << std::endl;
+		Logger::info(std::string("    Content length: ") + std::to_string(this->_content_length));
 	}
 
 	const auto &host_it = this->headers.find("HOST");
@@ -626,7 +648,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 {
 	if (this->_is_chunked)
 	{
-		std::cerr << "Parsing chunked body substring" << std::endl;
+		Logger::info(std::string("Parsing chunked body substring"));
 		this->_chunked_body_buffer.append(extra_body);
 		while (true)
 		{
@@ -698,7 +720,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 	// If request is not chunked
 	else
 	{
-		std::cerr << "Parsing non-chunked body substring" << std::endl;
+		Logger::info(std::string("Parsing non-chunked body substring"));
 		// If not all of extra_body should fit into the body
 		if (this->body.size() + extra_body.size() >= this->_content_length)
 		{

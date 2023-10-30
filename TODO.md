@@ -34,8 +34,12 @@
 - [ ] Let the accesses happen relative to the config file?
 - [ ] Do we want the / location to exist by default?
 - [ ] Handle favicon.ico
-- [ ] Add CGI script `file_management.py` that's going to send a response that's identical to a regular directory listing, but has garbage can emoji buttons in front of every file
-- [ ] Make sure that the `/public/bar` in `http://localhost:8080/cgi-bin/file_management.py/public/bar/` gets sent to `file_management.py` so it can send a directory listing of that path
+- [ ] Add CGI script `files.py` that's going to send a response that's identical to a regular directory listing, but has garbage can emoji buttons in front of every file
+- [ ] Make sure that the `/public/bar` in `http://localhost:8080/cgi-bin/files.py/public/bar/` gets sent to `files.py` so it can send a directory listing of that path when there's a GET, and can delete/create a file with POST or DELETE.
+- [ ] Allow location logic to work in `cgi-bin/`, rather than having it be a special case directory. Update `README.md` appropriately.
+- [ ] Hardcode default error page in C++ if opening the error status html file threw an exception by concatenating the status code and status line in between it
+- [ ] Fuzz Victor's client request parser
+- [ ] Talk with Marius about what is meant with "Define a HTTP redirection"
 
 ## Victor
 
@@ -88,7 +92,7 @@ be saved.
 - Do we want to be fully C++98 compliant just cause?
 - Make sure that when a client's request has been fully handled, all pfds get removed from the vector and maps, and that their fds get closed.
 - Right now we stop reading the client if we've read everything from the CGI. Is this correct, according to the nginx behavior in practice/the HTTP 1.1 RFC? Same goes for how we stop writing to the CGI if we've read everything from the CGI.
-- Multi-part form requests
+- Detect whether the user sent a multi-part form request or not. If it is sent to a non-cgi directory, throw a client exception. Otherwise, if it is sent to ANY CGI script, just apply default behavior.
 - Do we want to support non-parsed headers? See https://docstore.mik.ua/orelly/linux/cgi/ch03_03.htm#ch03-10-fm2xml
 - Do we want to support having multiple Server instances active at the same time? If so, test it thoroughly
 - Discuss removing Client's copy constructor and copy assignment operator, since it's a hazard that we won't even bother properly testing
