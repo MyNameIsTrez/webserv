@@ -1,7 +1,5 @@
 ## Sander
 
-- [ ] Set up Docker that has Valgrind
-- [ ] Verify that Valgrind detects uninitialized member variables
 - [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
@@ -14,7 +12,6 @@
 - [ ] Check that wrong request methods/request targets/protocols inputs are caught
 - [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
 - [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
-- [ ] Proper `autoindex on;` and `autoindex off;` for the `/` root
 - [ ] Verify that all tests in `tests/config_exceptions/` throw an exception
 - [ ] Verify that duplicate config keys always throw exceptions
 - [ ] Make sure that `listen 127.0.0.1:80;` doesn't crash our program (since we expect a simple number like `80`)
@@ -31,7 +28,7 @@
 - [ ] Allow location logic to work in `cgi-bin/`, rather than having it be a special case directory. Update `README.md` appropriately.
 - [ ] Hardcode default error page in C++ if opening the error status html file threw an exception by concatenating the status code and status line in between it
 - [ ] Fuzz Victor's client request parser
-- [ ] Talk with Marius about what is meant with "Define a HTTP redirection"
+- [ ] Talk with Marius about what is meant with "Define a HTTP redirection"; do we want to implement nginx's `return` directive?
 
 ### Config parsing
 

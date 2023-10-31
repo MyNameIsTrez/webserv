@@ -1,7 +1,7 @@
 {
 	"servers": [
 		{
-			"client_max_body_size": 0,
+			"client_max_body_size": 42,
 			"connection_queue_length": 1,
 			"ports": [
 				8080,

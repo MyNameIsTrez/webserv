@@ -66,7 +66,7 @@ namespace ClientWriteState
 class Client
 {
 public:
-	Client(int client_fd);
+	Client(int client_fd, const size_t &client_max_body_size);
 	Client(Client const &src);
 	virtual ~Client(void);
 	Client &operator=(Client const &src);
@@ -108,6 +108,7 @@ public:
 	uint16_t port;
 	std::string body;
 	size_t body_index;
+	size_t client_max_body_size;
 	std::string response;
 	size_t response_index;
 	int client_fd;

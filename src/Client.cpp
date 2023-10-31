@@ -23,11 +23,14 @@ const char *Client::status_text_table[] = {
 	[Status::FORBIDDEN] = "Forbidden",
 	[Status::NOT_FOUND] = "Not Found",
 	[Status::METHOD_NOT_ALLOWED] = "Method Not Allowed",
+	[Status::REQUEST_ENTITY_TOO_LARGE] = "Request Entity Too Large",
 };
 
 /*	Orthodox Canonical Form */
 
-Client::Client(int client_fd)
+class Config;
+
+Client::Client(int client_fd, const size_t &client_max_body_size)
 	: status(Status::OK),
 	  client_read_state(ClientReadState::HEADER),
 	  cgi_write_state(CGIWriteState::NOT_WRITING),
@@ -40,6 +43,7 @@ Client::Client(int client_fd)
 	  port(-1),
 	  body(),
 	  body_index(),
+	  client_max_body_size(client_max_body_size),
 	  response(),
 	  response_index(),
 	  client_fd(client_fd),
@@ -73,6 +77,7 @@ Client::Client(Client const &src)
 	  port(src.port),
 	  body(src.body),
 	  body_index(src.body_index),
+	  client_max_body_size(src.client_max_body_size),
 	  response(src.response),
 	  response_index(src.response_index),
 	  client_fd(src.client_fd),
@@ -113,6 +118,7 @@ Client &Client::operator=(Client const &src)
 	this->port = src.port;
 	this->body = src.body;
 	this->body_index = src.body_index;
+	this->client_max_body_size = src.client_max_body_size;
 	this->response = src.response;
 	this->response_index = src.response_index;
 	this->client_fd = src.client_fd;
@@ -755,6 +761,11 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 		// If all of extra_body should fit into the body
 		else
 			this->body.append(extra_body);
+	}
+
+	if (this->body.size() > this->client_max_body_size)
+	{
+		throw ClientException(Status::REQUEST_ENTITY_TOO_LARGE);
 	}
 }
 

@@ -64,13 +64,11 @@ void Config::init(const JSON &json)
 					{
 						throw ConfigExceptionPortIsHigherThan65535();
 					}
+
 					const uint16_t port = port_size_t;
-
 					server_directive.ports.push_back(port);
-					auto pair = port_to_server_index.emplace(
-						port,
-						server_index);
 
+					auto pair = port_to_server_index.emplace(port, server_index);
 					// If the key was already present
 					if (!pair.second)
 					{

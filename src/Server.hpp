@@ -106,6 +106,8 @@ private:
 
 	const Config &_config;
 
+	std::unordered_map<int, size_t> _server_fd_to_server_index;
+
 	std::unordered_map<pid_t, int> _cgi_pid_to_client_fd;
 	std::unordered_map<int, size_t> _fd_to_client_index;
 	std::unordered_map<int, size_t> _fd_to_pfd_index;

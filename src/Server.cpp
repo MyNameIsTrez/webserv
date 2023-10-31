@@ -28,6 +28,7 @@ int Server::_sig_chld_pipe[2];
 
 Server::Server(const Config &config)
 	: _config(config),
+	  _server_fd_to_server_index(),
 	  _cgi_pid_to_client_fd(),
 	  _fd_to_client_index(),
 	  _fd_to_pfd_index(),
@@ -64,6 +65,8 @@ Server::Server(const Config &config)
 		if (listen(port_fd, connection_queue_length) == -1) throw SystemException("listen");
 
 		_addFd(port_fd, FdType::SERVER, POLLIN);
+
+		_server_fd_to_server_index.emplace(port_fd, server_index);
 
 		Logger::info(std::string("Added port fd ") + std::to_string(port_fd));
 	}
@@ -252,7 +255,8 @@ void Server::_printContainerSizes(void)
 {
 	std::cerr
 		<< "MAPS: "
-		<< "_cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
+		<< "_server_fd_to_server_index=" << _server_fd_to_server_index.size()
+		<< ", _cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
 		<< ", _fd_to_client_index=" << _fd_to_client_index.size()
 		<< ", _fd_to_pfd_index=" << _fd_to_pfd_index.size()
 		<< ", _fd_to_fd_type=" << _fd_to_fd_type.size()
@@ -516,7 +520,10 @@ void Server::_acceptClient(int server_fd)
 
 	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
-	_clients.push_back(Client(client_fd));
+	size_t server_index = _server_fd_to_server_index.at(server_fd);
+	const ServerDirective &server = _config.servers.at(server_index);
+
+	_clients.push_back(Client(client_fd, server.client_max_body_size));
 }
 
 void Server::_reapChild(void)
@@ -627,15 +634,9 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 
 	if (fd_type == FdType::CLIENT)
 	{
-		ClientReadState::ClientReadState previous_read_state = client.client_read_state;
-
 		client.appendReadString(received, bytes_read);
 
-		bool just_done_reading_header =
-			previous_read_state == ClientReadState::HEADER
-			&& client.client_read_state != ClientReadState::HEADER;
-
-		if (just_done_reading_header)
+		if (client.client_read_state == ClientReadState::DONE)
 		{
 			const std::string &target = client.request_target;
 			const std::string &method = client.request_method;
@@ -704,29 +705,27 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 				}
 				else if (method == "POST")
 				{
+					// TODO: This is wrong, since we need to wait to read the *entire* request before writing to the file. We should probably just read the entire body before anything else. :(
+
+					// TODO: Support launching CGI here like for a GET
 					client.respondWithCreateFile(location.path);
 				}
 				else
 				{
+					// TODO: Support launching CGI here like for a GET?
 					client.respondWithDeleteFile(location.path);
 				}
 			}
-		}
 
-		// If we've just read body bytes, enable POLLOUT
-		// This uses the fact that bytes_read here is guaranteed to be > 0
-		if (client.client_read_state != ClientReadState::HEADER)
-		{
+			// If we've just read body bytes, enable POLLOUT
+			// This uses the fact that bytes_read here is guaranteed to be > 0
 			if (client.cgi_write_state == CGIWriteState::NOT_WRITING)
 			{
 				_enableWritingToClient(client);
 			}
-			else if (client.cgi_write_state == CGIWriteState::WRITING_TO_CGI)
+			else if (client.cgi_write_state == CGIWriteState::WRITING_TO_CGI && !client.body.empty())
 			{
-				if (!client.body.empty())
-				{
-					_enableWritingToCGI(client);
-				}
+				_enableWritingToCGI(client);
 			}
 		}
 	}
@@ -1037,37 +1036,15 @@ void Server::_writeToClient(Client &client, int fd)
 
 	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
 	{
-		// write() returns -1 every once in a while when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
+		// Reached when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
 		_removeClient(client.client_fd);
 		return;
 	}
 
 	// sleep(5); // TODO: REMOVE
 
-	// TODO: What if client.response is still being appended to? Won't this remove early?
 	if (client.response_index == client.response.length())
 	{
-		// TODO: Finish this commented out code
-		// If this is a CGI request
-		// if ()
-		// {
-		// Remove the client once we've sent the entire response
 		_removeClient(client.client_fd);
-		// }
-		// // If this isn't a CGI request
-		// else
-		// {
-		// 	// If TODO: ??
-		// 	if ()
-		// 	{
-		// 		// Remove the client once we've sent the entire response
-		// 		_removeClient(client.client_fd);
-		// 	}
-		// 	else
-		// 	{
-		// 		Logger::info(std::string("    Disabling client POLLOUT"));
-		// 		_disableEvent(pfd_index, POLLOUT);
-		// 	}
-		// }
 	}
 }
