@@ -98,9 +98,14 @@ private:
 		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){};
 	};
 
-	struct ConfigExceptionBothAutoindexAndIndex : public ConfigException
+	struct ConfigExceptionBothAutoindexAndIndexArePresent : public ConfigException
 	{
-		ConfigExceptionBothAutoindexAndIndex() : ConfigException("Config exception: Both autoindex and index"){};
+		ConfigExceptionBothAutoindexAndIndexArePresent() : ConfigException("Config exception: Both autoindex and index are present"){};
+	};
+
+	struct ConfigExceptionMissingCGISettingsProperty : public ConfigException
+	{
+		ConfigExceptionMissingCGISettingsProperty() : ConfigException("Config exception: Missing cgi_settings property"){};
 	};
 
 	struct ConfigExceptionInvalidErrorPageCode : public ConfigException

@@ -47,6 +47,10 @@
 								"cgi_settings": {
 									"type": "object",
 									"additionalProperties": false,
+									"required": [
+										"cgi_execve_path",
+										"cgi_execve_argv0"
+									],
 									"properties": {
 										"cgi_execve_path": {
 											"type": "string"

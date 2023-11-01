@@ -97,7 +97,7 @@ void Config::init(const JSON &json)
 
 					if (location_object.find("autoindex") != location_object.end() && location_object.find("index") != location_object.end())
 					{
-						throw ConfigExceptionBothAutoindexAndIndex();
+						throw ConfigExceptionBothAutoindexAndIndexArePresent();
 					}
 
 					LocationDirective location_directive{};
@@ -115,7 +115,14 @@ void Config::init(const JSON &json)
 
 							location_directive.is_cgi_directory = true;
 
-							for (const auto &cgi_setting : location_property_value.getObject())
+							const auto &cgi_settings_object = location_property_value.getObject();
+
+							if (cgi_settings_object.find("cgi_execve_path") == cgi_settings_object.end() || cgi_settings_object.find("cgi_execve_argv0") == cgi_settings_object.end())
+							{
+								throw ConfigExceptionMissingCGISettingsProperty();
+							}
+
+							for (const auto &cgi_setting : cgi_settings_object)
 							{
 								const std::string &settings_property_key = cgi_setting.first;
 								const std::string &settings_property_value = cgi_setting.second.getString();
