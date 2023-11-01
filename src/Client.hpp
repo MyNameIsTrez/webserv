@@ -142,7 +142,6 @@ private:
 	std::string _getFileExtension(const std::string &path);
 	std::string _getFileName(const std::string &path);
 
-	void _generateEnv(void);
 	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
 	std::string _response_content_type;

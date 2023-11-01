@@ -899,15 +899,6 @@ std::string Client::_getFileName(const std::string &path)
 	return path.substr(slash_index + 1);
 }
 
-void Client::_generateEnv(void)
-{
-	// TODO: Decide what variable to give the CGI, and if we have to put HTTP_ in front of all the keys
-	// See page 19, section 4.1.18 in CGI RFC 3875
-
-	// TODO: Do this:
-	// key = "HTTP_" + key;
-}
-
 // TODO: Remove?
 // std::string Client::_replaceAll(std::string input, const std::string& needle, const std::string& replacement)
 // {

@@ -866,10 +866,34 @@ std::vector<std::string> Server::_getCGIHeaders(const std::unordered_map<std::st
 
 	for (const auto &it : headers)
 	{
-		cgi_headers.push_back(it.first + "=" + it.second);
+		cgi_headers.push_back("HTTP_" + it.first + "=" + it.second);
 	}
 
+	_addMetaVariables(cgi_headers);
+
 	return cgi_headers;
+}
+
+void Server::_addMetaVariables(std::vector<std::string> &cgi_headers)
+{
+	// TODO: Give some of these values
+	cgi_headers.push_back("AUTH_TYPE=");
+	cgi_headers.push_back("CONTENT_LENGTH=");
+	cgi_headers.push_back("CONTENT_TYPE=");
+	cgi_headers.push_back("GATEWAY_INTERFACE=");
+	cgi_headers.push_back("PATH_INFO=");
+	cgi_headers.push_back("PATH_TRANSLATED=");
+	cgi_headers.push_back("QUERY_STRING=");
+	cgi_headers.push_back("REMOTE_ADDR=");
+	cgi_headers.push_back("REMOTE_HOST=");
+	cgi_headers.push_back("REMOTE_IDENT=");
+	cgi_headers.push_back("REMOTE_USER=");
+	cgi_headers.push_back("REQUEST_METHOD=");
+	cgi_headers.push_back("SCRIPT_NAME=");
+	cgi_headers.push_back("SERVER_NAME=");
+	cgi_headers.push_back("SERVER_PORT=");
+	cgi_headers.push_back("SERVER_PROTOCOL=");
+	cgi_headers.push_back("SERVER_SOFTWARE=");
 }
 
 std::vector<const char *> Server::_getCGIEnv(const std::vector<std::string> &cgi_headers)
