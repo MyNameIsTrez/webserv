@@ -19,9 +19,11 @@
 					"autoindex": true,
 					"root": "."
 				},
-				"/": {
-					"get_allowed": true,
-					"post_allowed": true,
+				"/cgis/python/": {
+					"cgi_settings": {
+						"cgi_execve_path": "/usr/bin/python3",
+						"cgi_execve_argv0": "python3"
+					},
 					"delete_allowed": true,
 					"root": "."
 				}

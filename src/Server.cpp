@@ -692,27 +692,21 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 						throw Client::ClientException(Status::MOVED_PERMANENTLY);
 					}
 				}
+
+				if (location.is_cgi_directory)
+				{
+					_startCGI(client, location.cgi_settings, location.path);
+				}
 				else if (method == "GET")
 				{
-					if (Utils::startsWith(target, "/cgi-bin/"))
-					{
-						_startCGI(client, fd);
-					}
-					else
-					{
-						client.respondWithFile(location.path);
-					}
+					client.respondWithFile(location.path);
 				}
 				else if (method == "POST")
 				{
-					// TODO: This is wrong, since we need to wait to read the *entire* request before writing to the file. We should probably just read the entire body before anything else. :(
-
-					// TODO: Support launching CGI here like for a GET
 					client.respondWithCreateFile(location.path);
 				}
 				else
 				{
-					// TODO: Support launching CGI here like for a GET?
 					client.respondWithDeleteFile(location.path);
 				}
 			}
@@ -791,7 +785,7 @@ void Server::_removeClientAttachments(int fd)
 	}
 }
 
-void Server::_startCGI(Client &client, int fd)
+void Server::_startCGI(Client &client, const CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1)
 {
 	Logger::info(std::string("  Starting CGI..."));
 
@@ -816,16 +810,20 @@ void Server::_startCGI(Client &client, int fd)
 		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw SystemException("dup2");
 		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
 
-		Logger::info(std::string("    The child is going to start the CGI script"));
-		// TODO: Define CGI script path "/usr/bin/python3" in the configuration file?
-		// TODO: Define "cgi-bin" in the configuration file?
-		// TODO: Dynamically create argv[0] by taking the last directory of "/usr/bin/python3///"?
-		const char *path = "/usr/bin/python3";
-		char *const argv[] = {(char *)"python3", (char *)"cgi-bin/print.py", NULL};
+		char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
+		char *argv1 = const_cast<char *>(cgi_execve_argv1.c_str());
 
+		// TODO: Pass the PATH_INFO in argv?
+		char *const argv[] = {argv0, argv1, NULL};
+
+		// TODO: CGI RFC section 4.1's meta-variable-name values should all be added to the CGI headers
 		const auto &cgi_headers = _getCGIHeaders(client.headers);
-		execve(path, argv, const_cast<char **>(_getCGIEnv(cgi_headers).data()));
+		const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
+		char **cgi_env = const_cast<char **>(cgi_env_vec.data());
 
+		execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
+
+		// TODO: Throw a ClientException instead here, if I can get execve() to fail under weird circumstances using a client!
 		throw SystemException("execve");
 	}
 
@@ -834,11 +832,11 @@ void Server::_startCGI(Client &client, int fd)
 
 	client.cgi_pid = forked_pid;
 
-	_cgi_pid_to_client_fd.emplace(forked_pid, fd);
-
-	size_t client_index = _fd_to_client_index.at(fd);
+	_cgi_pid_to_client_fd.emplace(forked_pid, client.client_fd);
 
 	int server_to_cgi_fd = server_to_cgi_pipe[PIPE_WRITE_INDEX];
+
+	size_t client_index = _fd_to_client_index.at(client.client_fd);
 
 	if (client.request_method == "POST")
 	{
@@ -900,6 +898,9 @@ ResolvedLocation Server::_resolveToLocation(const std::string &request_target, c
 		if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
 		{
 			longest_uri_length = location.uri.length();
+
+			resolved.is_cgi_directory = location.is_cgi_directory;
+			resolved.cgi_settings = location.cgi_settings;
 
 			resolved.has_index = false;
 			resolved.autoindex = false;

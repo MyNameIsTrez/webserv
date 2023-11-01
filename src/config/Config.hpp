@@ -14,9 +14,18 @@
 
 class JSON;
 
+struct CGISettingsDirective
+{
+	std::string cgi_execve_path;
+	std::string cgi_execve_argv0;
+};
+
 struct LocationDirective
 {
 	std::string uri;
+
+	bool is_cgi_directory;
+	CGISettingsDirective cgi_settings;
 
 	bool get_allowed;
 	bool post_allowed;

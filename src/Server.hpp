@@ -19,6 +19,9 @@ namespace FdType
 
 struct ResolvedLocation
 {
+	bool is_cgi_directory;
+	CGISettingsDirective cgi_settings;
+
 	bool has_index;
 	bool autoindex;
 	std::string path;
@@ -79,7 +82,7 @@ private:
 	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
-	void _startCGI(Client &client, int fd);
+	void _startCGI(Client &client, const CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1);
 	std::vector<std::string> _getCGIHeaders(const std::unordered_map<std::string, std::string> &headers);
 	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);
 	ResolvedLocation _resolveToLocation(const std::string &request_target, const ServerDirective &server);

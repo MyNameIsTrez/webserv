@@ -106,32 +106,61 @@ void Config::init(const JSON &json)
 
 					for (const auto &location_property_it : location_object)
 					{
-						const std::string &property_key = location_property_it.first;
+						const std::string &location_property_key = location_property_it.first;
+						const Node &location_property_value = location_property_it.second;
 
-						const Node &property_value = location_property_it.second;
-						if (property_key == "get_allowed")
+						if (location_property_key == "cgi_settings")
 						{
-							location_directive.get_allowed = property_value.getBoolean();
+							CGISettingsDirective &cgi_settings_directive = location_directive.cgi_settings;
+
+							location_directive.is_cgi_directory = true;
+
+							for (const auto &cgi_setting : location_property_value.getObject())
+							{
+								const std::string &settings_property_key = cgi_setting.first;
+								const std::string &settings_property_value = cgi_setting.second.getString();
+
+								if (settings_property_key == "cgi_execve_path")
+								{
+									cgi_settings_directive.cgi_execve_path = settings_property_value;
+								}
+								else if (settings_property_key == "cgi_execve_argv0")
+								{
+									cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
+								}
+								else
+								{
+									throw ConfigExceptionUnknownKey();
+								}
+							}
 						}
-						else if (property_key == "post_allowed")
+						else if (location_property_key == "get_allowed")
 						{
-							location_directive.post_allowed = property_value.getBoolean();
+							location_directive.get_allowed = location_property_value.getBoolean();
 						}
-						else if (property_key == "delete_allowed")
+						else if (location_property_key == "post_allowed")
 						{
-							location_directive.delete_allowed = property_value.getBoolean();
+							location_directive.post_allowed = location_property_value.getBoolean();
 						}
-						else if (property_key == "autoindex")
+						else if (location_property_key == "delete_allowed")
 						{
-							location_directive.autoindex = property_value.getBoolean();
+							location_directive.delete_allowed = location_property_value.getBoolean();
 						}
-						else if (property_key == "index")
+						else if (location_property_key == "autoindex")
 						{
-							location_directive.index = property_value.getString();
+							location_directive.autoindex = location_property_value.getBoolean();
 						}
-						else if (property_key == "root")
+						else if (location_property_key == "index")
 						{
-							location_directive.root = property_value.getString();
+							location_directive.index = location_property_value.getString();
+						}
+						else if (location_property_key == "root")
+						{
+							location_directive.root = location_property_value.getString();
+						}
+						else
+						{
+							throw ConfigExceptionUnknownKey();
 						}
 					}
 					server_directive.locations.push_back(location_directive);
