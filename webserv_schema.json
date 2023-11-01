@@ -48,8 +48,7 @@
 									"type": "object",
 									"additionalProperties": false,
 									"required": [
-										"cgi_execve_path",
-										"cgi_execve_argv0"
+										"cgi_execve_path"
 									],
 									"properties": {
 										"cgi_execve_path": {

@@ -117,7 +117,7 @@ void Config::init(const JSON &json)
 
 							const auto &cgi_settings_object = location_property_value.getObject();
 
-							if (cgi_settings_object.find("cgi_execve_path") == cgi_settings_object.end() || cgi_settings_object.find("cgi_execve_argv0") == cgi_settings_object.end())
+							if (cgi_settings_object.find("cgi_execve_path") == cgi_settings_object.end())
 							{
 								throw ConfigExceptionMissingCGISettingsProperty();
 							}
@@ -130,6 +130,11 @@ void Config::init(const JSON &json)
 								if (settings_property_key == "cgi_execve_path")
 								{
 									cgi_settings_directive.cgi_execve_path = settings_property_value;
+
+									if (cgi_settings_object.find("cgi_execve_argv0") == cgi_settings_object.end())
+									{
+										cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
+									}
 								}
 								else if (settings_property_key == "cgi_execve_argv0")
 								{
