@@ -224,9 +224,9 @@ void Server::run(void)
 			// If we can read
 			if (_pfds[pfd_index].revents & POLLIN_ANY)
 			{
-				bool should_continue = false;
-				_handlePollin(fd, fd_type, should_continue);
-				if (should_continue)
+				bool skip_client = false;
+				_handlePollin(fd, fd_type, skip_client);
+				if (skip_client)
 				{
 					continue;
 				}
@@ -465,48 +465,38 @@ void Server::_pollhupCGIToServer(int fd)
 	}
 }
 
-void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &should_continue)
+void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &skip_client)
 {
 	if (fd_type == FdType::SERVER)
 	{
 		_acceptClient(fd);
 	}
-	else if (fd_type == FdType::SIG_CHLD)
-	{
-		_reapChild();
-
-		// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
-
-		should_continue = true;
-	}
 	else
 	{
-		assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
-
-		Client &client = _getClient(fd);
-
-		try
+		if (fd_type == FdType::SIG_CHLD)
 		{
-			_readFd(client, fd, fd_type, should_continue);
+			_reapChild();
+
+			// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
+
+			skip_client = true;
 		}
-		catch (const Client::ClientException &e)
+		else
 		{
-			Logger::info(std::string("  ") + e.what());
+			assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
 
-			client.status = e.status;
+			Client &client = _getClient(fd);
 
-			_removeClientAttachments(fd);
+			try
+			{
+				_readFd(client, fd, fd_type, skip_client);
+			}
+			catch (const Client::ClientException &e)
+			{
+				_handleClientException(e, client);
 
-			_disableReadingFromClient(client);
-
-			size_t server_index = _config.port_to_server_index.at(client.port);
-			const ServerDirective &server = _config.servers.at(server_index);
-
-			client.respondWithError(server.error_pages);
-
-			_enableWritingToClient(client);
-
-			should_continue = true;
+				skip_client = true;
+			}
 		}
 	}
 }
@@ -548,35 +538,6 @@ void Server::_reapChild(void)
 	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
 	assert(child_pid > 0);
 
-	if (WIFEXITED(child_exit_status))
-	{
-		Logger::info(std::string("    PID ") + std::to_string(child_pid) + " exit status is " + std::to_string(WEXITSTATUS(child_exit_status)));
-	}
-	else if (WIFSTOPPED(child_exit_status))
-	{
-		Logger::info(std::string("    PID ") + std::to_string(child_pid) + " was stopped by " + std::to_string(WSTOPSIG(child_exit_status)));
-		assert(false); // TODO: What to do here?
-	}
-	else if (WIFSIGNALED(child_exit_status))
-	{
-		Logger::info(std::string("    PID ") + std::to_string(child_pid) + " exited due to signal " + std::to_string(WTERMSIG(child_exit_status)));
-
-		if (WTERMSIG(child_exit_status) == SIGTERM)
-		{
-			// TODO: Should we do anything with its client if it still exists?
-			return;
-		}
-
-		// TODO: What to do if it receives for example SIGKILL?:
-		// TODO: https://www.ibm.com/docs/en/aix/7.2?topic=management-process-termination
-		assert(false);
-	}
-	else
-	{
-		// TODO: Decide whether we want to check the remaining WCOREDUMP() and WIFCONTINUED()
-		assert(false); // TODO: What to do here?
-	}
-
 	int client_fd = _cgi_pid_to_client_fd.at(child_pid);
 	size_t client_index = _fd_to_client_index.at(client_fd);
 	Client &client = _clients.at(client_index);
@@ -599,9 +560,15 @@ void Server::_reapChild(void)
 		_enableWritingToClient(client);
 		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
 	}
+
+	bool cgi_exit_ok = WIFEXITED(child_exit_status) && WEXITSTATUS(child_exit_status) == 0;
+	if (!cgi_exit_ok)
+	{
+		_handleClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
+	}
 }
 
-void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue)
+void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &skip_client)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
@@ -622,7 +589,7 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &shoul
 		assert(fd_type == FdType::CLIENT);
 
 		_removeClient(client.client_fd);
-		should_continue = true;
+		skip_client = true;
 
 		return;
 	}
@@ -972,6 +939,24 @@ bool Server::_isAllowedMethod(const ResolvedLocation &location, const std::strin
 	}
 
 	return true;
+}
+
+void Server::_handleClientException(const Client::ClientException &e, Client &client)
+{
+	Logger::info(std::string("  ") + e.what());
+
+	client.status = e.status;
+
+	_removeClientAttachments(client.client_fd);
+
+	_disableReadingFromClient(client);
+
+	size_t server_index = _config.port_to_server_index.at(client.port);
+	const ServerDirective &server = _config.servers.at(server_index);
+
+	client.respondWithError(server.error_pages);
+
+	_enableWritingToClient(client);
 }
 
 void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)

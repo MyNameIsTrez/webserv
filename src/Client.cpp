@@ -24,6 +24,7 @@ const char *Client::status_text_table[] = {
 	[Status::NOT_FOUND] = "Not Found",
 	[Status::METHOD_NOT_ALLOWED] = "Method Not Allowed",
 	[Status::REQUEST_ENTITY_TOO_LARGE] = "Request Entity Too Large",
+	[Status::INTERNAL_SERVER_ERROR] = "Internal Server Error",
 };
 
 /*	Orthodox Canonical Form */

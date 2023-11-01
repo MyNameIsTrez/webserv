@@ -76,10 +76,10 @@ private:
 	void _pollhupCGIToServer(int fd);
 
 	// POLLIN
-	void _handlePollin(int fd, FdType::FdType fd_type, bool &should_continue);
+	void _handlePollin(int fd, FdType::FdType fd_type, bool &skip_client);
 	void _acceptClient(int server_fd);
 	void _reapChild(void);
-	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &should_continue);
+	void _readFd(Client &client, int fd, FdType::FdType fd_type, bool &skip_client);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
 	void _startCGI(Client &client, const CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1);
@@ -88,6 +88,7 @@ private:
 	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);
 	ResolvedLocation _resolveToLocation(const std::string &request_target, const ServerDirective &server);
 	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
+	void _handleClientException(const Client::ClientException &e, Client &client);
 
 	// POLLOUT
 	void _handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index);
