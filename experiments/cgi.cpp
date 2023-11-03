@@ -88,8 +88,7 @@ int main(int argc, char *argv[], char *envp[])
 
 	// TODO: These read() and write() calls all need to happen separately in the event loop
 	{
-		char received[MAX_RECEIVED_LEN + 1];
-		bzero(received, MAX_RECEIVED_LEN + 1);
+		char received[MAX_RECEIVED_LEN + 1]{};
 
 		// Read from the client into 'received'
 		fprintf(stderr, "Parent is going to read from client\n");
@@ -110,8 +109,7 @@ int main(int argc, char *argv[], char *envp[])
 	}
 
 	{
-		char sent[MAX_SENT_LEN + 1];
-		bzero(sent, MAX_SENT_LEN + 1);
+		char sent[MAX_SENT_LEN + 1]{};
 
 		// Read Python script stdout into 'sent'
 		fprintf(stderr, "Parent is going to read from Python\n");

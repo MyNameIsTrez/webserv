@@ -69,8 +69,7 @@ int main(int argc, char *argv[])
 	}
 
 	// Set up socket struct
-	sockaddr_in socket;
-	bzero(&socket, sizeof(socket));
+	sockaddr_in socket{};
 	socket.sin_family = AF_INET;
 	// Convert host (our) byte order to the network byte order as short (uint16_t)
 	socket.sin_port = htons(SERVER_PORT);
@@ -106,8 +105,7 @@ int main(int argc, char *argv[])
 	}
 
 	// NULL-terminate received string
-	char received[MAX_RECEIVED_LEN + 1];
-	bzero(received, MAX_RECEIVED_LEN + 1);
+	char received[MAX_RECEIVED_LEN + 1]{};
 
 	// Keep attempting to read, until there is no more data to receive (0),
 	// or an error is returned (-1)

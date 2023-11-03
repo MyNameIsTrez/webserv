@@ -3,77 +3,60 @@
 #include "JSON.hpp"
 #include "Node.hpp"
 
-Config::Config(void) : servers(), port_to_server_index() {}
+Config::Config(void)
+	: servers(),
+	  connection_queue_length(),
+	  client_max_body_size()
+{
+}
 
 void Config::init(const JSON &json)
 {
+	const auto &root_object = json.root.getObject();
+
+	_parseConnectionQueueLength(root_object);
+
+	_parseClientMaxBodySize(root_object);
+
 	size_t server_index = 0;
-	for (const auto &server_it : json.root.getObject().at("servers").getArray())
+	for (const auto &server_it : root_object.at("servers").getArray())
 	{
 		ServerDirective server_directive{};
 
 		const std::unordered_map<std::string, Node> &server = server_it.getObject();
 		for (const auto &server_property_it : server)
 		{
-			if (server.find("connection_queue_length") == server.end())
-			{
-				throw ConfigExceptionExpectedConnectionQueueLength();
-			}
-			if (server.find("client_max_body_size") == server.end())
-			{
-				throw ConfigExceptionExpectedClientMaxBodySize();
-			}
-			if (server.find("ports") == server.end())
+			if (!server.contains("listen"))
 			{
 				throw ConfigExceptionExpectedListen();
 			}
 
 			const std::string &key = server_property_it.first;
 
-			if (key == "connection_queue_length")
+			if (key == "listen")
 			{
-				size_t connection_queue_length_size_t = server_property_it.second.getInteger();
-				if (connection_queue_length_size_t > std::numeric_limits<int>::max())
+				for (const auto &listen_node : server_property_it.second.getArray())
 				{
-					throw ConfigExceptionConnectionQueueLengthIsTooHigh();
-				}
-				server_directive.connection_queue_length = connection_queue_length_size_t;
+					const std::string &listen = listen_node.getString();
 
-				// TODO: Test what happens with listen() if we allow 0.
-				// TODO: If it works, lower the limit here along with changing the exception's name
-				if (server_directive.connection_queue_length < 1)
-				{
-					throw ConfigExceptionConnectionQueueLengthIsSmallerThanOne();
-				}
-			}
-			else if (key == "client_max_body_size")
-			{
-				server_directive.client_max_body_size = server_property_it.second.getInteger();
-				// TODO: Do we maybe want a higher minimum value?
-				if (server_directive.client_max_body_size < 0)
-				{
-					throw ConfigExceptionClientMaxBodySizeIsSmallerThanZero();
-				}
-			}
-			else if (key == "ports")
-			{
-				for (const auto &port_node : server_property_it.second.getArray())
-				{
-					const size_t port_size_t = port_node.getInteger();
-					if (port_size_t > std::numeric_limits<uint16_t>::max())
+					size_t colon_index = listen.find(":");
+					if (colon_index == listen.npos)
 					{
-						throw ConfigExceptionPortIsHigherThan65535();
+						throw ConfigExceptionListenColonIsRequired();
 					}
 
-					const uint16_t port = port_size_t;
-					server_directive.ports.push_back(port);
+					if (colon_index == 0) throw ConfigExceptionMissingAddressBeforePortColon();
 
-					auto pair = port_to_server_index.emplace(port, server_index);
-					// If the key was already present
-					if (!pair.second)
-					{
-						throw ConfigExceptionDuplicatePort();
-					}
+					std::string address = listen.substr(0, colon_index);
+
+					if (colon_index == listen.size() - 1) throw ConfigExceptionNoPortAfterColon();
+
+					std::string port_str = listen.substr(colon_index + 1);
+
+					uint16_t port;
+					if (!Utils::parseNumber(port_str, port, static_cast<uint16_t>(65535))) throw ConfigExceptionInvalidPortValue();
+
+					server_directive.listen.emplace_back(ListenEntry{address, port});
 				}
 			}
 			else if (key == "server_names")
@@ -95,9 +78,13 @@ void Config::init(const JSON &json)
 				{
 					const auto &location_object = location_node.second.getObject();
 
-					if (location_object.find("autoindex") != location_object.end() && location_object.find("index") != location_object.end())
+					bool contains_autoindex = location_object.contains("autoindex");
+					bool contains_index = location_object.contains("index");
+					bool contains_redirect = location_object.contains("redirect");
+
+					if (contains_autoindex + contains_index + contains_redirect > 1)
 					{
-						throw ConfigExceptionBothAutoindexAndIndexArePresent();
+						throw ConfigExceptionExclusivePropertiesPresent();
 					}
 
 					LocationDirective location_directive{};
@@ -117,7 +104,7 @@ void Config::init(const JSON &json)
 
 							const auto &cgi_settings_object = location_property_value.getObject();
 
-							if (cgi_settings_object.find("cgi_execve_path") == cgi_settings_object.end())
+							if (!cgi_settings_object.contains("cgi_execve_path"))
 							{
 								throw ConfigExceptionMissingCGISettingsProperty();
 							}
@@ -131,7 +118,7 @@ void Config::init(const JSON &json)
 								{
 									cgi_settings_directive.cgi_execve_path = settings_property_value;
 
-									if (cgi_settings_object.find("cgi_execve_argv0") == cgi_settings_object.end())
+									if (!cgi_settings_object.contains("cgi_execve_argv0"))
 									{
 										cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
 									}
@@ -165,6 +152,10 @@ void Config::init(const JSON &json)
 						else if (location_property_key == "index")
 						{
 							location_directive.index = location_property_value.getString();
+						}
+						else if (location_property_key == "redirect")
+						{
+							location_directive.redirect = location_property_value.getString();
 						}
 						else if (location_property_key == "root")
 						{
@@ -201,5 +192,40 @@ void Config::init(const JSON &json)
 
 		servers.push_back(server_directive);
 		server_index++;
+	}
+}
+
+void Config::_parseConnectionQueueLength(const std::unordered_map<std::string, Node> &root_object)
+{
+	if (!root_object.contains("connection_queue_length"))
+	{
+		throw ConfigExceptionExpectedConnectionQueueLength();
+	}
+
+	size_t connection_queue_length_size_t = root_object.at("connection_queue_length").getInteger();
+	if (connection_queue_length_size_t > std::numeric_limits<int>::max())
+	{
+		throw ConfigExceptionConnectionQueueLengthIsTooHigh();
+	}
+	connection_queue_length = connection_queue_length_size_t;
+
+	if (connection_queue_length < 1)
+	{
+		throw ConfigExceptionConnectionQueueLengthIsSmallerThanOne();
+	}
+}
+
+void Config::_parseClientMaxBodySize(const std::unordered_map<std::string, Node> &root_object)
+{
+	if (!root_object.contains("client_max_body_size"))
+	{
+		throw ConfigExceptionExpectedClientMaxBodySize();
+	}
+
+	client_max_body_size = root_object.at("client_max_body_size").getInteger();
+
+	if (client_max_body_size < 0)
+	{
+		throw ConfigExceptionClientMaxBodySizeIsSmallerThanZero();
 	}
 }

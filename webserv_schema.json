@@ -4,32 +4,33 @@
 	"description": "webserv is a C++ project at Codam",
 	"type": "object",
 	"additionalProperties": false,
+	"required": [
+		"connection_queue_length",
+		"client_max_body_size",
+		"servers"
+	],
 	"properties": {
+		"connection_queue_length": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"client_max_body_size": {
+			"type": "integer",
+			"minimum": 0
+		},
 		"servers": {
 			"type": "array",
 			"items": {
 				"type": "object",
 				"additionalProperties": false,
 				"required": [
-					"connection_queue_length",
-					"client_max_body_size",
-					"ports"
+					"listen"
 				],
 				"properties": {
-					"connection_queue_length": {
-						"type": "integer",
-						"minimum": 1
-					},
-					"client_max_body_size": {
-						"type": "integer",
-						"minimum": 0
-					},
-					"ports": {
+					"listen": {
 						"type": "array",
 						"items": {
-							"type": "integer",
-							"minimum": 0,
-							"maximum": 65535
+							"type": "string"
 						}
 					},
 					"server_names": {
@@ -74,20 +75,31 @@
 								"index": {
 									"type": "string"
 								},
+								"redirect": {
+									"type": "string"
+								},
 								"root": {
 									"type": "string"
 								}
 							},
 							"not": {
-								"allOf": [
+								"oneOf": [
 									{
 										"required": [
-											"autoindex"
+											"autoindex",
+											"index"
 										]
 									},
 									{
 										"required": [
-											"index"
+											"autoindex",
+											"redirect"
+										]
+									},
+									{
+										"required": [
+											"index",
+											"redirect"
 										]
 									}
 								]

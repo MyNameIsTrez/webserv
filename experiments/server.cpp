@@ -63,8 +63,7 @@ int main(void)
 	int option = 1; // "the parameter should be non-zero to enable a boolean option"
 	setsockopt(server_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
-	sockaddr_in servaddr;
-	bzero(&servaddr, sizeof(servaddr));
+	sockaddr_in servaddr{};
 	servaddr.sin_family = AF_INET;
 	servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
 	servaddr.sin_port = htons(SERVER_PORT);
@@ -96,8 +95,7 @@ int main(void)
 
 	poll_fds[1].fd = -1;
 
-	char received[MAX_RECEIVED_LEN + 1];
-	bzero(received, MAX_RECEIVED_LEN + 1);
+	char received[MAX_RECEIVED_LEN + 1]{};
 
 	const char *sent = "HTTP/1.0 200 OK\r\n\r\n<h1>Hello</h1><p>World</p>";
 

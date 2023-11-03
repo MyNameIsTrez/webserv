@@ -3,7 +3,8 @@
 
 !.vscode/settings.json
 
-!cgi-bin/*.py
+!cgis/bin/*.cpp
+!cgis/python/*.py
 
 !error_pages/*.html
 

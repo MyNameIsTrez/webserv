@@ -2,7 +2,7 @@
 
 #include "Config.hpp"
 
-Tokenizer::Tokenizer(std::istream &file) : _file(file) {}
+Tokenizer::Tokenizer(std::istream &file) : _file(file), _prevPos() {}
 
 char Tokenizer::getWithoutWhitespace()
 {
@@ -35,7 +35,7 @@ Token Tokenizer::getToken()
 	{
 		throw;
 	}
-	prevPos = _file.tellg();
+	_prevPos = _file.tellg();
 	char c = getWithoutWhitespace();
 
 	Token token;
@@ -128,5 +128,5 @@ void Tokenizer::rollBackToken()
 	{
 		_file.clear();
 	}
-	_file.seekg(prevPos);
+	_file.seekg(_prevPos);
 }

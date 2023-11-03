@@ -66,7 +66,7 @@ namespace ClientWriteState
 class Client
 {
 public:
-	Client(int client_fd, const size_t &client_max_body_size);
+	Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size);
 	Client(Client const &src);
 	virtual ~Client(void);
 	Client &operator=(Client const &src);
@@ -80,6 +80,8 @@ public:
 	void respondWithDeleteFile(const std::string &path);
 
 	void prependResponseHeader(void);
+
+	int server_fd;
 
 	Status::Status status;
 
@@ -105,7 +107,6 @@ public:
 	std::string request_target;
 	std::string protocol;
 	std::unordered_map<std::string, std::string> headers;
-	uint16_t port;
 	std::string body;
 	size_t body_index;
 	size_t client_max_body_size;
@@ -116,6 +117,8 @@ public:
 	int cgi_to_server_fd;
 	pid_t cgi_pid;
 	int cgi_exit_status;
+	std::string redirect;
+	std::string server_name;
 
 private:
 	Client(void);
@@ -160,7 +163,6 @@ private:
 		READING_BODY_ENDLINE
 	} _chunked_read_state;
 
-	std::string _server_name;
-	std::string _port_str;
+	std::string _server_port;
 	std::string _response_headers;
 };

@@ -125,7 +125,7 @@ Node JSON::_parseObject()
 
 			const std::string &key = keyToken.string;
 
-			if (object.find(key) != object.end())
+			if (object.contains(key))
 			{
 				throw JSONExceptionDuplicateKey();
 			}

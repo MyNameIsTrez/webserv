@@ -19,6 +19,7 @@
 const char *Client::status_text_table[] = {
 	[Status::OK] = "OK",
 	[Status::MOVED_PERMANENTLY] = "Moved Permanently",
+	[Status::MOVED_TEMPORARILY] = "Moved Temporarily",
 	[Status::BAD_REQUEST] = "Bad Request",
 	[Status::FORBIDDEN] = "Forbidden",
 	[Status::NOT_FOUND] = "Not Found",
@@ -31,8 +32,9 @@ const char *Client::status_text_table[] = {
 
 class Config;
 
-Client::Client(int client_fd, const size_t &client_max_body_size)
-	: status(Status::OK),
+Client::Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size)
+	: server_fd(server_fd),
+	  status(Status::OK),
 	  client_read_state(ClientReadState::HEADER),
 	  cgi_write_state(CGIWriteState::NOT_WRITING),
 	  cgi_read_state(CGIReadState::NOT_READING),
@@ -41,7 +43,6 @@ Client::Client(int client_fd, const size_t &client_max_body_size)
 	  request_target(),
 	  protocol(),
 	  headers(),
-	  port(-1),
 	  body(),
 	  body_index(),
 	  client_max_body_size(client_max_body_size),
@@ -52,6 +53,8 @@ Client::Client(int client_fd, const size_t &client_max_body_size)
 	  cgi_to_server_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
+	  redirect(),
+	  server_name(),
 	  _response_content_type("application/octet-stream"),
 	  _content_length(),
 	  _header(),
@@ -59,14 +62,14 @@ Client::Client(int client_fd, const size_t &client_max_body_size)
 	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
 	  _chunked_read_state(READING_CONTENT_LEN),
-	  _server_name(),
-	  _port_str(),
+	  _server_port(server_port),
 	  _response_headers()
 {
 }
 
 Client::Client(Client const &src)
-	: status(src.status),
+	: server_fd(src.server_fd),
+	  status(src.status),
 	  client_read_state(src.client_read_state),
 	  cgi_write_state(src.cgi_write_state),
 	  cgi_read_state(src.cgi_read_state),
@@ -75,7 +78,6 @@ Client::Client(Client const &src)
 	  request_target(src.request_target),
 	  protocol(src.protocol),
 	  headers(src.headers),
-	  port(src.port),
 	  body(src.body),
 	  body_index(src.body_index),
 	  client_max_body_size(src.client_max_body_size),
@@ -86,6 +88,8 @@ Client::Client(Client const &src)
 	  cgi_to_server_fd(src.cgi_to_server_fd),
 	  cgi_pid(src.cgi_pid),
 	  cgi_exit_status(src.cgi_exit_status),
+	  redirect(src.redirect),
+	  server_name(src.server_name),
 	  _response_content_type(src._response_content_type),
 	  _content_length(src._content_length),
 	  _header(src._header),
@@ -93,8 +97,7 @@ Client::Client(Client const &src)
 	  _chunked_remaining_content_length(src._chunked_remaining_content_length),
 	  _chunked_body_buffer(src._chunked_body_buffer),
 	  _chunked_read_state(src._chunked_read_state),
-	  _server_name(src._server_name),
-	  _port_str(src._port_str),
+	  _server_port(src._server_port),
 	  _response_headers(src._response_headers)
 {
 }
@@ -107,6 +110,7 @@ Client &Client::operator=(Client const &src)
 {
 	if (this == &src)
 		return *this;
+	this->server_fd = src.server_fd;
 	this->status = src.status;
 	this->client_read_state = src.client_read_state;
 	this->cgi_write_state = src.cgi_write_state;
@@ -116,7 +120,6 @@ Client &Client::operator=(Client const &src)
 	this->request_target = src.request_target;
 	this->protocol = src.protocol;
 	this->headers = src.headers;
-	this->port = src.port;
 	this->body = src.body;
 	this->body_index = src.body_index;
 	this->client_max_body_size = src.client_max_body_size;
@@ -127,14 +130,15 @@ Client &Client::operator=(Client const &src)
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
 	this->cgi_pid = src.cgi_pid;
 	this->cgi_exit_status = src.cgi_exit_status;
+	this->redirect = src.redirect;
+	this->server_name = src.server_name;
 	this->_response_content_type = src._response_content_type;
 	this->_content_length = src._content_length;
 	this->_header = src._header;
 	this->_is_chunked = src._is_chunked;
 	this->_chunked_body_buffer = src._chunked_body_buffer;
 	this->_chunked_remaining_content_length = src._chunked_remaining_content_length;
-	this->_server_name = src._server_name;
-	this->_port_str = src._port_str;
+	this->_server_port = src._server_port;
 	this->_response_headers = src._response_headers;
 	return *this;
 }
@@ -171,8 +175,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 
 		this->_useHeaders();
 
-		// Only POST requests have a body
-		if (this->request_method != "POST")
+		if (this->request_method != "POST" || this->headers.at("CONTENT_LENGTH") == "0")
 		{
 			this->client_read_state = ClientReadState::DONE;
 			return;
@@ -494,7 +497,12 @@ void Client::prependResponseHeader(void)
 	// TODO: Add more special status cases?
 	if (this->status == Status::MOVED_PERMANENTLY)
 	{
-		this->_addResponseHeader("Location", "http://" + this->_server_name + ":" + this->_port_str + this->request_target + "/");
+		this->_addResponseHeader("Location", "http://" + this->server_name + ":" + this->_server_port + this->request_target + "/");
+	}
+	else if (this->status == Status::MOVED_TEMPORARILY)
+	{
+		assert(!this->redirect.empty());
+		this->_addResponseHeader("Location", this->redirect);
 	}
 
 	// TODO: Add?
@@ -614,7 +622,7 @@ void Client::_fillHeaders(const std::vector<std::string> &header_lines)
 		}
 
 		// Check if key is a duplicate
-		if (this->headers.find(key) != this->headers.end()) throw ClientException(Status::BAD_REQUEST);
+		if (this->headers.contains(key)) throw ClientException(Status::BAD_REQUEST);
 
 		// Add key and value to the map
 		this->headers.emplace(key, value);
@@ -654,23 +662,18 @@ void Client::_useHeaders(void)
 		size_t colon_index = host.find(":");
 		if (colon_index == host.npos)
 		{
-			// "If no port is included, the default port for the service requested is implied"
-			// Source: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host
-			this->port = 80;
+			// TODO: Uppercase
+			this->server_name = host;
 		}
 		else
 		{
 			// If there is no server name before the colon
 			if (colon_index == 0) throw ClientException(Status::BAD_REQUEST);
 
-			this->_server_name = host.substr(0, colon_index);
+			// TODO: Uppercase
+			this->server_name = host.substr(0, colon_index);
 
-			// If there is no character after the colon
-			if (colon_index == host.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
-
-			this->_port_str = host.substr(colon_index + 1);
-
-			if (!Utils::parseNumber(this->_port_str, this->port, static_cast<uint16_t>(65535))) throw Client::ClientException(Status::BAD_REQUEST);
+			// nginx doesn't care what comes after the colon, if anything
 		}
 	}
 }

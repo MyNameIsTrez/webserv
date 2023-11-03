@@ -1,35 +1,58 @@
 {
+	"connection_queue_length": 1,
+	"client_max_body_size": 42,
 	"servers": [
 		{
-			"client_max_body_size": 42,
-			"connection_queue_length": 1,
-			"ports": [
-				8080,
-				8081
+			"listen": [
+				"127.0.0.1:8080"
 			],
 			"server_names": [
 				"localhost",
-				"127.0.0.1"
+				"foo"
 			],
 			"locations": {
 				"/public/": {
+					"root": ".",
 					"get_allowed": true,
 					"post_allowed": true,
-					"delete_allowed": true,
-					"autoindex": true,
-					"root": "."
+					"index": "a.html"
+				},
+				"/cgis/bin/": {
+					"root": ".",
+					"cgi_settings": {
+						"cgi_execve_path": "/"
+					},
+					"delete_allowed": true
 				},
 				"/cgis/python/": {
+					"root": ".",
 					"cgi_settings": {
 						"cgi_execve_path": "/usr/bin/python3"
 					},
-					"delete_allowed": true,
-					"root": "."
+					"delete_allowed": true
+				},
+				"/redirected/": {
+					"redirect": "http://127.0.0.1/public/foo/d.html"
 				}
 			},
 			"error_pages": {
 				"400": "error_pages/400.html",
 				"404": "error_pages/404.html"
+			}
+		},
+		{
+			"listen": [
+				"127.0.0.1:8080"
+			],
+			"server_names": [
+				"127.0.0.1"
+			],
+			"locations": {
+				"/public/": {
+					"root": ".",
+					"get_allowed": true,
+					"index": "b.html"
+				}
 			}
 		}
 	]

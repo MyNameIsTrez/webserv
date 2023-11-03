@@ -8,9 +8,11 @@
 
 #include <cassert>
 #include <iostream>
+#include <map>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
+#include <set>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -28,7 +30,8 @@ int Server::_sig_chld_pipe[2];
 
 Server::Server(const Config &config)
 	: _config(config),
-	  _server_fd_to_server_index(),
+	  _bind_fd_to_server_indices(),
+	  _bind_fd_to_port(),
 	  _cgi_pid_to_client_fd(),
 	  _fd_to_client_index(),
 	  _fd_to_pfd_index(),
@@ -36,48 +39,101 @@ Server::Server(const Config &config)
 	  _clients(),
 	  _pfds()
 {
-	for (const auto &it : _config.port_to_server_index)
-	{
-		uint16_t port = it.first;
-		Logger::info(std::string("Port number: ") + std::to_string(port));
+	std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
 
-		size_t server_index = it.second;
+	// Used to throw if we see the same server name twice
+	std::map<BindInfo, std::set<std::string>> names_of_bind_info;
+
+	size_t server_index = 0;
+	for (const auto &server : _config.servers)
+	{
 		Logger::info(std::string("Server index: ") + std::to_string(server_index));
 
-		// Protocol 0 lets socket() pick a protocol, based on the requested socket type (stream)
-		// Source: https://pubs.opengroup.org/onlinepubs/009695399/functions/socket.html
-		int port_fd;
-		if ((port_fd = socket(AF_INET, SOCK_STREAM, 0)) == -1) throw SystemException("socket");
+		std::set<BindInfo> bind_infos_in_server;
+
+		for (const auto &listen_entry : server.listen)
+		{
+			Logger::info(std::string("Listen entry: address '") + listen_entry.address + "' with port " + std::to_string(listen_entry.port));
+
+			addrinfo hint{};
+			hint.ai_family = AF_INET;
+			hint.ai_socktype = SOCK_STREAM;
+			protoent *proto = getprotobyname("tcp");
+			if (proto == NULL) throw Utils::SystemException("getprotobyname");
+			hint.ai_protocol = proto->p_proto;
+
+			addrinfo *result;
+			int status = getaddrinfo(listen_entry.address.c_str(), std::to_string(listen_entry.port).c_str(), &hint, &result);
+			if (status != 0) throw Utils::SystemExceptionGAI("getaddrinfo", status);
+			if (result == NULL) throw Utils::SystemException("getaddrinfo");
+
+			// TODO: Is it possible for there not to be a single result while status == 0?
+			BindInfo bind_info;
+			sockaddr_in *ai_addr = reinterpret_cast<sockaddr_in *>(result->ai_addr);
+			bind_info.s_addr = ai_addr->sin_addr.s_addr;
+			bind_info.sin_port = ai_addr->sin_port;
+
+			freeaddrinfo(result);
+
+			if (bind_infos_in_server.contains(bind_info)) throw ServerExceptionDuplicateLocationInServer();
+			bind_infos_in_server.insert(bind_info);
+
+			// Deliberately creates the vector if it is missing
+			bind_info_to_server_indices[bind_info].push_back(server_index);
+
+			for (const std::string &server_name : server.server_names)
+			{
+				// Deliberately creates the vector if it is missing
+				if (names_of_bind_info[bind_info].contains(server_name)) throw ServerExceptionConflictingServerNameOnListen();
+
+				names_of_bind_info.at(bind_info).insert(server_name);
+			}
+		}
+
+		server_index++;
+	}
+
+	for (const auto &it : bind_info_to_server_indices)
+	{
+		const auto &bind_info = it.first;
+		const auto &server_indices = it.second;
+
+		protoent *proto = getprotobyname("tcp");
+		if (proto == NULL) throw Utils::SystemException("getprotobyname");
+		int bind_fd;
+		if ((bind_fd = socket(AF_INET, SOCK_STREAM, proto->p_proto)) == -1) throw Utils::SystemException("socket");
+
+		_bind_fd_to_server_indices.emplace(bind_fd, server_indices);
+
+		Logger::info(std::string("Adding port ") + std::to_string(ntohs(bind_info.sin_port)));
+		_bind_fd_to_port.emplace(bind_fd, std::to_string(ntohs(bind_info.sin_port)));
 
 		// Prevents "bind: Address already in use" error
 		int option = 1; // "the parameter should be non-zero to enable a boolean option"
-		if (setsockopt(port_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw SystemException("setsockopt");
+		if (setsockopt(bind_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw Utils::SystemException("setsockopt");
 
-		sockaddr_in servaddr{};
-		servaddr.sin_family = AF_INET;
-		servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
-		servaddr.sin_port = htons(port);
+		sockaddr_in sockaddrin_entry{};
+		sockaddrin_entry.sin_family = AF_INET;
+		sockaddrin_entry.sin_addr.s_addr = bind_info.s_addr;
+		sockaddrin_entry.sin_port = bind_info.sin_port;
+		sockaddr *sockaddr_entry = reinterpret_cast<sockaddr *>(&sockaddrin_entry);
 
-		if (bind(port_fd, (sockaddr *)&servaddr, sizeof(servaddr)) == -1) throw SystemException("bind");
+		if (bind(bind_fd, sockaddr_entry, sizeof(sockaddrin_entry)) == -1) throw Utils::SystemException("bind");
 
-		int connection_queue_length = config.servers.at(server_index).connection_queue_length;
+		if (listen(bind_fd, _config.connection_queue_length) == -1) throw Utils::SystemException("listen");
 
-		if (listen(port_fd, connection_queue_length) == -1) throw SystemException("listen");
+		_addFd(bind_fd, FdType::SERVER, POLLIN);
 
-		_addFd(port_fd, FdType::SERVER, POLLIN);
-
-		_server_fd_to_server_index.emplace(port_fd, server_index);
-
-		Logger::info(std::string("Added port fd ") + std::to_string(port_fd));
+		Logger::info(std::string("Added bind fd ") + std::to_string(bind_fd));
 	}
 
 	signal(SIGINT, _sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
 
 	// Demonstration purposes
-	// if (write(-1, "", 0)) throw SystemException("write");
+	// if (write(-1, "", 0)) throw Utils::SystemException("write");
 
-	if (pipe(_sig_chld_pipe) == -1) throw SystemException("pipe");
+	if (pipe(_sig_chld_pipe) == -1) throw Utils::SystemException("pipe");
 	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
 	Logger::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
 	signal(SIGCHLD, _sigChldHandler);
@@ -122,7 +178,7 @@ void Server::run(void)
 					_fd_to_pfd_index.erase(fd);
 					// We're not erasing from _fd_to_fd_type, since we're looping through it
 
-					if (close(fd) == -1) throw SystemException("close");
+					if (close(fd) == -1) throw Utils::SystemException("close");
 				}
 			}
 		}
@@ -153,7 +209,7 @@ void Server::run(void)
 				Logger::info(std::string("  poll() got interrupted by a signal handler"));
 				continue;
 			}
-			throw SystemException("poll");
+			throw Utils::SystemException("poll");
 		}
 		// else if (event_count == 0)
 		// {
@@ -177,20 +233,20 @@ void Server::run(void)
 			int fd = _pfds[pfd_index].fd;
 
 			// If this pfd got removed
-			if (_fd_to_pfd_index.find(fd) == _fd_to_pfd_index.end())
+			if (!_fd_to_pfd_index.contains(fd))
 			{
 				continue;
 			}
 
 			// If we've already iterated over this fd in this _pfds loop
-			if (seen_fds.find(fd) != seen_fds.end())
+			if (seen_fds.contains(fd))
 			{
 				assert(false); // TODO: REMOVE! This is just here because I'm curious whether it happens
 				continue;
 			}
 			seen_fds.emplace(fd);
 
-			FdType::FdType fd_type = _fd_to_fd_type.at(fd);
+			FdType fd_type = _fd_to_fd_type.at(fd);
 
 			_printEvents(_pfds[pfd_index], fd_type);
 
@@ -255,7 +311,8 @@ void Server::_printContainerSizes(void)
 {
 	std::cerr
 		<< "MAPS: "
-		<< "_server_fd_to_server_index=" << _server_fd_to_server_index.size()
+		<< "_bind_fd_to_server_indices=" << _bind_fd_to_server_indices.size()
+		<< ", _bind_fd_to_port=" << _bind_fd_to_port.size()
 		<< ", _cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
 		<< ", _fd_to_client_index=" << _fd_to_client_index.size()
 		<< ", _fd_to_pfd_index=" << _fd_to_pfd_index.size()
@@ -266,11 +323,11 @@ void Server::_printContainerSizes(void)
 		<< std::endl;
 }
 
-void Server::_printEvents(const pollfd &pfd, FdType::FdType fd_type)
+void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
 	std::cerr
 		<< "  fd: " << pfd.fd
-		<< ", fd_type: " << fd_type
+		<< ", fd_type: " << static_cast<int>(fd_type)
 		<< ", client_index: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
 		<< ", client_fd: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd)
 		<< ", revents:"
@@ -320,7 +377,7 @@ void Server::_removeFd(int &fd)
 	_fd_to_pfd_index.erase(fd);
 	_fd_to_fd_type.erase(fd);
 
-	if (close(fd) == -1) throw SystemException("close");
+	if (close(fd) == -1) throw Utils::SystemException("close");
 
 	fd = -1;
 }
@@ -372,7 +429,7 @@ void Server::_disableReadingFromClient(Client &client)
 	client.client_read_state = ClientReadState::DONE;
 }
 
-void Server::_addClientFd(int fd, size_t client_index, FdType::FdType fd_type, short int events)
+void Server::_addClientFd(int fd, size_t client_index, FdType fd_type, short int events)
 {
 	assert(fd != -1);
 
@@ -381,7 +438,7 @@ void Server::_addClientFd(int fd, size_t client_index, FdType::FdType fd_type, s
 	_addFd(fd, fd_type, events);
 }
 
-void Server::_addFd(int fd, FdType::FdType fd_type, short int events)
+void Server::_addFd(int fd, FdType fd_type, short int events)
 {
 	assert(fd != -1);
 
@@ -408,7 +465,7 @@ void Server::_sigChldHandler(int signum)
 	(void)signum;
 
 	char dummy = '!';
-	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1) throw SystemException("write");
+	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1) throw Utils::SystemException("write");
 }
 
 void Server::_handlePollnval(void)
@@ -418,7 +475,7 @@ void Server::_handlePollnval(void)
 	assert(false);
 }
 
-void Server::_handlePollerr(int fd, FdType::FdType fd_type)
+void Server::_handlePollerr(int fd, FdType fd_type)
 {
 	if (fd_type == FdType::SERVER_TO_CGI)
 	{
@@ -465,7 +522,7 @@ void Server::_pollhupCGIToServer(int fd)
 	}
 }
 
-void Server::_handlePollin(int fd, FdType::FdType fd_type, bool &skip_client)
+void Server::_handlePollin(int fd, FdType fd_type, bool &skip_client)
 {
 	if (fd_type == FdType::SERVER)
 	{
@@ -510,10 +567,9 @@ void Server::_acceptClient(int server_fd)
 
 	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
-	size_t server_index = _server_fd_to_server_index.at(server_fd);
-	const ServerDirective &server = _config.servers.at(server_index);
+	const std::string &server_port = _bind_fd_to_port.at(server_fd);
 
-	_clients.push_back(Client(client_fd, server.client_max_body_size));
+	_clients.push_back(Client(client_fd, server_fd, server_port, _config.client_max_body_size));
 }
 
 void Server::_reapChild(void)
@@ -521,7 +577,7 @@ void Server::_reapChild(void)
 	Logger::info(std::string("    In _reapChild()"));
 
 	char dummy;
-	if (read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1) == -1) throw SystemException("read");
+	if (read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1) == -1) throw Utils::SystemException("read");
 
 	// Reaps all children that have exited
 	// waitpid() returns 0 if no more children can be reaped right now
@@ -533,7 +589,7 @@ void Server::_reapChild(void)
 
 	// TODO: Decide what to do when errno is EINTR
 	// TODO: errno is set to ECHILD when there are no children left to wait for: if (child_pid == -1 && errno != ECHILD)
-	if (child_pid == -1) throw SystemException("waitpid");
+	if (child_pid == -1) throw Utils::SystemException("waitpid");
 
 	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
 	assert(child_pid > 0);
@@ -568,15 +624,15 @@ void Server::_reapChild(void)
 	}
 }
 
-void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &skip_client)
+void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
-	Logger::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(fd_type));
+	Logger::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(static_cast<int>(fd_type)));
 
 	// TODO: We should never read past the content_length of the BODY
 	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);
-	if (bytes_read == -1) throw SystemException("read");
+	if (bytes_read == -1) throw Utils::SystemException("read");
 	if (bytes_read == 0)
 	{
 		Logger::info(std::string("    Read 0 bytes"));
@@ -608,14 +664,20 @@ void Server::_readFd(Client &client, int fd, FdType::FdType fd_type, bool &skip_
 			const std::string &target = client.request_target;
 			const std::string &method = client.request_method;
 
-			// nginx just outright closes the connection
-			if (_config.port_to_server_index.find(client.port) == _config.port_to_server_index.end()) throw Client::ClientException(Status::NOT_FOUND);
-
-			size_t server_index = _config.port_to_server_index.at(client.port);
-			const ServerDirective &server = _config.servers.at(server_index);
+			size_t server_index = _getServerIndexFromClientServerName(client);
+			const Config::ServerDirective &server = _config.servers.at(server_index);
 
 			const ResolvedLocation location = _resolveToLocation(target, server);
 
+			if (!location.resolved)
+			{
+				throw Client::ClientException(Status::NOT_FOUND);
+			}
+			if (location.has_redirect)
+			{
+				client.redirect = location.path;
+				throw Client::ClientException(Status::MOVED_TEMPORARILY);
+			}
 			if (!_isAllowedMethod(location, method))
 			{
 				throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
@@ -745,37 +807,37 @@ void Server::_removeClientAttachments(int fd)
 	{
 		Logger::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") + std::to_string(client.cgi_pid));
 		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
-		if (kill(client.cgi_pid, SIGTERM) == -1) throw SystemException("kill");
+		if (kill(client.cgi_pid, SIGTERM) == -1) throw Utils::SystemException("kill");
 
 		_cgi_pid_to_client_fd.erase(client.cgi_pid);
 		client.cgi_pid = -1;
 	}
 }
 
-void Server::_startCGI(Client &client, const CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1)
+void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1)
 {
 	Logger::info(std::string("  Starting CGI..."));
 
 	int server_to_cgi_pipe[2];
 	int cgi_to_server_pipe[2];
 
-	if (pipe(server_to_cgi_pipe) == -1) throw SystemException("pipe");
-	if (pipe(cgi_to_server_pipe) == -1) throw SystemException("pipe");
+	if (pipe(server_to_cgi_pipe) == -1) throw Utils::SystemException("pipe");
+	if (pipe(cgi_to_server_pipe) == -1) throw Utils::SystemException("pipe");
 
 	pid_t forked_pid = fork();
-	if (forked_pid == -1) throw SystemException("fork");
+	if (forked_pid == -1) throw Utils::SystemException("fork");
 	else if (forked_pid == CHILD)
 	{
-		if (signal(SIGINT, SIG_IGN) == SIG_ERR) throw SystemException("signal");
+		if (signal(SIGINT, SIG_IGN) == SIG_ERR) throw Utils::SystemException("signal");
 
-		if (close(server_to_cgi_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
-		if (close(cgi_to_server_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
+		if (close(server_to_cgi_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
+		if (close(cgi_to_server_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
 
-		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1) throw SystemException("dup2");
-		if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
+		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1) throw Utils::SystemException("dup2");
+		if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
 
-		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw SystemException("dup2");
-		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
+		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw Utils::SystemException("dup2");
+		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
 
 		char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
 		char *argv1 = const_cast<char *>(cgi_execve_argv1.c_str());
@@ -791,11 +853,11 @@ void Server::_startCGI(Client &client, const CGISettingsDirective &cgi_settings,
 		execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
 
 		// TODO: Throw a ClientException instead here, if I can get execve() to fail under weird circumstances using a client!
-		throw SystemException("execve");
+		throw Utils::SystemException("execve");
 	}
 
-	if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw SystemException("close");
-	if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw SystemException("close");
+	if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
+	if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
 
 	client.cgi_pid = forked_pid;
 
@@ -816,7 +878,7 @@ void Server::_startCGI(Client &client, const CGISettingsDirective &cgi_settings,
 	else
 	{
 		Logger::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
-		if (close(server_to_cgi_fd) == -1) throw SystemException("close");
+		if (close(server_to_cgi_fd) == -1) throw Utils::SystemException("close");
 		client.cgi_write_state = CGIWriteState::DONE;
 	}
 
@@ -877,17 +939,18 @@ std::vector<const char *> Server::_getCGIEnv(const std::vector<std::string> &cgi
 	return cgi_env;
 }
 
-// TODO: Move this method to the Config class?
-ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const ServerDirective &server)
+Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const Config::ServerDirective &server)
 {
 	ResolvedLocation resolved{};
 
 	size_t longest_uri_length = 0;
 
-	for (const LocationDirective &location : server.locations)
+	for (const Config::LocationDirective &location : server.locations)
 	{
 		if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
 		{
+			resolved.resolved = true;
+
 			longest_uri_length = location.uri.length();
 
 			resolved.is_cgi_directory = location.is_cgi_directory;
@@ -895,13 +958,21 @@ ResolvedLocation Server::_resolveToLocation(const std::string &request_target, c
 
 			resolved.has_index = false;
 			resolved.autoindex = false;
+			resolved.has_redirect = false;
+
 			resolved.path = "";
 
 			resolved.get_allowed = location.get_allowed;
 			resolved.post_allowed = location.post_allowed;
 			resolved.delete_allowed = location.delete_allowed;
 
-			if (request_target.back() != '/')
+			if (!location.redirect.empty())
+			{
+				resolved.has_redirect = true;
+
+				resolved.path = location.redirect;
+			}
+			else if (request_target.back() != '/')
 			{
 				resolved.path = location.root + request_target;
 			}
@@ -951,15 +1022,33 @@ void Server::_handleClientException(const Client::ClientException &e, Client &cl
 
 	_disableReadingFromClient(client);
 
-	size_t server_index = _config.port_to_server_index.at(client.port);
-	const ServerDirective &server = _config.servers.at(server_index);
+	size_t server_index = _getServerIndexFromClientServerName(client);
+	const Config::ServerDirective &server = _config.servers.at(server_index);
 
 	client.respondWithError(server.error_pages);
 
 	_enableWritingToClient(client);
 }
 
-void Server::_handlePollout(int fd, FdType::FdType fd_type, nfds_t pfd_index)
+size_t Server::_getServerIndexFromClientServerName(const Client &client)
+{
+	const std::vector<size_t> &server_indices = _bind_fd_to_server_indices.at(client.server_fd);
+
+	for (size_t inspected_server_index : server_indices)
+	{
+		for (const std::string &inspected_server_name : _config.servers.at(inspected_server_index).server_names)
+		{
+			if (inspected_server_name == client.server_name)
+			{
+				return inspected_server_index;
+			}
+		}
+	}
+
+	return server_indices.at(0);
+}
+
+void Server::_handlePollout(int fd, FdType fd_type, nfds_t pfd_index)
 {
 	Client &client = _getClient(fd);
 
