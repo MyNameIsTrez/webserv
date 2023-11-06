@@ -8,11 +8,9 @@
 
 #include <cassert>
 #include <iostream>
-#include <map>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <set>
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -39,61 +37,7 @@ Server::Server(const Config &config)
 	  _clients(),
 	  _pfds()
 {
-	std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
-
-	// Used to throw if we see the same server name twice
-	std::map<BindInfo, std::set<std::string>> names_of_bind_info;
-
-	size_t server_index = 0;
-	for (const auto &server : _config.servers)
-	{
-		Logger::info(std::string("Server index: ") + std::to_string(server_index));
-
-		std::set<BindInfo> bind_infos_in_server;
-
-		for (const auto &listen_entry : server.listen)
-		{
-			Logger::info(std::string("Listen entry: address '") + listen_entry.address + "' with port " + std::to_string(listen_entry.port));
-
-			addrinfo hint{};
-			hint.ai_family = AF_INET;
-			hint.ai_socktype = SOCK_STREAM;
-			protoent *proto = getprotobyname("tcp");
-			if (proto == NULL) throw Utils::SystemException("getprotobyname");
-			hint.ai_protocol = proto->p_proto;
-
-			addrinfo *result;
-			int status = getaddrinfo(listen_entry.address.c_str(), std::to_string(listen_entry.port).c_str(), &hint, &result);
-			if (status != 0) throw Utils::SystemExceptionGAI("getaddrinfo", status);
-			if (result == NULL) throw Utils::SystemException("getaddrinfo");
-
-			// TODO: Is it possible for there not to be a single result while status == 0?
-			BindInfo bind_info;
-			sockaddr_in *ai_addr = reinterpret_cast<sockaddr_in *>(result->ai_addr);
-			bind_info.s_addr = ai_addr->sin_addr.s_addr;
-			bind_info.sin_port = ai_addr->sin_port;
-
-			freeaddrinfo(result);
-
-			if (bind_infos_in_server.contains(bind_info)) throw ServerExceptionDuplicateLocationInServer();
-			bind_infos_in_server.insert(bind_info);
-
-			// Deliberately creates the vector if it is missing
-			bind_info_to_server_indices[bind_info].push_back(server_index);
-
-			for (const std::string &server_name : server.server_names)
-			{
-				// Deliberately creates the vector if it is missing
-				if (names_of_bind_info[bind_info].contains(server_name)) throw ServerExceptionConflictingServerNameOnListen();
-
-				names_of_bind_info.at(bind_info).insert(server_name);
-			}
-		}
-
-		server_index++;
-	}
-
-	for (const auto &it : bind_info_to_server_indices)
+	for (const auto &it : _config.bind_info_to_server_indices)
 	{
 		const auto &bind_info = it.first;
 		const auto &server_indices = it.second;

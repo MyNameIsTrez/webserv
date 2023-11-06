@@ -3,12 +3,14 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
+#include <limits>
+#include <map>
+#include <netdb.h>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
-#include <limits>
-#include <unordered_map>
 
 #include "../Status.hpp"
 
@@ -48,7 +50,7 @@ public:
 	struct ListenEntry
 	{
 		std::string address;
-		uint16_t port;
+		std::string port;
 	};
 
 	struct ServerDirective
@@ -56,14 +58,25 @@ public:
 		std::vector<ListenEntry> listen;
 
 		std::vector<std::string> server_names;
-		// std::string http_redirection; // TODO: Willen we dit er weer in zetten?
 		std::vector<LocationDirective> locations;
 		std::unordered_map<Status::Status, std::string> error_pages;
 	};
 
-	std::vector<ServerDirective> servers;
+	struct BindInfo
+	{
+		in_addr_t s_addr;
+		in_port_t sin_port;
+
+		inline bool operator<(const BindInfo &rhs) const
+		{
+			return std::tie(this->s_addr, this->sin_port) < std::tie(rhs.s_addr, rhs.sin_port);
+		}
+	};
+
 	int connection_queue_length;
 	size_t client_max_body_size;
+	std::vector<ServerDirective> servers;
+	std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
 
 	struct ConfigException : public std::runtime_error
 	{
@@ -73,6 +86,11 @@ public:
 private:
 	void _parseConnectionQueueLength(const std::unordered_map<std::string, Node> &root_object);
 	void _parseClientMaxBodySize(const std::unordered_map<std::string, Node> &root_object);
+
+	ListenEntry _parseListen(const Node &listen_node);
+	LocationDirective _parseLocation(const std::pair<std::string, Node> &location_node);
+
+	void _fillBindInfoToServerIndices();
 
 	struct ConfigExceptionExpectedConnectionQueueLength : public ConfigException
 	{
@@ -114,10 +132,6 @@ private:
 	{
 		ConfigExceptionNoPortAfterColon() : ConfigException("Config exception: No port after ':'"){};
 	};
-	struct ConfigExceptionInvalidPortValue : public ConfigException
-	{
-		ConfigExceptionInvalidPortValue() : ConfigException("Config exception: Invalid port value"){};
-	};
 
 	struct ConfigExceptionExclusivePropertiesPresent : public ConfigException
 	{
@@ -137,5 +151,14 @@ private:
 	struct ConfigExceptionUnknownKey : public ConfigException
 	{
 		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key"){};
+	};
+
+	struct ConfigExceptionDuplicateLocationInServer : public ConfigException
+	{
+		ConfigExceptionDuplicateLocationInServer() : ConfigException("Config exception: Duplicate location in server"){};
+	};
+	struct ConfigExceptionConflictingServerNameOnListen : public ConfigException
+	{
+		ConfigExceptionConflictingServerNameOnListen() : ConfigException("Config exception: Conflicting server name on listen"){};
 	};
 };

@@ -3,8 +3,6 @@
 #include "Client.hpp"
 #include "config/Config.hpp"
 
-#include <netdb.h>
-
 class Server
 {
 public:
@@ -119,29 +117,4 @@ private:
 
 	std::vector<Client> _clients;
 	std::vector<pollfd> _pfds;
-
-	struct BindInfo
-	{
-		in_addr_t s_addr;
-		in_port_t sin_port;
-
-		inline bool operator<(const Server::BindInfo &rhs) const
-		{
-			return std::tie(this->s_addr, this->sin_port) < std::tie(rhs.s_addr, rhs.sin_port);
-		}
-	};
-
-	struct ServerException : public std::runtime_error
-	{
-		ServerException(const std::string &message) : std::runtime_error(message){};
-	};
-
-	struct ServerExceptionDuplicateLocationInServer : public ServerException
-	{
-		ServerExceptionDuplicateLocationInServer() : ServerException("Config exception: Duplicate location in server"){};
-	};
-	struct ServerExceptionConflictingServerNameOnListen : public ServerException
-	{
-		ServerExceptionConflictingServerNameOnListen() : ServerException("Config exception: Conflicting server name on listen"){};
-	};
 };

@@ -17,11 +17,8 @@ namespace Utils
 			: runtime_error("System exception in function '" + function_name + "': " + strerror(errno))
 		{
 		}
-	};
-	struct SystemExceptionGAI : public std::runtime_error
-	{
-		SystemExceptionGAI(const std::string &function_name, int errcode)
-			: runtime_error("System exception in function '" + function_name + "': " + gai_strerror(errcode))
+		SystemException(const std::string &function_name, const std::string &error_message)
+			: runtime_error("System exception in function '" + function_name + "': " + error_message)
 		{
 		}
 	};
