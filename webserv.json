@@ -20,8 +20,10 @@
 				"/cgis/bin/": {
 					"root": ".",
 					"cgi_settings": {
-						"cgi_execve_path": "/"
+						"cgi_execve_path": "/home/sbos/Programming/webserv/cgis/bin/execve"
 					},
+					"get_allowed": true,
+					"post_allowed": true,
 					"delete_allowed": true
 				},
 				"/cgis/python/": {
@@ -29,6 +31,8 @@
 					"cgi_settings": {
 						"cgi_execve_path": "/usr/bin/python3"
 					},
+					"get_allowed": true,
+					"post_allowed": true,
 					"delete_allowed": true
 				},
 				"/redirected/": {
