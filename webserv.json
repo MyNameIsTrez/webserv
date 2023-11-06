@@ -7,8 +7,7 @@
 				"127.0.0.1:8080"
 			],
 			"server_names": [
-				"localhost",
-				"foo"
+				"127.0.0.1"
 			],
 			"locations": {
 				"/public/": {
@@ -35,8 +34,11 @@
 					"post_allowed": true,
 					"delete_allowed": true
 				},
-				"/redirected/": {
-					"redirect": "http://127.0.0.1/public/foo/d.html"
+				"/redirected/d": {
+					"redirect": "../public/foo/d.html"
+				},
+				"/redirected/google": {
+					"redirect": "http://google.com"
 				}
 			},
 			"error_pages": {
@@ -49,7 +51,8 @@
 				"127.0.0.1:8080"
 			],
 			"server_names": [
-				"127.0.0.1"
+				"localhost",
+				"foo"
 			],
 			"locations": {
 				"/public/": {
