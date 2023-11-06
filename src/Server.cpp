@@ -817,19 +817,17 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 
 	size_t client_index = _fd_to_client_index.at(client.client_fd);
 
-	if (client.request_method == "POST")
+	if (client.cgi_write_state == CGIWriteState::DONE)
+	{
+		Logger::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
+		if (close(server_to_cgi_fd) == -1) throw Utils::SystemException("close");
+	}
+	else
 	{
 		_addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
 		client.server_to_cgi_fd = server_to_cgi_fd;
 		client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
 		Logger::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
-	}
-	// If this is a GET or a DELETE (TODO: can they have a body?)
-	else
-	{
-		Logger::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
-		if (close(server_to_cgi_fd) == -1) throw Utils::SystemException("close");
-		client.cgi_write_state = CGIWriteState::DONE;
 	}
 
 	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];

@@ -4,7 +4,7 @@ import json, os, sys, time
 def main():
     print("This is printed to stderr by print.py", file=sys.stderr)
 
-    if os.environ.get('HTTP_CONTENT_LENGTH'):
+    if os.environ.get("HTTP_CONTENT_LENGTH"):
         print(f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}", file=sys.stderr)
     else:
         # TODO: Should this be unreachable? It's always reached rn
