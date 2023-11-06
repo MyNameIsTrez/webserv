@@ -538,6 +538,12 @@ void Server::_reapChild(void)
 	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
 	assert(child_pid > 0);
 
+	// Reached when the client disconnects before the CGI has finished
+	if (!_cgi_pid_to_client_fd.contains(child_pid))
+	{
+		return;
+	}
+
 	int client_fd = _cgi_pid_to_client_fd.at(child_pid);
 	size_t client_index = _fd_to_client_index.at(client_fd);
 	Client &client = _clients.at(client_index);
