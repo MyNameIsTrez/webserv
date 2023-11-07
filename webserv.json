@@ -30,7 +30,7 @@
 				"/cgis/python/": {
 					"root": ".",
 					"cgi_settings": {
-						"cgi_execve_path": "/usr/bin/pyt"
+						"cgi_execve_path": "/usr/bin/python3"
 					},
 					"get_allowed": true,
 					"post_allowed": true,
@@ -45,6 +45,12 @@
 				},
 				"/redirected/google": {
 					"redirect": "http://google.com"
+				},
+				"/loop1": {
+					"redirect": "loop2"
+				},
+				"/loop2": {
+					"redirect": "loop1"
 				}
 			},
 			"error_pages": {
@@ -66,6 +72,9 @@
 					"get_allowed": true,
 					"index": "b.html"
 				}
+			},
+			"error_pages": {
+				"405": "error_pages/405.html"
 			}
 		}
 	]
