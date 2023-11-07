@@ -620,6 +620,8 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 			const ResolvedLocation location = _resolveToLocation(target, server);
 
+			Logger::info(std::string("    location.path: '") + location.path + "'");
+
 			if (!location.resolved)
 			{
 				throw Client::ClientException(Status::NOT_FOUND);
@@ -634,13 +636,13 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 				throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
 			}
 
-			if (target.back() == '/')
+			if (location.path.back() == '/')
 			{
 				if (method == "GET")
 				{
 					if (location.has_index)
 					{
-						client.respondWithFile(location.path);
+						client.respondWithFile(location.index_path);
 						_enableWritingToClient(client);
 					}
 					else if (location.autoindex)
@@ -660,8 +662,6 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 			}
 			else
 			{
-				Logger::info(std::string("    location.path: '") + location.path + "'");
-
 				if (std::filesystem::is_directory(location.path))
 				{
 					if (method == "DELETE")
@@ -676,7 +676,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 				if (location.is_cgi_directory)
 				{
-					_startCGI(client, location.cgi_settings, location.path);
+					_startCGI(client, location.cgi_settings, location.script_name, location.path_info, location.query_string);
 				}
 				else if (method == "GET")
 				{
@@ -758,7 +758,7 @@ void Server::_removeClientAttachments(int fd)
 	}
 }
 
-void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &location_path)
+void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string)
 {
 	Logger::info(std::string("  Starting CGI..."));
 
@@ -783,23 +783,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw Utils::SystemException("dup2");
 		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
 
-		const std::string &cgi_execve_argv1 = _getCGIExecveArgv1(location_path);
-
-		char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
-		char *argv1 = const_cast<char *>(cgi_execve_argv1.c_str());
-
-		// TODO: Pass the PATH_INFO in argv?
-		char *const argv[] = {argv0, argv1, NULL};
-
-		// TODO: CGI RFC section 4.1's meta-variable-name values should all be added to the CGI headers
-		const auto &cgi_headers = _getCGIHeaders(client.headers);
-		const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
-		char **cgi_env = const_cast<char **>(cgi_env_vec.data());
-
-		execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
-
-		// This gets turned into a ClientException by the parent process
-		throw Utils::SystemException("execve");
+		_execveChild(client, cgi_settings, script_name, path_info, query_string);
 	}
 
 	if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
@@ -834,20 +818,27 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
 }
 
-std::string Server::_getCGIExecveArgv1(const std::string &location_path)
+void Server::_execveChild(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string)
 {
-	size_t slash_index = 0;
-	std::string cgi_execve_argv1;
+	char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
+	char *argv1 = const_cast<char *>(script_name.c_str());
+	char *argv2 = const_cast<char *>(path_info.c_str());
 
-	do
-	{
-		slash_index = location_path.find("/", slash_index);
-		cgi_execve_argv1 = location_path.substr(0, slash_index);
-		slash_index++;
-	}
-	while (std::filesystem::is_directory(cgi_execve_argv1));
+	char *const argv[] = {argv0, argv1, argv2, NULL};
 
-	return cgi_execve_argv1;
+	auto cgi_headers = _getCGIHeaders(client.headers);
+
+	cgi_headers.push_back("SCRIPT_NAME=" + script_name);
+	cgi_headers.push_back("PATH_INFO=" + path_info);
+	cgi_headers.push_back("QUERY_STRING=" + query_string);
+
+	const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
+	char **cgi_env = const_cast<char **>(cgi_env_vec.data());
+
+	execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
+
+	// This gets turned into a ClientException by the parent process
+	throw Utils::SystemException("execve");
 }
 
 std::vector<std::string> Server::_getCGIHeaders(const std::unordered_map<std::string, std::string> &headers)
@@ -871,15 +862,12 @@ void Server::_addMetaVariables(std::vector<std::string> &cgi_headers)
 	cgi_headers.push_back("CONTENT_LENGTH=");
 	cgi_headers.push_back("CONTENT_TYPE=");
 	cgi_headers.push_back("GATEWAY_INTERFACE=");
-	cgi_headers.push_back("PATH_INFO=");
 	cgi_headers.push_back("PATH_TRANSLATED=");
-	cgi_headers.push_back("QUERY_STRING=");
 	cgi_headers.push_back("REMOTE_ADDR=");
 	cgi_headers.push_back("REMOTE_HOST=");
 	cgi_headers.push_back("REMOTE_IDENT=");
 	cgi_headers.push_back("REMOTE_USER=");
 	cgi_headers.push_back("REQUEST_METHOD=");
-	cgi_headers.push_back("SCRIPT_NAME=");
 	cgi_headers.push_back("SERVER_NAME=");
 	cgi_headers.push_back("SERVER_PORT=");
 	cgi_headers.push_back("SERVER_PROTOCOL=");
@@ -917,37 +905,74 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 			resolved.is_cgi_directory = location.is_cgi_directory;
 			resolved.cgi_settings = location.cgi_settings;
 
-			resolved.has_index = false;
-			resolved.autoindex = false;
-			resolved.has_redirect = false;
+			resolved.script_name = "";
+			resolved.path_info = "";
+			resolved.query_string = "";
 
-			resolved.path = "";
+			resolved.has_index = !location.index.empty();
+			resolved.autoindex = location.autoindex;
+			resolved.has_redirect = !location.redirect.empty();
+
+			resolved.path = location.root + request_target;
+			resolved.index_path = "";
 
 			resolved.get_allowed = location.get_allowed;
 			resolved.post_allowed = location.post_allowed;
 			resolved.delete_allowed = location.delete_allowed;
 
-			if (!location.redirect.empty())
+			if (resolved.has_redirect)
 			{
 				resolved.has_redirect = true;
-
 				resolved.path = location.redirect;
+				continue;
 			}
-			else if (request_target.back() != '/')
-			{
-				resolved.path = location.root + request_target;
-			}
-			else if (!location.index.empty())
-			{
-				resolved.has_index = true;
 
-				resolved.path = location.root + request_target + location.index;
-			}
-			else if (location.autoindex)
+			if (resolved.is_cgi_directory)
 			{
-				resolved.autoindex = true;
+				std::string unsplit_path = resolved.path;
+				resolved.script_name = "";
 
-				resolved.path = location.root + request_target;
+				size_t path_end_index = 0;
+				while (path_end_index < unsplit_path.length())
+				{
+					while (path_end_index < unsplit_path.length()
+						&& unsplit_path.at(path_end_index) != '/'
+						&& unsplit_path.at(path_end_index) != '?')
+					{
+						path_end_index++;
+					}
+					resolved.script_name = unsplit_path.substr(0, path_end_index);
+
+					// TODO: Remove
+					// Logger::debug("path_end_index: " + std::to_string(path_end_index));
+					// Logger::debug("resolved.script_name: " + resolved.script_name);
+
+					if (!std::filesystem::is_directory(resolved.script_name)
+						|| path_end_index >= unsplit_path.length()
+						|| unsplit_path.at(path_end_index) == '?')
+					{
+						break;
+					}
+
+					path_end_index++;
+				}
+
+				size_t path_len = resolved.script_name.length();
+				size_t questionmark_index = unsplit_path.find("?", path_len);
+				resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
+
+				resolved.query_string = unsplit_path.substr(resolved.script_name.length() + resolved.path_info.length());
+
+				// TODO: Remove
+				// Logger::debug("unsplit_path: " + unsplit_path);
+				// Logger::debug("resolved.script_name: " + resolved.script_name);
+				// Logger::debug("resolved.path_info: " + resolved.path_info);
+				// Logger::debug("resolved.query_string: " + resolved.query_string);
+			}
+
+			if (resolved.has_index)
+			{
+				resolved.index_path = resolved.path + location.index;
 			}
 		}
 	}

@@ -63,8 +63,10 @@ private:
 	void _readFd(Client &client, int fd, FdType fd_type, bool &skip_client);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
-	void _startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &location_path);
-	std::string _getCGIExecveArgv1(const std::string &location_path);
+
+	void _startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string);
+	void _execveChild(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string);
+
 	std::vector<std::string> _getCGIHeaders(const std::unordered_map<std::string, std::string> &headers);
 	void _addMetaVariables(std::vector<std::string> &cgi_headers);
 	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);
@@ -76,11 +78,16 @@ private:
 		bool is_cgi_directory;
 		Config::CGISettingsDirective cgi_settings;
 
+		std::string script_name;
+		std::string path_info;
+		std::string query_string;
+
 		bool has_index;
 		bool autoindex;
 		bool has_redirect;
 
 		std::string path;
+		std::string index_path;
 
 		bool get_allowed;
 		bool post_allowed;
