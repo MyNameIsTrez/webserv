@@ -61,7 +61,7 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
 	  _is_chunked(),
 	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
-	  _chunked_read_state(READING_CONTENT_LEN),
+	  _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN),
 	  _server_port(server_port),
 	  _response_headers()
 {
@@ -688,7 +688,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 		this->_chunked_body_buffer.append(extra_body);
 		while (true)
 		{
-			if (this->_chunked_read_state == READING_CONTENT_LEN)
+			if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN)
 			{
 				// Check if current buffer has anything else than a hexadecimal character
 				if (this->_chunked_body_buffer.find_first_not_of("1234567890abcdefABCDEF") == std::string::npos)
@@ -697,9 +697,9 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 				_hexToNum(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
 
 				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but it's nice to just update it as appropriate (Maybe want to delete because it isn't needed)
-				this->_chunked_read_state = READING_CONTENT_LEN_ENDLINE;
+				this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN_ENDLINE;
 			}
-			if (this->_chunked_read_state == READING_BODY)
+			if (this->_chunked_read_state == ChunkedReadState::READING_BODY)
 			{
 				// If not all of extra_body should fit into the body
 				if (this->_chunked_body_buffer.size() >= this->_chunked_remaining_content_length)
@@ -707,7 +707,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					this->body.append(this->_chunked_body_buffer, 0, this->_chunked_remaining_content_length);
 					this->_chunked_body_buffer.erase(0, this->_chunked_remaining_content_length);
 					this->_chunked_remaining_content_length = 0;
-					this->_chunked_read_state = READING_BODY_ENDLINE;
+					this->_chunked_read_state = ChunkedReadState::READING_BODY_ENDLINE;
 				}
 				// If all of extra_body should fit into the body
 				else
@@ -719,7 +719,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 				}
 			}
 			// If state is any _ENDLINE state
-			if (this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE || this->_chunked_read_state == READING_BODY_ENDLINE)
+			if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE || this->_chunked_read_state == ChunkedReadState::READING_BODY_ENDLINE)
 			{
 				if (this->_chunked_body_buffer.size() < 2)
 					break;
@@ -730,17 +730,17 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					this->_chunked_body_buffer.erase(0, 2);
 
 					// If at the end of chunked requests
-					if (this->_chunked_remaining_content_length == 0 && this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE)
+					if (this->_chunked_remaining_content_length == 0 && this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE)
 					{
 						this->client_read_state = ClientToServerState::DONE;
 					}
-					else if (this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE)
+					else if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE)
 					{
-						this->_chunked_read_state = READING_BODY;
+						this->_chunked_read_state = ChunkedReadState::READING_BODY;
 					}
-					else if (this->_chunked_read_state == READING_BODY_ENDLINE)
+					else if (this->_chunked_read_state == ChunkedReadState::READING_BODY_ENDLINE)
 					{
-						this->_chunked_read_state = READING_CONTENT_LEN;
+						this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN;
 					}
 					// Should never reach
 					else

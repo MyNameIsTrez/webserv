@@ -22,50 +22,37 @@ size_t for sent characters (i)
 // Ignore chunked request doody for now (will be my part probably)
 */
 
-// TODO: Use class enums?
-namespace ClientToServerState
+class Client
 {
-	enum ClientToServerState
+public:
+	enum class ClientToServerState
 	{
 		HEADER,
 		BODY,
 		DONE
 	};
-}
 
-namespace ServerToCGIState
-{
-	enum ServerToCGIState
+	enum class ServerToCGIState
 	{
 		NOT_WRITING,
 		WRITING,
 		DONE
 	};
-}
 
-namespace CGIToServerState
-{
-	enum CGIToServerState
+	enum class CGIToServerState
 	{
 		NOT_READING,
 		READING,
 		DONE
 	};
-}
 
-namespace ServerToClientState
-{
-	enum ServerToClientState
+	enum class ServerToClientState
 	{
 		NOT_WRITING,
 		WRITING,
 		DONE
 	};
-}
 
-class Client
-{
-public:
 	Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size);
 	Client(Client const &src);
 	virtual ~Client(void);
@@ -98,10 +85,10 @@ public:
 		Status::Status status;
 	};
 
-	ClientToServerState::ClientToServerState client_read_state;
-	ServerToCGIState::ServerToCGIState cgi_write_state;
-	CGIToServerState::CGIToServerState cgi_read_state;
-	ServerToClientState::ServerToClientState client_write_state;
+	ClientToServerState client_read_state;
+	ServerToCGIState cgi_write_state;
+	CGIToServerState cgi_read_state;
+	ServerToClientState client_write_state;
 
 	std::string request_method;
 	std::string request_target;
@@ -154,8 +141,8 @@ private:
 	bool _is_chunked;
 	size_t _chunked_remaining_content_length;
 	std::string _chunked_body_buffer;
-	// TODO: Put in namespace?
-	enum ChunkedReadState
+
+	enum class ChunkedReadState
 	{
 		READING_CONTENT_LEN,
 		READING_BODY,
