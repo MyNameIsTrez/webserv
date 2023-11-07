@@ -63,7 +63,8 @@ private:
 	void _readFd(Client &client, int fd, FdType fd_type, bool &skip_client);
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
-	void _startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1);
+	void _startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &location_path);
+	std::string _getCGIExecveArgv1(const std::string &location_path);
 	std::vector<std::string> _getCGIHeaders(const std::unordered_map<std::string, std::string> &headers);
 	void _addMetaVariables(std::vector<std::string> &cgi_headers);
 	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);

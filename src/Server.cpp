@@ -8,6 +8,7 @@
 
 #include <cassert>
 #include <iostream>
+#include <filesystem>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
@@ -661,8 +662,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 			{
 				Logger::info(std::string("    location.path: '") + location.path + "'");
 
-				struct stat status;
-				if (stat(location.path.c_str(), &status) != -1 && S_ISDIR(status.st_mode))
+				if (std::filesystem::is_directory(location.path))
 				{
 					if (method == "DELETE")
 					{
@@ -758,7 +758,7 @@ void Server::_removeClientAttachments(int fd)
 	}
 }
 
-void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &cgi_execve_argv1)
+void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &location_path)
 {
 	Logger::info(std::string("  Starting CGI..."));
 
@@ -782,6 +782,8 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 
 		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw Utils::SystemException("dup2");
 		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
+
+		const std::string &cgi_execve_argv1 = _getCGIExecveArgv1(location_path);
 
 		char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
 		char *argv1 = const_cast<char *>(cgi_execve_argv1.c_str());
@@ -830,6 +832,22 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_read_state = Client::CGIToServerState::READING;
 	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
+}
+
+std::string Server::_getCGIExecveArgv1(const std::string &location_path)
+{
+	size_t slash_index = 0;
+	std::string cgi_execve_argv1;
+
+	do
+	{
+		slash_index = location_path.find("/", slash_index);
+		cgi_execve_argv1 = location_path.substr(0, slash_index);
+		slash_index++;
+	}
+	while (std::filesystem::is_directory(cgi_execve_argv1));
+
+	return cgi_execve_argv1;
 }
 
 std::vector<std::string> Server::_getCGIHeaders(const std::unordered_map<std::string, std::string> &headers)
