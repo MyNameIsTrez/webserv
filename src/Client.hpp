@@ -22,64 +22,53 @@ size_t for sent characters (i)
 // Ignore chunked request doody for now (will be my part probably)
 */
 
-// TODO: Use class enums?
-namespace ClientReadState
+class Client
 {
-	enum ClientReadState
+public:
+	enum class ClientToServerState
 	{
 		HEADER,
 		BODY,
 		DONE
 	};
-}
 
-namespace CGIWriteState
-{
-	enum CGIWriteState
+	enum class ServerToCGIState
 	{
 		NOT_WRITING,
-		WRITING_TO_CGI,
+		WRITING,
 		DONE
 	};
-}
 
-namespace CGIReadState
-{
-	enum CGIReadState
+	enum class CGIToServerState
 	{
 		NOT_READING,
-		READING_FROM_CGI,
+		READING,
 		DONE
 	};
-}
 
-namespace ClientWriteState
-{
-	enum ClientWriteState
+	enum class ServerToClientState
 	{
 		NOT_WRITING,
-		WRITING_TO_CLIENT,
+		WRITING,
 		DONE
 	};
-}
 
-class Client
-{
-public:
-	Client(int client_fd);
+	Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size);
 	Client(Client const &src);
 	virtual ~Client(void);
 	Client &operator=(Client const &src);
 
 	void appendReadString(char *received, ssize_t bytes_read);
 
-	void respondWithError(void);
+	void respondWithError(const std::unordered_map<Status::Status, std::string> &error_pages);
 	void respondWithFile(const std::string &path);
 	void respondWithDirectoryListing(const std::string &path);
 	void respondWithCreateFile(const std::string &path);
 	void respondWithDeleteFile(const std::string &path);
 
 	void prependResponseHeader(void);
+
+	int server_fd;
 
 	Status::Status status;
 
@@ -96,18 +85,18 @@ public:
 		Status::Status status;
 	};
 
-	ClientReadState::ClientReadState client_read_state;
-	CGIWriteState::CGIWriteState cgi_write_state;
-	CGIReadState::CGIReadState cgi_read_state;
-	ClientWriteState::ClientWriteState client_write_state;
+	ClientToServerState client_read_state;
+	ServerToCGIState cgi_write_state;
+	CGIToServerState cgi_read_state;
+	ServerToClientState client_write_state;
 
 	std::string request_method;
 	std::string request_target;
 	std::string protocol;
 	std::unordered_map<std::string, std::string> headers;
-	uint16_t port;
 	std::string body;
 	size_t body_index;
+	size_t client_max_body_size;
 	std::string response;
 	size_t response_index;
 	int client_fd;
@@ -115,6 +104,8 @@ public:
 	int cgi_to_server_fd;
 	pid_t cgi_pid;
 	int cgi_exit_status;
+	std::string redirect;
+	std::string server_name;
 
 private:
 	Client(void);
@@ -141,7 +132,6 @@ private:
 	std::string _getFileExtension(const std::string &path);
 	std::string _getFileName(const std::string &path);
 
-	void _generateEnv(void);
 	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
 	std::string _response_content_type;
@@ -151,8 +141,8 @@ private:
 	bool _is_chunked;
 	size_t _chunked_remaining_content_length;
 	std::string _chunked_body_buffer;
-	// TODO: Put in namespace?
-	enum ChunkedReadState
+
+	enum class ChunkedReadState
 	{
 		READING_CONTENT_LEN,
 		READING_BODY,
@@ -160,7 +150,6 @@ private:
 		READING_BODY_ENDLINE
 	} _chunked_read_state;
 
-	std::string _server_name;
-	std::string _port_str;
+	std::string _server_port;
 	std::string _response_headers;
 };

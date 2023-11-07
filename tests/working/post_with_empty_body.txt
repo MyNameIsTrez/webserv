@@ -1,0 +1,2 @@
+curl localhost:8080 -d ""
+Make sure this doesn't hang the server like it used to!

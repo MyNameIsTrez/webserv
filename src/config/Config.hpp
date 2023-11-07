@@ -3,42 +3,19 @@
 #include <cassert>
 #include <fstream>
 #include <iostream>
+#include <limits>
 #include <map>
+#include <netdb.h>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <variant>
 #include <vector>
-#include <limits>
-#include <unordered_map>
 
 #include "../Status.hpp"
 
 class JSON;
-
-struct LocationDirective
-{
-	std::string uri;
-
-	bool get_allowed;
-	bool post_allowed;
-	bool delete_allowed;
-
-	bool autoindex;
-	std::string index;
-	std::string root;
-};
-
-struct ServerDirective
-{
-	size_t connection_queue_length;
-	size_t client_max_body_size;
-	std::vector<uint16_t> ports;
-
-	std::vector<std::string> server_names;
-	// std::string http_redirection; // TODO: Willen we dit er weer in zetten?
-	std::vector<LocationDirective> locations;
-	std::map<Status::Status, std::string> error_pages;
-};
+struct Node;
 
 class Config
 {
@@ -46,8 +23,60 @@ public:
 	Config();
 	void init(const JSON &json);
 
+	struct CGISettingsDirective
+	{
+		std::string cgi_execve_path;
+		std::string cgi_execve_argv0;
+	};
+
+	struct LocationDirective
+	{
+		std::string uri;
+
+		bool is_cgi_directory;
+		CGISettingsDirective cgi_settings;
+
+		bool get_allowed;
+		bool post_allowed;
+		bool delete_allowed;
+
+		bool autoindex;
+		std::string index;
+		std::string redirect;
+
+		std::string root;
+	};
+
+	struct ListenEntry
+	{
+		std::string address;
+		std::string port;
+	};
+
+	struct ServerDirective
+	{
+		std::vector<ListenEntry> listen;
+
+		std::vector<std::string> server_names;
+		std::vector<LocationDirective> locations;
+		std::unordered_map<Status::Status, std::string> error_pages;
+	};
+
+	struct BindInfo
+	{
+		in_addr_t s_addr;
+		in_port_t sin_port;
+
+		inline bool operator<(const BindInfo &rhs) const
+		{
+			return std::tie(this->s_addr, this->sin_port) < std::tie(rhs.s_addr, rhs.sin_port);
+		}
+	};
+
+	int connection_queue_length;
+	size_t client_max_body_size;
 	std::vector<ServerDirective> servers;
-	std::unordered_map<uint16_t, size_t> port_to_server_index;
+	std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
 
 	struct ConfigException : public std::runtime_error
 	{
@@ -55,35 +84,63 @@ public:
 	};
 
 private:
+	void _parseConnectionQueueLength(const std::unordered_map<std::string, Node> &root_object);
+	void _parseClientMaxBodySize(const std::unordered_map<std::string, Node> &root_object);
+
+	ListenEntry _parseListen(const Node &listen_node);
+	LocationDirective _parseLocation(const std::pair<std::string, Node> &location_node);
+
+	void _fillBindInfoToServerIndices();
+
 	struct ConfigExceptionExpectedConnectionQueueLength : public ConfigException
 	{
 		ConfigExceptionExpectedConnectionQueueLength() : ConfigException("Config exception: Expected connection_queue_length"){};
 	};
+	struct ConfigExceptionConnectionQueueLengthIsTooHigh : public ConfigException
+	{
+		ConfigExceptionConnectionQueueLengthIsTooHigh() : ConfigException("Config exception: connection_queue_length is too high"){};
+	};
+	struct ConfigExceptionConnectionQueueLengthIsSmallerThanOne : public ConfigException
+	{
+		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){};
+	};
+
 	struct ConfigExceptionExpectedClientMaxBodySize : public ConfigException
 	{
 		ConfigExceptionExpectedClientMaxBodySize() : ConfigException("Config exception: Expected client_max_body_size"){};
 	};
+
 	struct ConfigExceptionExpectedListen : public ConfigException
 	{
 		ConfigExceptionExpectedListen() : ConfigException("Config exception: Expected listen"){};
-	};
-
-	struct ConfigExceptionPortIsHigherThan65535 : public ConfigException
-	{
-		ConfigExceptionPortIsHigherThan65535() : ConfigException("Config exception: Port is higher than 65535"){};
-	};
-	struct ConfigExceptionDuplicatePort : public ConfigException
-	{
-		ConfigExceptionDuplicatePort() : ConfigException("Config exception: Duplicate port"){};
 	};
 
 	struct ConfigExceptionClientMaxBodySizeIsSmallerThanZero : public ConfigException
 	{
 		ConfigExceptionClientMaxBodySizeIsSmallerThanZero() : ConfigException("Config exception: client_max_body_size is smaller than zero"){};
 	};
-	struct ConfigExceptionConnectionQueueLengthIsSmallerThanOne : public ConfigException
+
+	struct ConfigExceptionListenColonIsRequired : public ConfigException
 	{
-		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){};
+		ConfigExceptionListenColonIsRequired() : ConfigException("Config exception: Listen ':' is required"){};
+	};
+	struct ConfigExceptionMissingAddressBeforePortColon : public ConfigException
+	{
+		ConfigExceptionMissingAddressBeforePortColon() : ConfigException("Config exception: Missing address before port ':'"){};
+	};
+	struct ConfigExceptionNoPortAfterColon : public ConfigException
+	{
+		ConfigExceptionNoPortAfterColon() : ConfigException("Config exception: No port after ':'"){};
+	};
+
+	struct ConfigExceptionExclusivePropertiesPresent : public ConfigException
+	{
+		ConfigExceptionExclusivePropertiesPresent() : ConfigException("Config exception: Exclusive properties present"){};
+	};
+
+	struct ConfigExceptionMissingCGISettingsProperty : public ConfigException
+	{
+		ConfigExceptionMissingCGISettingsProperty() : ConfigException("Config exception: Missing cgi_settings property"){};
 	};
 
 	struct ConfigExceptionInvalidErrorPageCode : public ConfigException
@@ -94,5 +151,14 @@ private:
 	struct ConfigExceptionUnknownKey : public ConfigException
 	{
 		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key"){};
+	};
+
+	struct ConfigExceptionDuplicateLocationInServer : public ConfigException
+	{
+		ConfigExceptionDuplicateLocationInServer() : ConfigException("Config exception: Duplicate location in server"){};
+	};
+	struct ConfigExceptionConflictingServerNameOnListen : public ConfigException
+	{
+		ConfigExceptionConflictingServerNameOnListen() : ConfigException("Config exception: Conflicting server name on listen"){};
 	};
 };

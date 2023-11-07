@@ -1,0 +1,5 @@
+curl 127.0.0.1:8080/rfcs/
+
+curl 127.0.0.1:8080/public/ -X POST
+
+curl 127.0.0.1:8080/public/ -X DELETE

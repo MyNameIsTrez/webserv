@@ -4,7 +4,9 @@ import json, os, sys, time
 def main():
     print("This is printed to stderr by print.py", file=sys.stderr)
 
-    if os.environ.get('HTTP_CONTENT_LENGTH'):
+    # print("text/plain 200")
+
+    if os.environ.get("HTTP_CONTENT_LENGTH"):
         print(f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}", file=sys.stderr)
     else:
         # TODO: Should this be unreachable? It's always reached rn
@@ -12,8 +14,16 @@ def main():
 
     # TODO: Test that the server doesn't crash if the script crashes
 
-    # Non-parsed header
-    # print("HTTP/1.1 200 OK\r\nContent-Type: text/plain\r\nContent-Length: 1\r\n\r\nab")
+    # print("Content-Type: text/plain")
+
+    # print("Status: 123 FOO")
+    # "HTTP/1.1 123 FOO\r\n"
+    # "Header1: bar\r\n"
+    # "\r\n"
+    # "baz"
+
+    # TODO:
+    # print("Content-Length: 1\r\n\r\nab")
 
     print(f"argv: {sys.argv}")
 
@@ -40,10 +50,11 @@ def main():
     sys.stdout.close()
 
     # TODO: Probably want to comment this out before handing in
-    time.sleep(5)
+    time.sleep(1)
 
-    # TODO: Test that this sends a "CGI failed" page to the client
-    exit(2)
+    # exit(1) # Causes "500 Internal Server Error"
+
+    exit(0)
 
 
 if __name__ == "__main__":

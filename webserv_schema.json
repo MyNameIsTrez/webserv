@@ -4,31 +4,33 @@
 	"description": "webserv is a C++ project at Codam",
 	"type": "object",
 	"additionalProperties": false,
+	"required": [
+		"connection_queue_length",
+		"client_max_body_size",
+		"servers"
+	],
 	"properties": {
+		"connection_queue_length": {
+			"type": "integer",
+			"minimum": 1
+		},
+		"client_max_body_size": {
+			"type": "integer",
+			"minimum": 0
+		},
 		"servers": {
 			"type": "array",
 			"items": {
 				"type": "object",
+				"additionalProperties": false,
 				"required": [
-					"connection_queue_length",
-					"client_max_body_size",
-					"ports"
+					"listen"
 				],
 				"properties": {
-					"connection_queue_length": {
-						"type": "integer",
-						"minimum": 1
-					},
-					"client_max_body_size": {
-						"type": "integer",
-						"minimum": 0
-					},
-					"ports": {
+					"listen": {
 						"type": "array",
 						"items": {
-							"type": "integer",
-							"minimum": 0,
-							"maximum": 65535
+							"type": "string"
 						}
 					},
 					"server_names": {
@@ -43,6 +45,21 @@
 							"type": "object",
 							"additionalProperties": false,
 							"properties": {
+								"cgi_settings": {
+									"type": "object",
+									"additionalProperties": false,
+									"required": [
+										"cgi_execve_path"
+									],
+									"properties": {
+										"cgi_execve_path": {
+											"type": "string"
+										},
+										"cgi_execve_argv0": {
+											"type": "string"
+										}
+									}
+								},
 								"get_allowed": {
 									"type": "boolean"
 								},
@@ -58,9 +75,34 @@
 								"index": {
 									"type": "string"
 								},
+								"redirect": {
+									"type": "string"
+								},
 								"root": {
 									"type": "string"
 								}
+							},
+							"not": {
+								"oneOf": [
+									{
+										"required": [
+											"autoindex",
+											"index"
+										]
+									},
+									{
+										"required": [
+											"autoindex",
+											"redirect"
+										]
+									},
+									{
+										"required": [
+											"index",
+											"redirect"
+										]
+									}
+								]
 							}
 						}
 					},

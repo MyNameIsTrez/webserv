@@ -1,0 +1,2 @@
+curl localhost:8081/foo/ -d "@tests/sent/1m_lines.txt" should give "413 Request Entity Too Large"
+curl localhost:8081/foo/ should give "403 Forbidden"

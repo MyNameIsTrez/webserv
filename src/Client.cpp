@@ -16,33 +16,36 @@
 #include <unistd.h>
 #include <vector>
 
-// TODO: REMOVE THIS FROM THIS FILE; IT'S ALREADY IN Server.cpp!
-#define MAX_RECEIVED_LEN 100
-
 const char *Client::status_text_table[] = {
 	[Status::OK] = "OK",
 	[Status::MOVED_PERMANENTLY] = "Moved Permanently",
+	[Status::MOVED_TEMPORARILY] = "Moved Temporarily",
 	[Status::BAD_REQUEST] = "Bad Request",
 	[Status::FORBIDDEN] = "Forbidden",
 	[Status::NOT_FOUND] = "Not Found",
 	[Status::METHOD_NOT_ALLOWED] = "Method Not Allowed",
+	[Status::REQUEST_ENTITY_TOO_LARGE] = "Request Entity Too Large",
+	[Status::INTERNAL_SERVER_ERROR] = "Internal Server Error",
 };
 
 /*	Orthodox Canonical Form */
 
-Client::Client(int client_fd)
-	: status(Status::OK),
-	  client_read_state(ClientReadState::HEADER),
-	  cgi_write_state(CGIWriteState::NOT_WRITING),
-	  cgi_read_state(CGIReadState::NOT_READING),
-	  client_write_state(ClientWriteState::NOT_WRITING),
+class Config;
+
+Client::Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size)
+	: server_fd(server_fd),
+	  status(Status::OK),
+	  client_read_state(ClientToServerState::HEADER),
+	  cgi_write_state(ServerToCGIState::NOT_WRITING),
+	  cgi_read_state(CGIToServerState::NOT_READING),
+	  client_write_state(ServerToClientState::NOT_WRITING),
 	  request_method(),
 	  request_target(),
 	  protocol(),
 	  headers(),
-	  port(-1),
 	  body(),
 	  body_index(),
+	  client_max_body_size(client_max_body_size),
 	  response(),
 	  response_index(),
 	  client_fd(client_fd),
@@ -50,21 +53,23 @@ Client::Client(int client_fd)
 	  cgi_to_server_fd(-1),
 	  cgi_pid(-1),
 	  cgi_exit_status(-1),
+	  redirect(),
+	  server_name(),
 	  _response_content_type("application/octet-stream"),
 	  _content_length(),
 	  _header(),
 	  _is_chunked(),
 	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
-	  _chunked_read_state(READING_CONTENT_LEN),
-	  _server_name(),
-	  _port_str(),
+	  _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN),
+	  _server_port(server_port),
 	  _response_headers()
 {
 }
 
 Client::Client(Client const &src)
-	: status(src.status),
+	: server_fd(src.server_fd),
+	  status(src.status),
 	  client_read_state(src.client_read_state),
 	  cgi_write_state(src.cgi_write_state),
 	  cgi_read_state(src.cgi_read_state),
@@ -73,9 +78,9 @@ Client::Client(Client const &src)
 	  request_target(src.request_target),
 	  protocol(src.protocol),
 	  headers(src.headers),
-	  port(src.port),
 	  body(src.body),
 	  body_index(src.body_index),
+	  client_max_body_size(src.client_max_body_size),
 	  response(src.response),
 	  response_index(src.response_index),
 	  client_fd(src.client_fd),
@@ -83,6 +88,8 @@ Client::Client(Client const &src)
 	  cgi_to_server_fd(src.cgi_to_server_fd),
 	  cgi_pid(src.cgi_pid),
 	  cgi_exit_status(src.cgi_exit_status),
+	  redirect(src.redirect),
+	  server_name(src.server_name),
 	  _response_content_type(src._response_content_type),
 	  _content_length(src._content_length),
 	  _header(src._header),
@@ -90,8 +97,7 @@ Client::Client(Client const &src)
 	  _chunked_remaining_content_length(src._chunked_remaining_content_length),
 	  _chunked_body_buffer(src._chunked_body_buffer),
 	  _chunked_read_state(src._chunked_read_state),
-	  _server_name(src._server_name),
-	  _port_str(src._port_str),
+	  _server_port(src._server_port),
 	  _response_headers(src._response_headers)
 {
 }
@@ -104,6 +110,7 @@ Client &Client::operator=(Client const &src)
 {
 	if (this == &src)
 		return *this;
+	this->server_fd = src.server_fd;
 	this->status = src.status;
 	this->client_read_state = src.client_read_state;
 	this->cgi_write_state = src.cgi_write_state;
@@ -113,9 +120,9 @@ Client &Client::operator=(Client const &src)
 	this->request_target = src.request_target;
 	this->protocol = src.protocol;
 	this->headers = src.headers;
-	this->port = src.port;
 	this->body = src.body;
 	this->body_index = src.body_index;
+	this->client_max_body_size = src.client_max_body_size;
 	this->response = src.response;
 	this->response_index = src.response_index;
 	this->client_fd = src.client_fd;
@@ -123,14 +130,15 @@ Client &Client::operator=(Client const &src)
 	this->cgi_to_server_fd = src.cgi_to_server_fd;
 	this->cgi_pid = src.cgi_pid;
 	this->cgi_exit_status = src.cgi_exit_status;
+	this->redirect = src.redirect;
+	this->server_name = src.server_name;
 	this->_response_content_type = src._response_content_type;
 	this->_content_length = src._content_length;
 	this->_header = src._header;
 	this->_is_chunked = src._is_chunked;
 	this->_chunked_body_buffer = src._chunked_body_buffer;
 	this->_chunked_remaining_content_length = src._chunked_remaining_content_length;
-	this->_server_name = src._server_name;
-	this->_port_str = src._port_str;
+	this->_server_port = src._server_port;
 	this->_response_headers = src._response_headers;
 	return *this;
 }
@@ -139,7 +147,7 @@ Client &Client::operator=(Client const &src)
 
 void Client::appendReadString(char *received, ssize_t bytes_read)
 {
-	if (this->client_read_state == ClientReadState::HEADER)
+	if (this->client_read_state == ClientToServerState::HEADER)
 	{
 		this->_header.append(received, bytes_read);
 
@@ -167,40 +175,62 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 
 		this->_useHeaders();
 
-		// Only POST requests have a body
-		if (this->request_method != "POST")
+		// TODO: Can a GET or a DELETE have a body?
+		if (this->request_method != "POST" || this->_content_length == 0)
 		{
-			this->client_read_state = ClientReadState::DONE;
+			this->client_read_state = ClientToServerState::DONE;
+			this->cgi_write_state = ServerToCGIState::DONE;
 			return;
 		}
 
-		this->client_read_state = ClientReadState::BODY;
+		this->client_read_state = ClientToServerState::BODY;
 
 		// Add body bytes to _body
 		if (extra_body.size() > 0)
 			this->_parseBodyAppend(extra_body);
 	}
-	else if (this->client_read_state == ClientReadState::BODY)
+	else if (this->client_read_state == ClientToServerState::BODY)
 		this->_parseBodyAppend(std::string(received, received + bytes_read));
-	else if (this->client_read_state == ClientReadState::DONE)
+	else if (this->client_read_state == ClientToServerState::DONE)
 	{
 		// We keep reading regardless of whether we saw the end of the body,
 		// so we can still read the EOF any disconnected client sent
 	}
 }
 
-void Client::respondWithError(void)
+void Client::respondWithError(const std::unordered_map<Status::Status, std::string> &error_pages)
 {
-	std::string title = std::to_string(this->status) + " " + status_text_table[this->status];
+	bool opened_file = false;
 
-	this->response =
-		"<html>\n"
-	 	"<head><title>" + title + "</title></head>\n"
-		"<body>\n"
-		"<center><h1>" + title + "</h1></center>\n"
-		"<hr><center>webserv</center>\n"
-		"</body>\n"
-		"</html>\n";
+	const auto &error_page_it = error_pages.find(this->status);
+
+	if (error_page_it != error_pages.end())
+	{
+		std::ifstream file(error_page_it->second);
+		if (file.is_open())
+		{
+			opened_file = true;
+
+			std::stringstream file_body;
+			file_body << file.rdbuf();
+
+			this->response = file_body.str();
+		}
+	}
+
+	if (!opened_file)
+	{
+		std::string title = std::to_string(this->status) + " " + status_text_table[this->status];
+
+		this->response =
+			"<html>\n"
+			"<head><title>" + title + "</title></head>\n"
+			"<body>\n"
+			"<center><h1>" + title + "</h1></center>\n"
+			"<hr><center>webserv</center>\n"
+			"</body>\n"
+			"</html>\n";
+	}
 
 	this->response_index = 0;
 
@@ -372,7 +402,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &directory_name : _getSortedEntryNames(path, true))
 	{
 		this->response +=
-			"		<a href=\""
+			"<a href=\""
 			+ directory_name
 			+ "\">"
 			+ directory_name
@@ -382,7 +412,7 @@ void Client::respondWithDirectoryListing(const std::string &path)
 	for (const std::string &non_directory_name : _getSortedEntryNames(path, false))
 	{
 		this->response +=
-			"		<a href=\""
+			"<a href=\""
 			+ non_directory_name
 			+ "\">"
 			+ non_directory_name
@@ -416,6 +446,12 @@ void Client::respondWithCreateFile(const std::string &path)
 
 	Logger::debug("    Creating file");
 	outfile.open(path, std::fstream::out);
+
+	if (!outfile)
+	{
+		Logger::debug("    Couldn't create file");
+		throw ClientException(Status::BAD_REQUEST);
+	}
 
 	// TODO: Is it necessary to flush manually before the ofstream's destructor gets called?
 	// TODO: Limit the body size somewhere before this point is even reached
@@ -463,7 +499,12 @@ void Client::prependResponseHeader(void)
 	// TODO: Add more special status cases?
 	if (this->status == Status::MOVED_PERMANENTLY)
 	{
-		this->_addResponseHeader("Location", "http://" + this->_server_name + ":" + this->_port_str + this->request_target + "/");
+		this->_addResponseHeader("Location", "http://" + this->server_name + ":" + this->_server_port + this->request_target + "/");
+	}
+	else if (this->status == Status::MOVED_TEMPORARILY)
+	{
+		assert(!this->redirect.empty());
+		this->_addResponseHeader("Location", this->redirect);
 	}
 
 	// TODO: Add?
@@ -583,7 +624,7 @@ void Client::_fillHeaders(const std::vector<std::string> &header_lines)
 		}
 
 		// Check if key is a duplicate
-		if (this->headers.find(key) != this->headers.end()) throw ClientException(Status::BAD_REQUEST);
+		if (this->headers.contains(key)) throw ClientException(Status::BAD_REQUEST);
 
 		// Add key and value to the map
 		this->headers.emplace(key, value);
@@ -623,23 +664,18 @@ void Client::_useHeaders(void)
 		size_t colon_index = host.find(":");
 		if (colon_index == host.npos)
 		{
-			// "If no port is included, the default port for the service requested is implied"
-			// Source: https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/Host
-			this->port = 80;
+			// TODO: Uppercase
+			this->server_name = host;
 		}
 		else
 		{
 			// If there is no server name before the colon
 			if (colon_index == 0) throw ClientException(Status::BAD_REQUEST);
 
-			this->_server_name = host.substr(0, colon_index);
+			// TODO: Uppercase
+			this->server_name = host.substr(0, colon_index);
 
-			// If there is no character after the colon
-			if (colon_index == host.size() - 1) throw Client::ClientException(Status::BAD_REQUEST);
-
-			this->_port_str = host.substr(colon_index + 1);
-
-			if (!Utils::parseNumber(this->_port_str, this->port, static_cast<uint16_t>(65535))) throw Client::ClientException(Status::BAD_REQUEST);
+			// nginx doesn't care what comes after the colon, if anything
 		}
 	}
 }
@@ -652,7 +688,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 		this->_chunked_body_buffer.append(extra_body);
 		while (true)
 		{
-			if (this->_chunked_read_state == READING_CONTENT_LEN)
+			if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN)
 			{
 				// Check if current buffer has anything else than a hexadecimal character
 				if (this->_chunked_body_buffer.find_first_not_of("1234567890abcdefABCDEF") == std::string::npos)
@@ -661,9 +697,9 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 				_hexToNum(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
 
 				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but it's nice to just update it as appropriate (Maybe want to delete because it isn't needed)
-				this->_chunked_read_state = READING_CONTENT_LEN_ENDLINE;
+				this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN_ENDLINE;
 			}
-			if (this->_chunked_read_state == READING_BODY)
+			if (this->_chunked_read_state == ChunkedReadState::READING_BODY)
 			{
 				// If not all of extra_body should fit into the body
 				if (this->_chunked_body_buffer.size() >= this->_chunked_remaining_content_length)
@@ -671,7 +707,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					this->body.append(this->_chunked_body_buffer, 0, this->_chunked_remaining_content_length);
 					this->_chunked_body_buffer.erase(0, this->_chunked_remaining_content_length);
 					this->_chunked_remaining_content_length = 0;
-					this->_chunked_read_state = READING_BODY_ENDLINE;
+					this->_chunked_read_state = ChunkedReadState::READING_BODY_ENDLINE;
 				}
 				// If all of extra_body should fit into the body
 				else
@@ -683,7 +719,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 				}
 			}
 			// If state is any _ENDLINE state
-			if (this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE || this->_chunked_read_state == READING_BODY_ENDLINE)
+			if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE || this->_chunked_read_state == ChunkedReadState::READING_BODY_ENDLINE)
 			{
 				if (this->_chunked_body_buffer.size() < 2)
 					break;
@@ -694,17 +730,17 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					this->_chunked_body_buffer.erase(0, 2);
 
 					// If at the end of chunked requests
-					if (this->_chunked_remaining_content_length == 0 && this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE)
+					if (this->_chunked_remaining_content_length == 0 && this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE)
 					{
-						this->client_read_state = ClientReadState::DONE;
+						this->client_read_state = ClientToServerState::DONE;
 					}
-					else if (this->_chunked_read_state == READING_CONTENT_LEN_ENDLINE)
+					else if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE)
 					{
-						this->_chunked_read_state = READING_BODY;
+						this->_chunked_read_state = ChunkedReadState::READING_BODY;
 					}
-					else if (this->_chunked_read_state == READING_BODY_ENDLINE)
+					else if (this->_chunked_read_state == ChunkedReadState::READING_BODY_ENDLINE)
 					{
-						this->_chunked_read_state = READING_CONTENT_LEN;
+						this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN;
 					}
 					// Should never reach
 					else
@@ -726,11 +762,16 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 		{
 			size_t needed = this->_content_length - this->body.size();
 			this->body.append(extra_body.begin(), extra_body.begin() + needed);
-			this->client_read_state = ClientReadState::DONE;
+			this->client_read_state = ClientToServerState::DONE;
 		}
 		// If all of extra_body should fit into the body
 		else
 			this->body.append(extra_body);
+	}
+
+	if (this->body.size() > this->client_max_body_size)
+	{
+		throw ClientException(Status::REQUEST_ENTITY_TOO_LARGE);
 	}
 }
 
@@ -862,15 +903,6 @@ std::string Client::_getFileName(const std::string &path)
 	size_t slash_index = path.find_last_of("/");
 	if (slash_index == path.npos || slash_index + 1 >= path.length()) return "";
 	return path.substr(slash_index + 1);
-}
-
-void Client::_generateEnv(void)
-{
-	// TODO: Decide what variable to give the CGI, and if we have to put HTTP_ in front of all the keys
-	// See page 19, section 4.1.18 in CGI RFC 3875
-
-	// TODO: Do this:
-	// key = "HTTP_" + key;
 }
 
 // TODO: Remove?

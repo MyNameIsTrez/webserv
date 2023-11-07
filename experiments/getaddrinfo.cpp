@@ -27,8 +27,7 @@ int main(int argc, char *argv[])
 	// const char *service = "81";
 	// const char *service = "8080";
 
-	addrinfo hint;
-	bzero(&hint, sizeof(hint));
+	addrinfo hint{};
 
 	// AF stands for Address Family
 	// hint.ai_family = AF_INET; // IPv4 addresses

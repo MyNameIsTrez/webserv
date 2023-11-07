@@ -19,6 +19,7 @@
 - [How NGINX processes a request](https://nginx.org/en/docs/http/request_processing.html)
 - [How NGINX redirection and try_files works](https://serverfault.com/a/1094257/1055398)
 - [HTTP header status flowchart](https://upload.wikimedia.org/wikipedia/commons/8/88/Http-headers-status.png)
+- [PATH_INFO and QUERY_STRING](https://en.wikipedia.org/wiki/Common_Gateway_Interface#Deployment)
 
 ## Setting up multiple servers with different hostnames
 

@@ -1,15 +1,5 @@
-# Remaining tasks
-
-- [ ] GET request method response
-- [ ] POST request method response
-- [ ] DELETE request method response
-- [ ] Chunked requests (use pipes, for chunked requests need to write only specific bytes, need pipe between Python output and client)
-- [ ] Our own tests?
-
 ## Sander
 
-- [ ] Set up Docker that has Valgrind
-- [ ] Verify that Valgrind detects uninitialized member variables
 - [ ] Test that any request method should be able to have a body, but that it is NEVER used for [GETs](https://stackoverflow.com/a/983458/13279557) nor [DELETEs](https://stackoverflow.com/a/299696/13279557)
 - [ ] Make sure that clients can't have dangling ptrs/indices to their two CGI pipe ends
 - [ ] Can GET and DELETE ever launch the CGI?
@@ -22,7 +12,6 @@
 - [ ] Check that wrong request methods/request targets/protocols inputs are caught
 - [ ] Lots of Server's methods take `fd`; rewrite them so they take `Client` instead, so `_getClient()` doesn't have to be called as often
 - [ ] Do we want to catch `SystemException`s so we can show a prettier error message? (Does it even matter, since they should never occur?)
-- [ ] Proper `autoindex on;` and `autoindex off;` for the `/` root
 - [ ] Verify that all tests in `tests/config_exceptions/` throw an exception
 - [ ] Verify that duplicate config keys always throw exceptions
 - [ ] Make sure that `listen 127.0.0.1:80;` doesn't crash our program (since we expect a simple number like `80`)
@@ -39,13 +28,7 @@
 - [ ] Allow location logic to work in `cgi-bin/`, rather than having it be a special case directory. Update `README.md` appropriately.
 - [ ] Hardcode default error page in C++ if opening the error status html file threw an exception by concatenating the status code and status line in between it
 - [ ] Fuzz Victor's client request parser
-- [ ] Talk with Marius about what is meant with "Define a HTTP redirection"
-
-## Victor
-
-## Milan
-
-- [ ] Sanitize the config fields, like the port not being -1, for example
+- [ ] Talk with Marius about what is meant with "Define a HTTP redirection"; do we want to implement nginx's `return` directive?
 
 ### Config parsing
 
@@ -133,12 +116,6 @@ features work properly:" - Do we have to brew install telnet, or can we just use
 - "In the configuration file setup multiple ports and use different websites." - Do they want the web server to edit /etc/hosts or /private/etc/hosts so the user is redirected to our 127.0.0.1 server when they go to for example foo.com? Or do they want the server to be running on different IPs than just 127.0.0.1?
 - "Launch multiple servers at the same time with different configurations but with common ports. Does it work? If it does, ask why the server should work if one of the configurations isn't functional. Keep going." - Do they mean that webserv's a.out should be run in multiple terminals at the same time? Are they saying we should explain that if a webserv process sees a broken configuration, it should just keep chugging along? Do they *want* a warning to be thrown when two servers with the same ports but different server_names are run, cause that'd be weird since nginx handles it fine.
 - "Check if there is no hanging connection." - Does Siege report this?
-
-# Decide whether these clients should be redirected to different pages
-http://localhost:8080/
-http://f1r3s6:8080/
-http://127.0.0.1:8080/
-http://f1r3s6.codam.nl:8080/
 
 # Before handing in
 - Consider removing PDFs and such from the repository, editing the .gitignore as well

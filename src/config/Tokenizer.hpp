@@ -41,5 +41,5 @@ private:
 	};
 
 	std::istream &_file;
-	size_t prevPos;
+	size_t _prevPos;
 };

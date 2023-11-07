@@ -50,11 +50,11 @@ std::vector<Node> Node::getArray() const
 	}
 }
 
-std::map<std::string, Node> Node::getObject() const
+std::unordered_map<std::string, Node> Node::getObject() const
 {
 	try
 	{
-		return std::get<std::map<std::string, Node>>(_value);
+		return std::get<std::unordered_map<std::string, Node>>(_value);
 	}
 	catch (const std::bad_variant_access &a)
 	{
@@ -82,7 +82,7 @@ void Node::setArray(std::vector<Node> array)
 	_value = array;
 }
 
-void Node::setObject(const std::map<std::string, Node> object)
+void Node::setObject(const std::unordered_map<std::string, Node> object)
 {
 	_value = object;
 }
