@@ -49,7 +49,7 @@ Server::Server(const Config &config)
 
 		_bind_fd_to_server_indices.emplace(bind_fd, server_indices);
 
-		Logger::info(std::string("Adding port ") + std::to_string(ntohs(bind_info.sin_port)));
+		Logger::info(std::string("Adding address ") + std::to_string(bind_info.s_addr) + " with port " + std::to_string(ntohs(bind_info.sin_port)));
 		_bind_fd_to_port.emplace(bind_fd, std::to_string(ntohs(bind_info.sin_port)));
 
 		// Prevents "bind: Address already in use" error
@@ -640,10 +640,12 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 					if (location.has_index)
 					{
 						client.respondWithFile(location.path);
+						_enableWritingToClient(client);
 					}
 					else if (location.autoindex)
 					{
 						client.respondWithDirectoryListing(location.path);
+						_enableWritingToClient(client);
 					}
 					else
 					{
@@ -679,26 +681,18 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 				else if (method == "GET")
 				{
 					client.respondWithFile(location.path);
+					_enableWritingToClient(client);
 				}
 				else if (method == "POST")
 				{
 					client.respondWithCreateFile(location.path);
+					_enableWritingToClient(client);
 				}
 				else
 				{
 					client.respondWithDeleteFile(location.path);
+					_enableWritingToClient(client);
 				}
-			}
-
-			// If we've just read body bytes, enable POLLOUT
-			// This uses the fact that bytes_read here is guaranteed to be > 0
-			if (client.cgi_write_state == CGIWriteState::NOT_WRITING)
-			{
-				_enableWritingToClient(client);
-			}
-			else if (client.cgi_write_state == CGIWriteState::WRITING_TO_CGI && !client.body.empty())
-			{
-				_enableWritingToCGI(client);
 			}
 		}
 	}
@@ -827,6 +821,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 		_addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
 		client.server_to_cgi_fd = server_to_cgi_fd;
 		client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
+		_enableWritingToCGI(client);
 		Logger::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
 	}
 
@@ -1047,17 +1042,14 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 		return;
 	}
 
-	// If we don't have anything left to write at the moment
+	// If we don't have anything left to write
 	if (client.body_index == client.body.length())
 	{
 		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
 		_disableEvent(pfd_index, POLLOUT);
 
-		if (client.client_read_state == ClientReadState::DONE)
-		{
-			client.cgi_write_state = CGIWriteState::DONE;
-			_removeClientFd(client.server_to_cgi_fd);
-		}
+		client.cgi_write_state = CGIWriteState::DONE;
+		_removeClientFd(client.server_to_cgi_fd);
 	}
 }
 

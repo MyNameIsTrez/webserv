@@ -176,7 +176,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		this->_useHeaders();
 
 		// TODO: Can a GET or a DELETE have a body?
-		if (this->request_method != "POST" || this->headers.at("CONTENT_LENGTH") == "0")
+		if (this->request_method != "POST" || this->_content_length == 0)
 		{
 			this->client_read_state = ClientReadState::DONE;
 			this->cgi_write_state = CGIWriteState::DONE;
