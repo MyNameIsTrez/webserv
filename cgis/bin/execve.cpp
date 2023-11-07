@@ -8,4 +8,5 @@ int main(int argc, char *argv[], char *envp[])
 		return EXIT_FAILURE;
 	char * const args[] = {argv[1], NULL};
 	execve(argv[1], args, envp);
+	return EXIT_FAILURE;
 }

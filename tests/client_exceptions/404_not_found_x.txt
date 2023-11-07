@@ -2,3 +2,6 @@ curl f1r4s8:8080/foo/x.html
 
 curl 127.0.0.1:8080/public/foo/no_perms.html
 Make sure to `chmod 0 public/foo/no_perms.html` beforehand!!
+
+curl -v 127.0.0.1:8080/cgis/bin/nonexistent
+curl -v 127.0.0.1:8080/cgis/python/nonexistent
