@@ -4,6 +4,8 @@ import json, os, sys, time
 def main():
     print("This is printed to stderr by print.py", file=sys.stderr)
 
+    # print("text/plain 200")
+
     if os.environ.get("HTTP_CONTENT_LENGTH"):
         print(f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}", file=sys.stderr)
     else:
@@ -12,9 +14,9 @@ def main():
 
     # TODO: Test that the server doesn't crash if the script crashes
 
-    print("Content-Type: text/plain")
+    # print("Content-Type: text/plain")
 
-    print("Status: 123 FOO")
+    # print("Status: 123 FOO")
     # "HTTP/1.1 123 FOO\r\n"
     # "Header1: bar\r\n"
     # "\r\n"

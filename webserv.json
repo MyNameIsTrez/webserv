@@ -14,6 +14,7 @@
 					"root": ".",
 					"get_allowed": true,
 					"post_allowed": true,
+					"delete_allowed": true,
 					"index": "a.html"
 				},
 				"/cgis/bin/": {
@@ -23,16 +24,21 @@
 					},
 					"get_allowed": true,
 					"post_allowed": true,
-					"delete_allowed": true
+					"delete_allowed": true,
+					"autoindex": true
 				},
 				"/cgis/python/": {
 					"root": ".",
 					"cgi_settings": {
-						"cgi_execve_path": "/usr/bin/python3"
+						"cgi_execve_path": "/usr/bin/pyt"
 					},
 					"get_allowed": true,
 					"post_allowed": true,
-					"delete_allowed": true
+					"delete_allowed": true,
+					"autoindex": true
+				},
+				"/rfcs/": {
+					"get_allowed": true
 				},
 				"/redirected/d": {
 					"redirect": "../public/foo/d.html"

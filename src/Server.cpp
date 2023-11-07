@@ -405,8 +405,8 @@ void Server::_sigIntHandler(int signum)
 
 void Server::_sigChldHandler(int signum)
 {
-	Logger::info(std::string("In _sigChldHandler()"));
 	(void)signum;
+	Logger::info(std::string("In _sigChldHandler()"));
 
 	char dummy = '!';
 	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1) throw Utils::SystemException("write");
@@ -796,7 +796,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 
 		execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
 
-		// TODO: Throw a ClientException instead here, if I can get execve() to fail under weird circumstances using a client!
+		// This gets turned into a ClientException by the parent process
 		throw Utils::SystemException("execve");
 	}
 
