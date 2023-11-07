@@ -23,9 +23,9 @@ size_t for sent characters (i)
 */
 
 // TODO: Use class enums?
-namespace ClientReadState
+namespace ClientToServerState
 {
-	enum ClientReadState
+	enum ClientToServerState
 	{
 		HEADER,
 		BODY,
@@ -33,32 +33,32 @@ namespace ClientReadState
 	};
 }
 
-namespace CGIWriteState
+namespace ServerToCGIState
 {
-	enum CGIWriteState
+	enum ServerToCGIState
 	{
 		NOT_WRITING,
-		WRITING_TO_CGI,
+		WRITING,
 		DONE
 	};
 }
 
-namespace CGIReadState
+namespace CGIToServerState
 {
-	enum CGIReadState
+	enum CGIToServerState
 	{
 		NOT_READING,
-		READING_FROM_CGI,
+		READING,
 		DONE
 	};
 }
 
-namespace ClientWriteState
+namespace ServerToClientState
 {
-	enum ClientWriteState
+	enum ServerToClientState
 	{
 		NOT_WRITING,
-		WRITING_TO_CLIENT,
+		WRITING,
 		DONE
 	};
 }
@@ -98,10 +98,10 @@ public:
 		Status::Status status;
 	};
 
-	ClientReadState::ClientReadState client_read_state;
-	CGIWriteState::CGIWriteState cgi_write_state;
-	CGIReadState::CGIReadState cgi_read_state;
-	ClientWriteState::ClientWriteState client_write_state;
+	ClientToServerState::ClientToServerState client_read_state;
+	ServerToCGIState::ServerToCGIState cgi_write_state;
+	CGIToServerState::CGIToServerState cgi_read_state;
+	ServerToClientState::ServerToClientState client_write_state;
 
 	std::string request_method;
 	std::string request_target;

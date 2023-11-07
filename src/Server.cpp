@@ -347,21 +347,21 @@ void Server::_enableWritingToClient(Client &client)
 	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
 	_enableEvent(client_pfd_index, POLLOUT);
 
-	client.client_write_state = ClientWriteState::WRITING_TO_CLIENT;
+	client.client_write_state = ServerToClientState::WRITING;
 }
 
 void Server::_enableWritingToCGI(Client &client)
 {
 	// TODO: Assert that response isn't empty?
 
-	assert(client.cgi_write_state != CGIWriteState::DONE);
+	assert(client.cgi_write_state != ServerToCGIState::DONE);
 	assert(client.server_to_cgi_fd != -1);
 
 	Logger::info(std::string("    In _enableWritingToCGI()"));
 	size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
 	_enableEvent(server_to_cgi_pfd_index, POLLOUT);
 
-	client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
+	client.cgi_write_state = ServerToCGIState::WRITING;
 }
 
 void Server::_disableReadingFromClient(Client &client)
@@ -370,7 +370,7 @@ void Server::_disableReadingFromClient(Client &client)
 	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
 	_disableEvent(client_pfd_index, POLLIN);
 
-	client.client_read_state = ClientReadState::DONE;
+	client.client_read_state = ClientToServerState::DONE;
 }
 
 void Server::_addClientFd(int fd, size_t client_index, FdType fd_type, short int events)
@@ -424,7 +424,7 @@ void Server::_handlePollerr(int fd, FdType fd_type)
 	if (fd_type == FdType::SERVER_TO_CGI)
 	{
 		Client &client = _getClient(fd);
-		client.cgi_write_state = CGIWriteState::DONE;
+		client.cgi_write_state = ServerToCGIState::DONE;
 		_removeClientFd(client.server_to_cgi_fd);
 	}
 	else if (fd_type == FdType::CLIENT)
@@ -446,18 +446,18 @@ void Server::_pollhupCGIToServer(int fd)
 
 	// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 
-	client.client_read_state = ClientReadState::DONE;
+	client.client_read_state = ClientToServerState::DONE;
 
 	if (client.server_to_cgi_fd != -1)
 	{
-		client.cgi_write_state = CGIWriteState::DONE;
+		client.cgi_write_state = ServerToCGIState::DONE;
 		_removeClientFd(client.server_to_cgi_fd);
 	}
 
 	// Close and remove cgi_to_server
 	assert(client.cgi_to_server_fd != -1);
 	_removeClientFd(client.cgi_to_server_fd);
-	client.cgi_read_state = CGIReadState::DONE;
+	client.cgi_read_state = CGIToServerState::DONE;
 
 	if (client.cgi_exit_status != -1)
 	{
@@ -551,17 +551,17 @@ void Server::_reapChild(void)
 	_cgi_pid_to_client_fd.erase(client.cgi_pid);
 	client.cgi_pid = -1;
 
-	assert(client.client_read_state == ClientReadState::DONE);
-	assert(client.cgi_write_state == CGIWriteState::DONE);
-	assert(client.cgi_read_state != CGIReadState::NOT_READING);
-	assert(client.client_write_state == ClientWriteState::NOT_WRITING);
+	assert(client.client_read_state == ClientToServerState::DONE);
+	assert(client.cgi_write_state == ServerToCGIState::DONE);
+	assert(client.cgi_read_state != CGIToServerState::NOT_READING);
+	assert(client.client_write_state == ServerToClientState::NOT_WRITING);
 
 	if (WIFEXITED(child_exit_status))
 	{
 		client.cgi_exit_status = WEXITSTATUS(child_exit_status);
 	}
 
-	if (client.cgi_read_state == CGIReadState::DONE)
+	if (client.cgi_read_state == CGIToServerState::DONE)
 	{
 		_enableWritingToClient(client);
 		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
@@ -600,8 +600,8 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 		return;
 	}
 
-	// assert(client.cgi_read_state != CGIReadState::DONE);
-	assert(client.client_write_state != ClientWriteState::DONE);
+	// assert(client.cgi_read_state != CGIToServerState::DONE);
+	assert(client.client_write_state != ServerToClientState::DONE);
 
 	Logger::info(std::string("    Read ") + std::to_string(bytes_read) + " bytes:\n----------\n" + std::string(received, bytes_read) + "\n----------\n");
 
@@ -609,7 +609,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 	{
 		client.appendReadString(received, bytes_read);
 
-		if (client.client_read_state == ClientReadState::DONE)
+		if (client.client_read_state == ClientToServerState::DONE)
 		{
 			const std::string &target = client.request_target;
 			const std::string &method = client.request_method;
@@ -698,7 +698,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 	}
 	else if (fd_type == FdType::CGI_TO_SERVER)
 	{
-		assert(client.cgi_read_state == CGIReadState::READING_FROM_CGI);
+		assert(client.cgi_read_state == CGIToServerState::READING);
 		Logger::info(std::string("    Adding this substr to the response:\n----------\n") + std::string(received, bytes_read) + "\n----------\n");
 		client.response += std::string(received, bytes_read);
 	}
@@ -738,13 +738,13 @@ void Server::_removeClientAttachments(int fd)
 	if (client.server_to_cgi_fd != -1)
 	{
 		_removeClientFd(client.server_to_cgi_fd);
-		client.cgi_write_state = CGIWriteState::DONE;
+		client.cgi_write_state = ServerToCGIState::DONE;
 	}
 
 	if (client.cgi_to_server_fd != -1)
 	{
 		_removeClientFd(client.cgi_to_server_fd);
-		client.cgi_read_state = CGIReadState::DONE;
+		client.cgi_read_state = CGIToServerState::DONE;
 	}
 
 	if (client.cgi_pid != -1)
@@ -811,7 +811,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 
 	size_t client_index = _fd_to_client_index.at(client.client_fd);
 
-	if (client.cgi_write_state == CGIWriteState::DONE)
+	if (client.cgi_write_state == ServerToCGIState::DONE)
 	{
 		Logger::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
 		if (close(server_to_cgi_fd) == -1) throw Utils::SystemException("close");
@@ -820,7 +820,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 	{
 		_addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
 		client.server_to_cgi_fd = server_to_cgi_fd;
-		client.cgi_write_state = CGIWriteState::WRITING_TO_CGI;
+		client.cgi_write_state = ServerToCGIState::WRITING;
 		_enableWritingToCGI(client);
 		Logger::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
 	}
@@ -828,7 +828,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];
 	_addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
 	client.cgi_to_server_fd = cgi_to_server_fd;
-	client.cgi_read_state = CGIReadState::READING_FROM_CGI;
+	client.cgi_read_state = CGIToServerState::READING;
 	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
 }
 
@@ -1014,7 +1014,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 {
 	Logger::info(std::string("  Writing from the server to the CGI..."));
 
-	assert(client.cgi_write_state == CGIWriteState::WRITING_TO_CGI);
+	assert(client.cgi_write_state == ServerToCGIState::WRITING);
 
 	size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
 	size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
@@ -1036,7 +1036,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
 		_disableEvent(pfd_index, POLLOUT);
 
-		client.cgi_write_state = CGIWriteState::DONE;
+		client.cgi_write_state = ServerToCGIState::DONE;
 		_removeClientFd(client.server_to_cgi_fd);
 
 		return;
@@ -1048,7 +1048,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
 		_disableEvent(pfd_index, POLLOUT);
 
-		client.cgi_write_state = CGIWriteState::DONE;
+		client.cgi_write_state = ServerToCGIState::DONE;
 		_removeClientFd(client.server_to_cgi_fd);
 	}
 }
@@ -1058,7 +1058,7 @@ void Server::_writeToClient(Client &client, int fd)
 	Logger::info(std::string("  Writing to the client..."));
 
 	assert(client.client_fd == fd);
-	assert(client.client_write_state == ClientWriteState::WRITING_TO_CLIENT);
+	assert(client.client_write_state == ServerToClientState::WRITING);
 
 	size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config; HAS to be >= 1
 	size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
