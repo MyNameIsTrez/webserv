@@ -534,6 +534,7 @@ void Client::prependResponseHeader(void)
 // See CGI RFC 3875 section 6.2.1. Document Response
 void Client::extractCGIDocumentResponseHeaders(void)
 {
+	Logger::info(std::string("    In extractCGIDocumentResponseHeaders()"));
 	// this->_header.append(received, bytes_read);
 
 	size_t separator_index = this->response.find("\n\n");
@@ -544,11 +545,12 @@ void Client::extractCGIDocumentResponseHeaders(void)
 	}
 
 	std::string cgi_header = std::string(this->response.begin(), this->response.begin() + separator_index + 1);
-
 	// Logger::debug("cgi_header is '" + cgi_header + "'");
 
 	// Erase the CGI header from this->response
+	// Logger::debug("separator_index is '" + std::to_string(separator_index) + "'");
 	this->response.erase(0, separator_index + 2);
+	// Logger::debug("this->response is '" + this->response + "'");
 
 	std::vector<std::string> cgi_header_lines;
 
@@ -589,17 +591,16 @@ void Client::extractCGIDocumentResponseHeaders(void)
 		// Logger::debug("status_string: " + status_string);
 
 		size_t space_index = status_string.find(' ');
+		// Logger::debug("space_index: " + std::to_string(space_index));
 		if (space_index == std::string::npos)
 		{
 			this->status = Status::INTERNAL_SERVER_ERROR; // TODO: Check this being reachable
 			return;
 		}
 
-		// Logger::debug("space_index: " + std::to_string(space_index));
 		std::string status_code_string = status_string.substr(0, space_index);
 		// Logger::debug("status_code_string: '" + status_code_string + "'");
 
-		// TODO: This custom reason_phrase should be returned to the client
 		std::string reason_phrase = status_string.substr(space_index + 1);
 		// Logger::debug("reason_phrase: '" + reason_phrase + "'");
 
@@ -609,8 +610,6 @@ void Client::extractCGIDocumentResponseHeaders(void)
 			this->status = Status::INTERNAL_SERVER_ERROR; // TODO: Check this being reachable
 			return;
 		}
-
-		// TODO: Should this clear this->response so that the body isn't sent, and content_length is set to 0, when status != OK?
 
 		this->status = Status::Status(status_code);
 		this->_custom_reason_phrase = reason_phrase;

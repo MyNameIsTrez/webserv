@@ -39,6 +39,7 @@
 					"autoindex": true
 				},
 				"/rfcs/": {
+					"root": ".",
 					"get_allowed": true
 				},
 				"/redirected/d": {

@@ -24,7 +24,10 @@
 				"type": "object",
 				"additionalProperties": false,
 				"required": [
-					"listen"
+					"listen",
+					"server_names",
+					"locations",
+					"error_pages"
 				],
 				"properties": {
 					"listen": {
@@ -82,38 +85,81 @@
 									"type": "string"
 								}
 							},
+							"oneOf": [
+								{
+									"required": [
+										"root"
+									]
+								},
+								{
+									"required": [
+										"redirect"
+									]
+								}
+							],
 							"not": {
 								"oneOf": [
+									{
+										"required": [
+											"redirect"
+										],
+										"oneOf": [
+											{
+												"required": [
+													"cgi_settings"
+												]
+											},
+											{
+												"required": [
+													"get_allowed"
+												]
+											},
+											{
+												"required": [
+													"post_allowed"
+												]
+											},
+											{
+												"required": [
+													"delete_allowed"
+												]
+											},
+											{
+												"required": [
+													"autoindex"
+												]
+											},
+											{
+												"required": [
+													"index"
+												]
+											},
+											{
+												"required": [
+													"root"
+												]
+											}
+										]
+									},
 									{
 										"required": [
 											"autoindex",
 											"index"
 										]
-									},
-									{
-										"required": [
-											"autoindex",
-											"redirect"
-										]
-									},
-									{
-										"required": [
-											"index",
-											"redirect"
-										]
 									}
 								]
 							}
 						}
-					},
-					"error_pages": {
-						"type": "object",
-						"additionalProperties": {
-							"type": "string"
-						}
+					}
+				},
+				"error_pages": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "string"
 					}
 				}
 			}
 		}
 	}
+}
 }

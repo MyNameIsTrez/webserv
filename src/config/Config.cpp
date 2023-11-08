@@ -36,6 +36,18 @@ void Config::init(const JSON &json)
 			{
 				throw ConfigExceptionExpectedListen();
 			}
+			if (!server.contains("server_names"))
+			{
+				throw ConfigExceptionExpectedServerNames();
+			}
+			if (!server.contains("locations"))
+			{
+				throw ConfigExceptionExpectedLocations();
+			}
+			if (!server.contains("error_pages"))
+			{
+				throw ConfigExceptionExpectedErrorPages();
+			}
 
 			const std::string &key = server_property_it.first;
 			const Node &value = server_property_it.second;
@@ -149,13 +161,17 @@ Config::LocationDirective Config::_parseLocation(const std::pair<std::string, No
 {
 	const auto &location_object = location_node.second.getObject();
 
-	bool contains_autoindex = location_object.contains("autoindex");
-	bool contains_index = location_object.contains("index");
-	bool contains_redirect = location_object.contains("redirect");
-
-	if (contains_autoindex + contains_index + contains_redirect > 1)
+	if (!location_object.contains("root") && !location_object.contains("redirect"))
 	{
-		throw ConfigExceptionExclusivePropertiesPresent();
+		throw ConfigExceptionNeedEitherRootOrRedirect();
+	}
+	if (location_object.contains("redirect") && location_object.size() > 1)
+	{
+		throw ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect();
+	}
+	if (location_object.contains("index") && location_object.contains("autoindex"))
+	{
+		throw ConfigExceptionCantHaveBothIndexAndAutoindex();
 	}
 
 	LocationDirective location_directive{};

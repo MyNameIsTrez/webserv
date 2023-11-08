@@ -114,6 +114,18 @@ private:
 	{
 		ConfigExceptionExpectedListen() : ConfigException("Config exception: Expected listen"){};
 	};
+	struct ConfigExceptionExpectedServerNames : public ConfigException
+	{
+		ConfigExceptionExpectedServerNames() : ConfigException("Config exception: Expected server_names"){};
+	};
+	struct ConfigExceptionExpectedLocations : public ConfigException
+	{
+		ConfigExceptionExpectedLocations() : ConfigException("Config exception: Expected locations"){};
+	};
+	struct ConfigExceptionExpectedErrorPages : public ConfigException
+	{
+		ConfigExceptionExpectedErrorPages() : ConfigException("Config exception: Expected error_pages"){};
+	};
 
 	struct ConfigExceptionClientMaxBodySizeIsSmallerThanZero : public ConfigException
 	{
@@ -133,9 +145,17 @@ private:
 		ConfigExceptionNoPortAfterColon() : ConfigException("Config exception: No port after ':'"){};
 	};
 
-	struct ConfigExceptionExclusivePropertiesPresent : public ConfigException
+	struct ConfigExceptionNeedEitherRootOrRedirect : public ConfigException
 	{
-		ConfigExceptionExclusivePropertiesPresent() : ConfigException("Config exception: Exclusive properties present"){};
+		ConfigExceptionNeedEitherRootOrRedirect() : ConfigException("Config exception: Need either root or redirect"){};
+	};
+	struct ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect : public ConfigException
+	{
+		ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect() : ConfigException("Config exception: Can't have other properties with redirect"){};
+	};
+	struct ConfigExceptionCantHaveBothIndexAndAutoindex : public ConfigException
+	{
+		ConfigExceptionCantHaveBothIndexAndAutoindex() : ConfigException("Config exception: Can't have both index and autoindex"){};
 	};
 
 	struct ConfigExceptionMissingCGISettingsProperty : public ConfigException
