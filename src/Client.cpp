@@ -35,10 +35,10 @@ class Config;
 Client::Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size)
 	: server_fd(server_fd),
 	  status(Status::OK),
-	  client_read_state(ClientToServerState::HEADER),
-	  cgi_write_state(ServerToCGIState::NOT_WRITING),
-	  cgi_read_state(CGIToServerState::NOT_READING),
-	  client_write_state(ServerToClientState::NOT_WRITING),
+	  client_to_server_state(ClientToServerState::HEADER),
+	  server_to_cgi_state(ServerToCGIState::NOT_WRITING),
+	  cgi_to_server_state(CGIToServerState::NOT_READING),
+	  server_to_client_state(ServerToClientState::NOT_WRITING),
 	  request_method(),
 	  request_target(),
 	  protocol(),
@@ -71,10 +71,10 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
 Client::Client(Client const &src)
 	: server_fd(src.server_fd),
 	  status(src.status),
-	  client_read_state(src.client_read_state),
-	  cgi_write_state(src.cgi_write_state),
-	  cgi_read_state(src.cgi_read_state),
-	  client_write_state(src.client_write_state),
+	  client_to_server_state(src.client_to_server_state),
+	  server_to_cgi_state(src.server_to_cgi_state),
+	  cgi_to_server_state(src.cgi_to_server_state),
+	  server_to_client_state(src.server_to_client_state),
 	  request_method(src.request_method),
 	  request_target(src.request_target),
 	  protocol(src.protocol),
@@ -114,10 +114,10 @@ Client &Client::operator=(Client const &src)
 		return *this;
 	this->server_fd = src.server_fd;
 	this->status = src.status;
-	this->client_read_state = src.client_read_state;
-	this->cgi_write_state = src.cgi_write_state;
-	this->cgi_read_state = src.cgi_read_state;
-	this->client_write_state = src.client_write_state;
+	this->client_to_server_state = src.client_to_server_state;
+	this->server_to_cgi_state = src.server_to_cgi_state;
+	this->cgi_to_server_state = src.cgi_to_server_state;
+	this->server_to_client_state = src.server_to_client_state;
 	this->request_method = src.request_method;
 	this->request_target = src.request_target;
 	this->protocol = src.protocol;
@@ -150,7 +150,7 @@ Client &Client::operator=(Client const &src)
 
 void Client::appendReadString(char *received, ssize_t bytes_read)
 {
-	if (this->client_read_state == ClientToServerState::HEADER)
+	if (this->client_to_server_state == ClientToServerState::HEADER)
 	{
 		this->_header.append(received, bytes_read);
 
@@ -181,20 +181,20 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		// TODO: Can a GET or a DELETE have a body?
 		if (this->request_method != "POST" || this->content_length == 0)
 		{
-			this->client_read_state = ClientToServerState::DONE;
-			this->cgi_write_state = ServerToCGIState::DONE;
+			this->client_to_server_state = ClientToServerState::DONE;
+			this->server_to_cgi_state = ServerToCGIState::DONE;
 			return;
 		}
 
-		this->client_read_state = ClientToServerState::BODY;
+		this->client_to_server_state = ClientToServerState::BODY;
 
 		// Add body bytes to _body
 		if (extra_body.size() > 0)
 			this->_parseBodyAppend(extra_body);
 	}
-	else if (this->client_read_state == ClientToServerState::BODY)
+	else if (this->client_to_server_state == ClientToServerState::BODY)
 		this->_parseBodyAppend(std::string(received, received + bytes_read));
-	else if (this->client_read_state == ClientToServerState::DONE)
+	else if (this->client_to_server_state == ClientToServerState::DONE)
 	{
 		// We keep reading regardless of whether we saw the end of the body,
 		// so we can still read the EOF any disconnected client sent
@@ -741,7 +741,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 					// If at the end of chunked requests
 					if (this->_chunked_remaining_content_length == 0 && this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE)
 					{
-						this->client_read_state = ClientToServerState::DONE;
+						this->client_to_server_state = ClientToServerState::DONE;
 					}
 					else if (this->_chunked_read_state == ChunkedReadState::READING_CONTENT_LEN_ENDLINE)
 					{
@@ -771,7 +771,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 		{
 			size_t needed = this->content_length - this->body.size();
 			this->body.append(extra_body.begin(), extra_body.begin() + needed);
-			this->client_read_state = ClientToServerState::DONE;
+			this->client_to_server_state = ClientToServerState::DONE;
 		}
 		// If all of extra_body should fit into the body
 		else

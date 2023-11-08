@@ -85,10 +85,10 @@ public:
 		Status::Status status;
 	};
 
-	ClientToServerState client_read_state;
-	ServerToCGIState cgi_write_state;
-	CGIToServerState cgi_read_state;
-	ServerToClientState client_write_state;
+	ClientToServerState client_to_server_state;
+	ServerToCGIState server_to_cgi_state;
+	CGIToServerState cgi_to_server_state;
+	ServerToClientState server_to_client_state;
 
 	std::string request_method;
 	std::string request_target;
