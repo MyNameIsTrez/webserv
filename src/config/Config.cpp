@@ -73,7 +73,7 @@ void Config::init(const JSON &json)
 
 					const std::string &page_path = error_page_node.second.getString();
 
-					server_directive.error_pages.emplace(static_cast<Status::Status>(error_code), page_path);
+					server_directive.error_pages.emplace(Status::Status(error_code), page_path);
 				}
 			}
 			else

@@ -272,7 +272,7 @@ void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
 	std::cerr
 		<< "  fd: " << pfd.fd
-		<< ", fd_type: " << static_cast<int>(fd_type)
+		<< ", fd_type: " << int(fd_type)
 		<< ", client_index: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
 		<< ", client_fd: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd)
 		<< ", revents:"
@@ -462,8 +462,9 @@ void Server::_pollhupCGIToServer(int fd)
 
 	if (client.cgi_exit_status != -1)
 	{
-		_enableWritingToClient(client);
+		client.extractCGIDocumentResponseHeaders();
 		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
+		_enableWritingToClient(client);
 	}
 }
 
@@ -564,8 +565,9 @@ void Server::_reapChild(void)
 
 	if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
 	{
-		_enableWritingToClient(client);
+		client.extractCGIDocumentResponseHeaders();
 		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
+		_enableWritingToClient(client);
 	}
 
 	bool cgi_exit_ok = WIFEXITED(child_exit_status) && WEXITSTATUS(child_exit_status) == 0;
@@ -579,7 +581,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
-	Logger::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(static_cast<int>(fd_type)));
+	Logger::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
 
 	// TODO: We should never read past the content_length of the BODY
 	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);

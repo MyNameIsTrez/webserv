@@ -16,7 +16,7 @@
 #include <unistd.h>
 #include <vector>
 
-const char *Client::status_text_table[] = {
+const char *Client::reason_phrase_table[] = {
 	[Status::OK] = "OK",
 	[Status::MOVED_PERMANENTLY] = "Moved Permanently",
 	[Status::MOVED_TEMPORARILY] = "Moved Temporarily",
@@ -58,13 +58,13 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
 	  server_port(server_port),
 	  content_type(),
 	  content_length(),
+	  _custom_reason_phrase(),
 	  _response_content_type("application/octet-stream"),
 	  _header(),
 	  _is_chunked(),
 	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
-	  _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN),
-	  _response_headers()
+	  _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN)
 {
 }
 
@@ -94,13 +94,13 @@ Client::Client(Client const &src)
 	  server_port(src.server_port),
 	  content_type(src.content_type),
 	  content_length(src.content_length),
+	  _custom_reason_phrase(src._custom_reason_phrase),
 	  _response_content_type(src._response_content_type),
 	  _header(src._header),
 	  _is_chunked(src._is_chunked),
 	  _chunked_remaining_content_length(src._chunked_remaining_content_length),
 	  _chunked_body_buffer(src._chunked_body_buffer),
-	  _chunked_read_state(src._chunked_read_state),
-	  _response_headers(src._response_headers)
+	  _chunked_read_state(src._chunked_read_state)
 {
 }
 
@@ -137,12 +137,12 @@ Client &Client::operator=(Client const &src)
 	this->server_port = src.server_port;
 	this->content_type = src.content_type;
 	this->content_length = src.content_length;
+	this->_custom_reason_phrase = src._custom_reason_phrase;
 	this->_response_content_type = src._response_content_type;
 	this->_header = src._header;
 	this->_is_chunked = src._is_chunked;
 	this->_chunked_body_buffer = src._chunked_body_buffer;
 	this->_chunked_remaining_content_length = src._chunked_remaining_content_length;
-	this->_response_headers = src._response_headers;
 	return *this;
 }
 
@@ -155,18 +155,23 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		this->_header.append(received, bytes_read);
 
 		// Return if the header hasn't been fully read yet
-		size_t found_index = this->_header.find("\r\n\r\n");
-		if (found_index == std::string::npos)
+		size_t separator_index = this->_header.find("\r\n\r\n");
+		if (separator_index == std::string::npos)
 			return;
 
-		std::string extra_body = std::string(this->_header.begin() + found_index + 4, this->_header.end());
+		// TODO: Is the .end() implicit already?
+		std::string extra_body = std::string(this->_header.begin() + separator_index + 4, this->_header.end());
 
 		// Erase temporarily appended body bytes from _header
-		this->_header.erase(this->_header.begin() + found_index + 2, this->_header.end());
+		this->_header.erase(this->_header.begin() + separator_index + 2, this->_header.end());
 
-		const auto header_lines = this->_getHeaderLines();
+		std::vector<std::string> header_lines = this->_getHeaderLines();
 
-		this->_parseRequestLine(header_lines[0]);
+		std::string request_line = header_lines.at(0);
+		// Logger::debug("request_line: " + request_line);
+		header_lines.erase(header_lines.begin());
+
+		this->_parseRequestLine(request_line);
 		if (!this->_isValidRequestMethod()) throw ClientException(Status::METHOD_NOT_ALLOWED);
 		if (!this->_isValidRequestTarget()) throw ClientException(Status::BAD_REQUEST);
 		if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
@@ -174,7 +179,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		// Resolves "/.." to "/" to prevent escaping directories
 		this->request_target = std::filesystem::weakly_canonical(this->request_target);
 
-		this->_fillHeaders(header_lines);
+		if (!this->_fillHeaders(header_lines, this->headers)) throw ClientException(Status::BAD_REQUEST);
 
 		this->_useHeaders();
 
@@ -223,7 +228,7 @@ void Client::respondWithError(const std::unordered_map<Status::Status, std::stri
 
 	if (!opened_file)
 	{
-		std::string title = std::to_string(this->status) + " " + status_text_table[this->status];
+		std::string title = std::to_string(this->status) + " " + reason_phrase_table[this->status];
 
 		this->response =
 			"<html>\n"
@@ -480,7 +485,15 @@ void Client::prependResponseHeader(void)
 	std::string response_body = this->response;
 	this->response = "";
 
-	_addStatusLine();
+	std::string reason_phrase = this->_custom_reason_phrase.empty() ? reason_phrase_table[this->status] : this->_custom_reason_phrase;
+
+	this->response +=
+		this->protocol
+		+ " "
+		+ std::to_string(this->status)
+		+ " "
+		+ reason_phrase
+		+ "\r\n";
 
 	// TODO: Add?
 	// this->_addResponseHeader("Server", "webserv");
@@ -491,13 +504,13 @@ void Client::prependResponseHeader(void)
 	_addResponseHeader("Content-Type", this->_response_content_type);
 
 	// TODO: Use cgi_exit_status
-	std::stringstream len_ss;
-	len_ss << response_body.size();
+	std::stringstream content_length_ss;
+	content_length_ss << response_body.length();
 
 	// TODO: Use _replaceAll(str, "\n", "\r\n"):
 	// cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI header syntax to the HTTP header syntax if these differ."
 
-	_addResponseHeader("Content-Length", len_ss.str());
+	_addResponseHeader("Content-Length", content_length_ss.str());
 
 	// TODO: Add more special status cases?
 	if (this->status == Status::MOVED_PERMANENTLY)
@@ -513,11 +526,97 @@ void Client::prependResponseHeader(void)
 	// TODO: Add?
 	// this->_addResponseHeader("Connection", "keep-alive");
 
-	this->response += this->_response_headers;
-
 	this->response +=
 		"\r\n"
 		+ response_body;
+}
+
+// See CGI RFC 3875 section 6.2.1. Document Response
+void Client::extractCGIDocumentResponseHeaders(void)
+{
+	// this->_header.append(received, bytes_read);
+
+	size_t separator_index = this->response.find("\n\n");
+	if (separator_index == std::string::npos)
+	{
+		this->status = Status::INTERNAL_SERVER_ERROR;
+		return;
+	}
+
+	std::string cgi_header = std::string(this->response.begin(), this->response.begin() + separator_index + 1);
+
+	// Logger::debug("cgi_header is '" + cgi_header + "'");
+
+	// Erase the CGI header from this->response
+	this->response.erase(0, separator_index + 2);
+
+	std::vector<std::string> cgi_header_lines;
+
+	size_t start = 0;
+	while (true)
+	{
+		size_t i = cgi_header.find("\n", start);
+		if (i == std::string::npos)
+			break;
+		std::string header_line = cgi_header.substr(start, i - start);
+		cgi_header_lines.push_back(header_line);
+		// Logger::debug("Pushed header line '" + header_line + "'");
+		start = i + 1;
+	}
+
+	std::unordered_map<std::string, std::string> cgi_headers;
+
+	if (!this->_fillHeaders(cgi_header_lines, cgi_headers))
+	{
+		this->status = Status::INTERNAL_SERVER_ERROR;
+		return;
+	}
+
+	if (cgi_headers.contains("CONTENT_TYPE"))
+	{
+		this->_response_content_type = cgi_headers.at("CONTENT_TYPE");
+	}
+	else
+	{
+		this->status = Status::INTERNAL_SERVER_ERROR;
+		return;
+	}
+
+	if (cgi_headers.contains("STATUS"))
+	{
+		// See CGI RFC 3875 section 6.3.3. Status
+		std::string status_string = cgi_headers.at("STATUS");
+		// Logger::debug("status_string: " + status_string);
+
+		size_t space_index = status_string.find(' ');
+		if (space_index == std::string::npos)
+		{
+			this->status = Status::INTERNAL_SERVER_ERROR; // TODO: Check this being reachable
+			return;
+		}
+
+		// Logger::debug("space_index: " + std::to_string(space_index));
+		std::string status_code_string = status_string.substr(0, space_index);
+		// Logger::debug("status_code_string: '" + status_code_string + "'");
+
+		// TODO: This custom reason_phrase should be returned to the client
+		std::string reason_phrase = status_string.substr(space_index + 1);
+		// Logger::debug("reason_phrase: '" + reason_phrase + "'");
+
+		int status_code;
+		if (!Utils::parseNumber(status_code_string, status_code, 999))
+		{
+			this->status = Status::INTERNAL_SERVER_ERROR; // TODO: Check this being reachable
+			return;
+		}
+
+		// TODO: Should this clear this->response so that the body isn't sent, and content_length is set to 0, when status != OK?
+
+		this->status = Status::Status(status_code);
+		this->_custom_reason_phrase = reason_phrase;
+	}
+
+	// TODO: What to do with headers that prependRespondHeader() doesn't expect?
 }
 
 /*	Private member functions */
@@ -526,8 +625,7 @@ std::vector<std::string> Client::_getHeaderLines(void)
 {
 	std::vector<std::string> header_lines;
 
-	// Delete the trailing "\r\n" that separates the headers from the body
-	this->_header.erase(this->_header.size() - 2);
+	// Logger::debug("this->_header is '" + this->_header + "'");
 
 	size_t start = 0;
 	while (true)
@@ -535,7 +633,9 @@ std::vector<std::string> Client::_getHeaderLines(void)
 		size_t i = this->_header.find("\r\n", start);
 		if (i == std::string::npos)
 			break;
-		header_lines.push_back(this->_header.substr(start, i - start));
+		std::string header_line = this->_header.substr(start, i - start);
+		header_lines.push_back(header_line);
+		// Logger::debug("Pushed header line '" + header_line + "'");
 		start = i + 2;
 	}
 
@@ -589,50 +689,38 @@ bool Client::_isValidProtocol(void)
 	return true;
 }
 
-void Client::_fillHeaders(const std::vector<std::string> &header_lines)
+bool Client::_fillHeaders(const std::vector<std::string> &header_lines, std::unordered_map<std::string, std::string> &filled_headers)
 {
-	for (size_t line_index = 1; line_index < header_lines.size(); line_index++)
+	for (const std::string &line : header_lines)
 	{
-		const std::string &line = header_lines.at(line_index);
-
 		// Assign key to everything before the ':' seperator
 		size_t i = line.find(":");
-		if (i == std::string::npos || i == 0) throw ClientException(Status::BAD_REQUEST);
+		if (i == std::string::npos || i == 0) return false;
 		std::string key = line.substr(0, i);
+
+		i++; // Skip ':'
 
 		// Capitalize letters and replace '-' with '_'
 		for (size_t j = 0; j < key.size(); j++)
 		{
 			key[j] = toupper(key[j]);
+
 			if (key[j] == '-')
 				key[j] = '_';
 		}
 
-		// Skip all leading spaces and tabs before value
-		i++;
-		while (i < line.size() && (line[i] == ' ' || line[i] == '\t'))
-			i++;
-
-		// Assign value to everything after the whitespaces
 		std::string value = line.substr(i);
-
-		// Erase all trailing spaces and tabs after value
-		for (size_t j = 0; j < value.size(); j++)
-		{
-			if (value[j] == ' ' || value[j] == '\t')
-			{
-				value.erase(j);
-				break;
-			}
-		}
+		Utils::trim(value, " \t");
 
 		// Check if key is a duplicate
-		if (this->headers.contains(key)) throw ClientException(Status::BAD_REQUEST);
+		if (filled_headers.contains(key)) return false;
 
 		// Add key and value to the map
-		this->headers.emplace(key, value);
-		Logger::info(std::string("    Header key: '") + key + "', value: '" + value + "'");
+		filled_headers.emplace(key, value);
+		// Logger::info(std::string("    Header key: '") + key + "', value: '" + value + "'");
 	}
+
+	return true;
 }
 
 void Client::_useHeaders(void)
@@ -886,18 +974,7 @@ std::vector<std::string> Client::_getSortedEntryNames(const std::string &path, b
 
 void Client::_addResponseHeader(const std::string &response_header_key, const std::string &response_header_value)
 {
-	this->_response_headers += response_header_key + ": " + response_header_value + "\r\n";
-}
-
-void Client::_addStatusLine(void)
-{
-	this->response +=
-		this->protocol
-		+ " "
-		+ std::to_string(this->status)
-		+ " "
-		+ status_text_table[this->status]
-		+ "\r\n";
+	this->response += response_header_key + ": " + response_header_value + "\r\n";
 }
 
 std::string Client::_getFileExtension(const std::string &path)

@@ -13,7 +13,7 @@ bool Utils::parseNumber(const std::string &str, T &number, T max)
 		if (chr < '0' || chr > '9')
 			return false;
 
-		T digit = static_cast<T>(chr) - '0';
+		T digit = T(chr) - '0';
 
 		if (number > max / 10)
 			return false;

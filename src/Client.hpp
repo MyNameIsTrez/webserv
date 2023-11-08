@@ -68,16 +68,17 @@ public:
 
 	void prependResponseHeader(void);
 
+	void extractCGIDocumentResponseHeaders(void);
+
 	int server_fd;
 
 	Status::Status status;
-
-	static const char *status_text_table[];
+	static const char *reason_phrase_table[];
 
 	struct ClientException : public std::runtime_error
 	{
 		ClientException(Status::Status status_)
-			: runtime_error("Client exception: " + std::to_string(status_) + " " + status_text_table[status_])
+			: runtime_error("Client exception: " + std::to_string(status_) + " " + reason_phrase_table[status_])
 			, status(status_)
 		{
 		}
@@ -120,7 +121,7 @@ private:
 	bool _isValidRequestTarget(void);
 	bool _isValidProtocol(void);
 
-	void _fillHeaders(const std::vector<std::string> &header_lines);
+	bool _fillHeaders(const std::vector<std::string> &header_lines, std::unordered_map<std::string, std::string> &filled_headers);
 	void _useHeaders(void);
 
 	void _parseBodyAppend(const std::string &extra_body);
@@ -130,12 +131,12 @@ private:
 
 	void _addResponseHeader(const std::string &response_header_key, const std::string &response_header_value);
 
-	void _addStatusLine(void);
-
 	std::string _getFileExtension(const std::string &path);
 	std::string _getFileName(const std::string &path);
 
 	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
+
+	std::string _custom_reason_phrase;
 
 	std::string _response_content_type;
 	std::string _header;
@@ -151,6 +152,4 @@ private:
 		READING_CONTENT_LEN_ENDLINE,
 		READING_BODY_ENDLINE
 	} _chunked_read_state;
-
-	std::string _response_headers;
 };
