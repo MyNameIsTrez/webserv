@@ -4,26 +4,31 @@ import json, os, sys, time
 def main():
     print("This is printed to stderr by debug.py", file=sys.stderr)
 
-    # print("text/plain 200")
+    print("Content-Type: foo")
 
     if os.environ.get("HTTP_CONTENT_LENGTH"):
         print(f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}", file=sys.stderr)
     else:
-        # TODO: Should this be unreachable? It's always reached rn
+        # TODO: Should this be unreachable? It's always reached and printing to stderr rn
         print("HTTP_CONTENT_LENGTH is not in env", file=sys.stderr)
-
-    # TODO: Test that the server doesn't crash if the script crashes
 
     # print("Content-Type: text/plain")
 
-    # print("Status: 123 FOO")
-    # "HTTP/1.1 123 FOO\r\n"
+    # print("Status: 123 Foo ")
+    print("Status: 400 Wow")
+
+    # print("a: b")
+
+    # "HTTP/1.1 123 Foo\r\n"
     # "Header1: bar\r\n"
     # "\r\n"
     # "baz"
 
     # TODO:
     # print("Content-Length: 1\r\n\r\nab")
+
+    # Add body separator
+    print("", end="\n")
 
     print(f"argv: {sys.argv}")
 
