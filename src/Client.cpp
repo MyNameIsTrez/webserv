@@ -55,14 +55,15 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
 	  cgi_exit_status(-1),
 	  redirect(),
 	  server_name(),
+	  server_port(server_port),
+	  content_type(),
+	  content_length(),
 	  _response_content_type("application/octet-stream"),
-	  _content_length(),
 	  _header(),
 	  _is_chunked(),
 	  _chunked_remaining_content_length(),
 	  _chunked_body_buffer(),
 	  _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN),
-	  _server_port(server_port),
 	  _response_headers()
 {
 }
@@ -90,14 +91,15 @@ Client::Client(Client const &src)
 	  cgi_exit_status(src.cgi_exit_status),
 	  redirect(src.redirect),
 	  server_name(src.server_name),
+	  server_port(src.server_port),
+	  content_type(src.content_type),
+	  content_length(src.content_length),
 	  _response_content_type(src._response_content_type),
-	  _content_length(src._content_length),
 	  _header(src._header),
 	  _is_chunked(src._is_chunked),
 	  _chunked_remaining_content_length(src._chunked_remaining_content_length),
 	  _chunked_body_buffer(src._chunked_body_buffer),
 	  _chunked_read_state(src._chunked_read_state),
-	  _server_port(src._server_port),
 	  _response_headers(src._response_headers)
 {
 }
@@ -132,13 +134,14 @@ Client &Client::operator=(Client const &src)
 	this->cgi_exit_status = src.cgi_exit_status;
 	this->redirect = src.redirect;
 	this->server_name = src.server_name;
+	this->server_port = src.server_port;
+	this->content_type = src.content_type;
+	this->content_length = src.content_length;
 	this->_response_content_type = src._response_content_type;
-	this->_content_length = src._content_length;
 	this->_header = src._header;
 	this->_is_chunked = src._is_chunked;
 	this->_chunked_body_buffer = src._chunked_body_buffer;
 	this->_chunked_remaining_content_length = src._chunked_remaining_content_length;
-	this->_server_port = src._server_port;
 	this->_response_headers = src._response_headers;
 	return *this;
 }
@@ -176,7 +179,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		this->_useHeaders();
 
 		// TODO: Can a GET or a DELETE have a body?
-		if (this->request_method != "POST" || this->_content_length == 0)
+		if (this->request_method != "POST" || this->content_length == 0)
 		{
 			this->client_read_state = ClientToServerState::DONE;
 			this->cgi_write_state = ServerToCGIState::DONE;
@@ -499,7 +502,7 @@ void Client::prependResponseHeader(void)
 	// TODO: Add more special status cases?
 	if (this->status == Status::MOVED_PERMANENTLY)
 	{
-		this->_addResponseHeader("Location", "http://" + this->server_name + ":" + this->_server_port + this->request_target + "/");
+		this->_addResponseHeader("Location", "http://" + this->server_name + ":" + this->server_port + this->request_target + "/");
 	}
 	else if (this->status == Status::MOVED_TEMPORARILY)
 	{
@@ -646,9 +649,9 @@ void Client::_useHeaders(void)
 		// A sender MUST NOT send a Content-Length header field in any message that contains a Transfer-Encoding header field. (http1.1 rfc 6.2)
 		if (this->_is_chunked) throw ClientException(Status::BAD_REQUEST);
 
-		if (!Utils::parseNumber(content_length_it->second, this->_content_length, std::numeric_limits<size_t>::max())) throw ClientException(Status::BAD_REQUEST);
+		if (!Utils::parseNumber(content_length_it->second, this->content_length, std::numeric_limits<size_t>::max())) throw ClientException(Status::BAD_REQUEST);
 
-		Logger::info(std::string("    Content length: ") + std::to_string(this->_content_length));
+		Logger::info(std::string("    Content length: ") + std::to_string(this->content_length));
 	}
 
 	const auto &host_it = this->headers.find("HOST");
@@ -678,6 +681,12 @@ void Client::_useHeaders(void)
 			// nginx doesn't care what comes after the colon, if anything
 		}
 	}
+
+	const auto &content_type_it = this->headers.find("CONTENT_TYPE");
+	if (content_type_it != this->headers.end())
+	{
+		this->content_type = content_type_it->second;
+	}
 }
 
 void Client::_parseBodyAppend(const std::string &extra_body)
@@ -696,7 +705,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 
 				_hexToNum(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
 
-				this->_content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but it's nice to just update it as appropriate (Maybe want to delete because it isn't needed)
+				this->content_length += this->_chunked_remaining_content_length; // TODO: This isn't needed but it's nice to just update it as appropriate (Maybe want to delete because it isn't needed)
 				this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN_ENDLINE;
 			}
 			if (this->_chunked_read_state == ChunkedReadState::READING_BODY)
@@ -758,9 +767,9 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 	{
 		Logger::info(std::string("Parsing non-chunked body substring"));
 		// If not all of extra_body should fit into the body
-		if (this->body.size() + extra_body.size() >= this->_content_length)
+		if (this->body.size() + extra_body.size() >= this->content_length)
 		{
-			size_t needed = this->_content_length - this->body.size();
+			size_t needed = this->content_length - this->body.size();
 			this->body.append(extra_body.begin(), extra_body.begin() + needed);
 			this->client_read_state = ClientToServerState::DONE;
 		}

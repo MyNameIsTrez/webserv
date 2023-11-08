@@ -66,9 +66,6 @@ private:
 
 	void _startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string);
 	void _execveChild(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string);
-
-	std::vector<std::string> _getCGIHeaders(const std::unordered_map<std::string, std::string> &headers);
-	void _addMetaVariables(std::vector<std::string> &cgi_headers);
 	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);
 
 	struct ResolvedLocation

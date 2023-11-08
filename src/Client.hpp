@@ -106,6 +106,9 @@ public:
 	int cgi_exit_status;
 	std::string redirect;
 	std::string server_name;
+	std::string server_port;
+	std::string content_type;
+	size_t content_length;
 
 private:
 	Client(void);
@@ -135,7 +138,6 @@ private:
 	// std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
 	std::string _response_content_type;
-	size_t _content_length;
 	std::string _header;
 
 	bool _is_chunked;
@@ -150,6 +152,5 @@ private:
 		READING_BODY_ENDLINE
 	} _chunked_read_state;
 
-	std::string _server_port;
 	std::string _response_headers;
 };

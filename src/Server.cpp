@@ -826,11 +826,32 @@ void Server::_execveChild(Client &client, const Config::CGISettingsDirective &cg
 
 	char *const argv[] = {argv0, argv1, argv2, NULL};
 
-	auto cgi_headers = _getCGIHeaders(client.headers);
+	std::vector<std::string> cgi_headers;
 
+	for (const auto &it : client.headers)
+	{
+		cgi_headers.push_back("HTTP_" + it.first + "=" + it.second);
+	}
+
+	cgi_headers.push_back("REQUEST_METHOD=" + client.request_method);
 	cgi_headers.push_back("SCRIPT_NAME=" + script_name);
 	cgi_headers.push_back("PATH_INFO=" + path_info);
 	cgi_headers.push_back("QUERY_STRING=" + query_string);
+	cgi_headers.push_back("CONTENT_LENGTH=" + std::to_string(client.content_length));
+	cgi_headers.push_back("CONTENT_TYPE=" + client.content_type);
+	cgi_headers.push_back("SERVER_NAME=" + client.server_name);
+	cgi_headers.push_back("SERVER_PORT=" + client.server_port);
+	cgi_headers.push_back("GATEWAY_INTERFACE=CGI/1.1");
+	cgi_headers.push_back("PATH_TRANSLATED=" + std::string(std::filesystem::current_path()) + path_info);
+	cgi_headers.push_back("SERVER_PROTOCOL=HTTP/1.1");
+
+	// TODO: Give some of these values?
+	cgi_headers.push_back("AUTH_TYPE=");
+	cgi_headers.push_back("REMOTE_ADDR=");
+	cgi_headers.push_back("REMOTE_HOST=");
+	cgi_headers.push_back("REMOTE_IDENT=");
+	cgi_headers.push_back("REMOTE_USER=");
+	cgi_headers.push_back("SERVER_SOFTWARE="); // TODO: Share this with the HTTP response?
 
 	const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
 	char **cgi_env = const_cast<char **>(cgi_env_vec.data());
@@ -839,39 +860,6 @@ void Server::_execveChild(Client &client, const Config::CGISettingsDirective &cg
 
 	// This gets turned into a ClientException by the parent process
 	throw Utils::SystemException("execve");
-}
-
-std::vector<std::string> Server::_getCGIHeaders(const std::unordered_map<std::string, std::string> &headers)
-{
-	std::vector<std::string> cgi_headers;
-
-	for (const auto &it : headers)
-	{
-		cgi_headers.push_back("HTTP_" + it.first + "=" + it.second);
-	}
-
-	_addMetaVariables(cgi_headers);
-
-	return cgi_headers;
-}
-
-void Server::_addMetaVariables(std::vector<std::string> &cgi_headers)
-{
-	// TODO: Give some of these values
-	cgi_headers.push_back("AUTH_TYPE=");
-	cgi_headers.push_back("CONTENT_LENGTH=");
-	cgi_headers.push_back("CONTENT_TYPE=");
-	cgi_headers.push_back("GATEWAY_INTERFACE=");
-	cgi_headers.push_back("PATH_TRANSLATED=");
-	cgi_headers.push_back("REMOTE_ADDR=");
-	cgi_headers.push_back("REMOTE_HOST=");
-	cgi_headers.push_back("REMOTE_IDENT=");
-	cgi_headers.push_back("REMOTE_USER=");
-	cgi_headers.push_back("REQUEST_METHOD=");
-	cgi_headers.push_back("SERVER_NAME=");
-	cgi_headers.push_back("SERVER_PORT=");
-	cgi_headers.push_back("SERVER_PROTOCOL=");
-	cgi_headers.push_back("SERVER_SOFTWARE=");
 }
 
 std::vector<const char *> Server::_getCGIEnv(const std::vector<std::string> &cgi_headers)
@@ -959,6 +947,7 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 				size_t path_len = resolved.script_name.length();
 				size_t questionmark_index = unsplit_path.find("?", path_len);
+				// TODO: Technically PATH_INFO should also translate stuff like "%2e" to ".", so do we want to do that?
 				resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
 
 				resolved.query_string = unsplit_path.substr(resolved.script_name.length() + resolved.path_info.length());
