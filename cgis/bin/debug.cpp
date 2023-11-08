@@ -2,7 +2,7 @@
 #include <unistd.h>
 #include <iostream>
 
-// c++ echo.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined -o echo && echo foo | ./echo
+// c++ debug.cpp -Wall -Wextra -Werror -Wpedantic -Wshadow -Wfatal-errors -g -fsanitize=address,undefined -o debug && debug foo | ./debug
 int main(int argc, char *argv[], char *envp[])
 {
 	for (size_t i = 0; i < static_cast<size_t>(argc); i++) {

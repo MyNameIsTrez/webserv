@@ -2,7 +2,7 @@ import json, os, sys, time
 
 
 def main():
-    print("This is printed to stderr by print.py", file=sys.stderr)
+    print("This is printed to stderr by debug.py", file=sys.stderr)
 
     # print("text/plain 200")
 
@@ -31,7 +31,7 @@ def main():
     # TODO: RFC 3875, section 4.2: "Therefore, the script MUST NOT attempt to read more than CONTENT_LENGTH bytes, even if more data is available. However, it is not obliged to read any of the data."
     # os.close(sys.stdin.fileno())
     # sys.stdin.close()
-    # print("Disabled stdin in print.py", file=sys.stderr)
+    # print("Disabled stdin in debug.py", file=sys.stderr)
 
     # time.sleep(5)
 
