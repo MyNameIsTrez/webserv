@@ -4,6 +4,13 @@ import json, os, sys, time
 def main():
     print("This is printed to stderr by debug.py", file=sys.stderr)
 
+    print("Content-Type: text/plain")
+    print("Status: 400 Wow")
+    print("", end="\n")
+    print("xd")
+    # exit(1)
+    return
+
     print("Content-Type: foo")
 
     if os.environ.get("HTTP_CONTENT_LENGTH"):
@@ -11,18 +18,6 @@ def main():
     else:
         # TODO: Should this be unreachable? It's always reached and printing to stderr rn
         print("HTTP_CONTENT_LENGTH is not in env", file=sys.stderr)
-
-    # print("Content-Type: text/plain")
-
-    # print("Status: 123 Foo ")
-    print("Status: 400 Wow")
-
-    # print("a: b")
-
-    # "HTTP/1.1 123 Foo\r\n"
-    # "Header1: bar\r\n"
-    # "\r\n"
-    # "baz"
 
     # TODO:
     # print("Content-Length: 1\r\n\r\nab")

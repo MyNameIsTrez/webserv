@@ -42,6 +42,11 @@
 					"root": ".",
 					"get_allowed": true
 				},
+				"/tests/": {
+					"root": ".",
+					"get_allowed": true,
+					"autoindex": true
+				},
 				"/redirected/d": {
 					"redirect": "../public/foo/d.html"
 				},

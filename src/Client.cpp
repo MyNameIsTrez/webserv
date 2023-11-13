@@ -559,7 +559,7 @@ void Client::extractCGIDocumentResponseHeaders(void)
 		// Logger::debug("space_index: " + std::to_string(space_index));
 		if (space_index == std::string::npos)
 		{
-			this->status = Status::INTERNAL_SERVER_ERROR; // TODO: Check this being reachable
+			this->status = Status::INTERNAL_SERVER_ERROR;
 			return;
 		}
 
@@ -572,7 +572,7 @@ void Client::extractCGIDocumentResponseHeaders(void)
 		int status_code;
 		if (!Utils::parseNumber(status_code_string, status_code, 999))
 		{
-			this->status = Status::INTERNAL_SERVER_ERROR; // TODO: Check this being reachable
+			this->status = Status::INTERNAL_SERVER_ERROR;
 			return;
 		}
 
