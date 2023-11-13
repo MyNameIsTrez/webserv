@@ -464,6 +464,7 @@ void Server::_pollhupCGIToServer(int fd)
 
 void Server::_cgiEnd(Client &client)
 {
+	Logger::debug("client.cgi_exit_status: " + std::to_string(client.cgi_exit_status));
 	if (client.cgi_exit_status != 0)
 	{
 		_respondClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
@@ -887,9 +888,9 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 	{
 		if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
 		{
-			resolved.resolved = true;
-
 			longest_uri_length = location.uri.length();
+
+			resolved.resolved = true;
 
 			resolved.is_cgi_directory = location.is_cgi_directory;
 			resolved.cgi_settings = location.cgi_settings;
@@ -927,6 +928,7 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 					{
 						path_end_index++;
 					}
+
 					resolved.script_name = unsplit_path.substr(0, path_end_index);
 
 					// TODO: Remove
@@ -945,7 +947,7 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 				size_t path_len = resolved.script_name.length();
 				size_t questionmark_index = unsplit_path.find("?", path_len);
-				// TODO: Technically PATH_INFO should also translate stuff like "%2e" to ".", so do we want to do that?
+				// TODO: According to CGI RFC 3875 section 4.1.6. PATH_TRANSLATED we should translate "%2e" to ".", so do we want to do that?
 				resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
 
 				resolved.query_string = unsplit_path.substr(resolved.script_name.length() + resolved.path_info.length());

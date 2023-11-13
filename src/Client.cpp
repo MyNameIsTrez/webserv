@@ -339,26 +339,6 @@ void Client::respondWithDirectoryListing(const std::string &path)
 		"		<hr>\n"
 		"		<pre>\n";
 
-	// TODO: DECIDE: Delete button right next to link or al the way to the right (Or maybe even something else? :thinking_emoji:) -->
-	// "		<button onclick=\"requestDelete(this.nextSibling.href)\">🗑</button><a href=\"public/foo.txt\">foo.txt</a><br>\n"
-
-	// this->response =
-	// 	"<html>\n"
-	// 	"<head><title>Index of /</title></head>\n"
-	// 	"<body>\n"
-	// 	"<h1>Index of /</h1><hr><pre><a href=\"../\">../</a>\n";
-
-	// <a href="bar/">bar/</a>                                               23-Oct-2023 08:00                   -
-	// <a href="foo/">foo/</a>                                               19-Oct-2023 13:51                   -
-
-	// <a href="bar/">bar/</a>                                               23-Oct-2023 09:11                   -
-	// <a href="foo/">foo/</a>                                               23-Oct-2023 08:13                   -
-	// <a href="a.html">a.html</a>                                             19-Oct-2023 14:46                   7
-
-	// this->response +=
-	// 	"</pre><hr></body>\n"
-	// 	"</html>\n";
-
 	for (const std::string &directory_name : _getSortedEntryNames(path, true))
 	{
 		this->response +=

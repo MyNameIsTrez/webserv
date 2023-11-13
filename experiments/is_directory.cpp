@@ -10,9 +10,11 @@ int main(void)
 	std::error_code ec;
 
 	assert(std::filesystem::is_directory(".", ec)); assert(!ec);
+	assert(std::filesystem::is_directory("..", ec)); assert(!ec);
 	assert(std::filesystem::is_directory("../experiments", ec)); assert(!ec);
 
 	assert(!std::filesystem::is_directory("a.out", ec)); assert(!ec);
+	assert(!std::filesystem::is_directory("is_directory.cpp/..", ec)); assert(ec);
 	assert(!std::filesystem::is_directory("foo", ec)); assert(ec);
 
 	return EXIT_SUCCESS;

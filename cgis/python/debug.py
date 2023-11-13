@@ -6,7 +6,7 @@ def main():
 
     print("Content-Type: text/plain")
     print("Status: 400 Wow")
-    print("", end="\n")
+    print()
     print("xd")
     # exit(1)
     return
@@ -21,9 +21,6 @@ def main():
 
     # TODO:
     # print("Content-Length: 1\r\n\r\nab")
-
-    # Add body separator
-    print("", end="\n")
 
     print(f"argv: {sys.argv}")
 
