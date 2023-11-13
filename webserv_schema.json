@@ -150,16 +150,15 @@
 								]
 							}
 						}
-					}
-				},
-				"error_pages": {
-					"type": "object",
-					"additionalProperties": {
-						"type": "string"
+					},
+					"error_pages": {
+						"type": "object",
+						"additionalProperties": {
+							"type": "string"
+						}
 					}
 				}
 			}
 		}
 	}
-}
 }
