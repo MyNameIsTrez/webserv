@@ -874,8 +874,7 @@ std::vector<std::string> Client::_getSortedEntryNames(const std::string &path, b
 	std::vector<std::string> names;
 
 	DIR *dirp = opendir(path.c_str());
-	// TODO: I don't think BAD_REQUEST is the most accurate. Which one should be used instead?
-	if (dirp == NULL) throw ClientException(Status::BAD_REQUEST);
+	if (dirp == NULL) throw ClientException(Status::NOT_FOUND);
 
 	const dirent *dp;
 	while ((dp = readdir(dirp)) != NULL)
