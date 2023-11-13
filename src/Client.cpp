@@ -176,9 +176,6 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		if (!this->_isValidRequestTarget()) throw ClientException(Status::BAD_REQUEST);
 		if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
 
-		// Resolves "/.." to "/" to prevent escaping directories
-		this->request_target = std::filesystem::weakly_canonical(this->request_target);
-
 		if (!this->_fillHeaders(header_lines, this->headers)) throw ClientException(Status::BAD_REQUEST);
 
 		this->_useHeaders();

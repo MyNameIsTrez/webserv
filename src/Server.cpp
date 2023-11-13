@@ -614,13 +614,12 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 		if (client.client_to_server_state == Client::ClientToServerState::DONE)
 		{
-			const std::string &target = client.request_target;
 			const std::string &method = client.request_method;
 
 			size_t server_index = _getServerIndexFromClientServerName(client);
 			const Config::ServerDirective &server = _config.servers.at(server_index);
 
-			const ResolvedLocation location = _resolveToLocation(target, server);
+			const ResolvedLocation location = _resolveToLocation(client.request_target, server.locations);
 
 			Logger::info(std::string("    location.path: '") + location.path + "'");
 
@@ -878,13 +877,13 @@ std::vector<const char *> Server::_getCGIEnv(const std::vector<std::string> &cgi
 	return cgi_env;
 }
 
-Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const Config::ServerDirective &server)
+Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const std::vector<Config::LocationDirective> &locations)
 {
 	ResolvedLocation resolved{};
 
 	size_t longest_uri_length = 0;
 
-	for (const Config::LocationDirective &location : server.locations)
+	for (const Config::LocationDirective &location : locations)
 	{
 		if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
 		{
@@ -903,7 +902,7 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 			resolved.autoindex = location.autoindex;
 			resolved.has_redirect = !location.redirect.empty();
 
-			resolved.path = location.root + request_target;
+			resolved.path = location.root + std::filesystem::weakly_canonical(request_target).string();
 			resolved.index_path = "";
 
 			resolved.get_allowed = location.get_allowed;
@@ -912,14 +911,11 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 			if (resolved.has_redirect)
 			{
-				resolved.has_redirect = true;
 				resolved.path = location.redirect;
-				continue;
 			}
-
-			if (resolved.is_cgi_directory)
+			else if (resolved.is_cgi_directory)
 			{
-				std::string unsplit_path = resolved.path;
+				std::string unsplit_path = location.root + request_target;
 				resolved.script_name = "";
 
 				size_t path_end_index = 0;
@@ -954,14 +950,17 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 				resolved.query_string = unsplit_path.substr(resolved.script_name.length() + resolved.path_info.length());
 
-				// TODO: Remove
+				// Resolves "/.." to "/" to prevent escaping directories
+				resolved.script_name = std::filesystem::weakly_canonical(resolved.script_name);
+				// Resolving path_info may not be correct, I'm not sure, but it makes scripting easier
+				resolved.path_info = std::filesystem::weakly_canonical(resolved.path_info);
+
 				// Logger::debug("unsplit_path: " + unsplit_path);
 				// Logger::debug("resolved.script_name: " + resolved.script_name);
 				// Logger::debug("resolved.path_info: " + resolved.path_info);
 				// Logger::debug("resolved.query_string: " + resolved.query_string);
 			}
-
-			if (resolved.has_index)
+			else if (resolved.has_index)
 			{
 				resolved.index_path = resolved.path + location.index;
 			}
