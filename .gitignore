@@ -30,6 +30,8 @@
 
 !rfcs/*.pdf
 
+!root/favicon.ico
+
 !src/*.[cht]pp
 
 !src/config/*.[ch]pp
