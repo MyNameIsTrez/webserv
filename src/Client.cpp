@@ -262,79 +262,34 @@ void Client::respondWithFile(const std::string &path)
 
 	this->response = file_body.str();
 
-	// TODO: Split into unordered_map() and unordered_set()
+	static std::unordered_map<std::string, std::string> extension_to_content_type = {
+		{".c", "text/plain"},
+		{".cpp", "text/plain"},
+		{".h", "text/plain"},
+		{".hpp", "text/plain"},
+		{".log", "text/plain"},
+		{".md", "text/plain"},
+		{".mk", "text/plain"},
+		{".py", "text/plain"},
+		{".tpp", "text/plain"},
+		{".txt", "text/plain"},
 
-	if (_getFileExtension(path) == ".c")
+		{".html", "text/html"},
+		{".mp3", "audio/mpeg"},
+		{".png", "image/png"},
+		{".pdf", "application/pdf"},
+		{".gif", "image/gif"},
+		{".json", "application/json"},
+		{".mp4", "video/mp4"},
+	};
+
+	auto it = extension_to_content_type.find(_getFileExtension(path));
+	if (it != extension_to_content_type.end())
 	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".cpp")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".h")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".hpp")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".log")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".md")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".mk")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".py")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".tpp")
-	{
-		this->_response_content_type = "text/plain";
-	}
-	else if (_getFileExtension(path) == ".txt")
-	{
-		this->_response_content_type = "text/plain";
+		this->_response_content_type = it->second;
 	}
 
-	if (_getFileExtension(path) == ".html")
-	{
-		this->_response_content_type = "text/html";
-	}
-	else if (_getFileExtension(path) == ".mp3")
-	{
-		this->_response_content_type = "audio/mpeg";
-	}
-	else if (_getFileExtension(path) == ".png")
-	{
-		this->_response_content_type = "image/png";
-	}
-	else if (_getFileExtension(path) == ".pdf")
-	{
-		this->_response_content_type = "application/pdf";
-	}
-	else if (_getFileExtension(path) == ".gif")
-	{
-		this->_response_content_type = "image/gif";
-	}
-	else if (_getFileExtension(path) == ".json")
-	{
-		this->_response_content_type = "application/json";
-	}
-	else if (_getFileExtension(path) == ".mp4")
-	{
-		this->_response_content_type = "video/mp4";
-	}
-
-	Logger::info(std::string("    File name: '") + _getFileName(path) + "'");
+	// Logger::info(std::string("    File name: '") + _getFileName(path) + "'");
 	if (_getFileName(path) == "Makefile")
 	{
 		this->_response_content_type = "text/plain";
