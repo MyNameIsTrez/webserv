@@ -17,10 +17,6 @@
 #include <sys/wait.h>
 #include <unordered_set>
 
-// TODO: Turn these into static ints inside of a class?
-const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
-const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
-
 bool shutting_down_gracefully = false;
 
 int Server::_sig_chld_pipe[2];
@@ -214,7 +210,7 @@ void Server::run(void)
 			{
 				assert(fd_type == FdType::CGI_TO_SERVER);
 
-				// If the server has not read everything from the CGI script
+				// If the server has read everything from the CGI script
 				if (!(_pfds[pfd_index].revents & POLLIN))
 				{
 					_pollhupCGIToServer(fd);
@@ -223,7 +219,7 @@ void Server::run(void)
 			}
 
 			// If we can read
-			if (_pfds[pfd_index].revents & POLLIN_ANY)
+			if (_pfds[pfd_index].revents & POLLIN)
 			{
 				bool skip_client = false;
 				_handlePollin(fd, fd_type, skip_client);
@@ -234,7 +230,7 @@ void Server::run(void)
 			}
 
 			// If we can write
-			if (_pfds[pfd_index].revents & POLLOUT_ANY)
+			if (_pfds[pfd_index].revents & POLLOUT)
 			{
 				_handlePollout(fd, fd_type, pfd_index);
 			}
@@ -460,10 +456,22 @@ void Server::_pollhupCGIToServer(int fd)
 	_removeClientFd(client.cgi_to_server_fd);
 	client.cgi_to_server_state = Client::CGIToServerState::DONE;
 
-	if (client.cgi_exit_status != -1)
+	if (client.cgi_pid == -1)
+	{
+		_cgiEnd(client);
+	}
+}
+
+void Server::_cgiEnd(Client &client)
+{
+	if (client.cgi_exit_status != 0)
+	{
+		_respondClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
+	}
+	else
 	{
 		client.extractCGIDocumentResponseHeaders();
-		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
+		client.prependResponseHeader();
 		_enableWritingToClient(client);
 	}
 }
@@ -496,7 +504,7 @@ void Server::_handlePollin(int fd, FdType fd_type, bool &skip_client)
 			}
 			catch (const Client::ClientException &e)
 			{
-				_handleClientException(e, client);
+				_respondClientException(e, client);
 
 				skip_client = true;
 			}
@@ -565,15 +573,7 @@ void Server::_reapChild(void)
 
 	if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
 	{
-		client.extractCGIDocumentResponseHeaders();
-		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
-		_enableWritingToClient(client);
-	}
-
-	bool cgi_exit_ok = WIFEXITED(child_exit_status) && WEXITSTATUS(child_exit_status) == 0;
-	if (!cgi_exit_ok)
-	{
-		_handleClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
+		_cgiEnd(client);
 	}
 }
 
@@ -989,7 +989,7 @@ bool Server::_isAllowedMethod(const ResolvedLocation &location, const std::strin
 	return true;
 }
 
-void Server::_handleClientException(const Client::ClientException &e, Client &client)
+void Server::_respondClientException(const Client::ClientException &e, Client &client)
 {
 	Logger::info(std::string("  ") + e.what());
 

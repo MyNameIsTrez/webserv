@@ -482,6 +482,10 @@ void Client::respondWithDeleteFile(const std::string &path)
 
 void Client::prependResponseHeader(void)
 {
+	Logger::info(std::string("    In prependResponseHeader()"));
+
+	Logger::debug("this->status: " + std::to_string(this->status));
+
 	std::string response_body = this->response;
 	this->response = "";
 
@@ -536,6 +540,12 @@ void Client::extractCGIDocumentResponseHeaders(void)
 {
 	Logger::info(std::string("    In extractCGIDocumentResponseHeaders()"));
 	// this->_header.append(received, bytes_read);
+
+	// We don't send the CGI headers on 500 Internal Server Error
+	if (this->cgi_exit_status != 0)
+	{
+		return;
+	}
 
 	size_t separator_index = this->response.find("\n\n");
 	if (separator_index == std::string::npos)

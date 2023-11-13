@@ -55,6 +55,7 @@ private:
 
 	// POLLHUP
 	void _pollhupCGIToServer(int fd);
+	void _cgiEnd(Client &client);
 
 	// POLLIN
 	void _handlePollin(int fd, FdType fd_type, bool &skip_client);
@@ -93,7 +94,7 @@ private:
 	ResolvedLocation _resolveToLocation(const std::string &request_target, const Config::ServerDirective &server);
 	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
 
-	void _handleClientException(const Client::ClientException &e, Client &client);
+	void _respondClientException(const Client::ClientException &e, Client &client);
 	size_t _getServerIndexFromClientServerName(const Client &client);
 
 	// POLLOUT
