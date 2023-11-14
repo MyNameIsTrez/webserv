@@ -638,7 +638,11 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 				throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
 			}
 
-			if (location.path.back() == '/')
+			if (location.is_cgi_directory)
+			{
+				_startCGI(client, location.cgi_settings, location.script_name, location.path_info, location.query_string);
+			}
+			else if (location.path.back() == '/')
 			{
 				if (method == "GET")
 				{
@@ -676,11 +680,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 					}
 				}
 
-				if (location.is_cgi_directory)
-				{
-					_startCGI(client, location.cgi_settings, location.script_name, location.path_info, location.query_string);
-				}
-				else if (method == "GET")
+				if (method == "GET")
 				{
 					client.respondWithFile(location.path);
 					_enableWritingToClient(client);
