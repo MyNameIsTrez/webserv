@@ -57,7 +57,6 @@ def main():
                     if (response.ok) {
                         location.reload();
                     } else {
-                        // console.log(`response 1: ${JSON.stringify(response)}`);
                         throw new Error("Failed to delete the file.");
                     }
 				}).catch((error) => {
@@ -80,9 +79,6 @@ def main():
     directories.sort()
     for directory in directories:
         print(f'<a href="{directory.name}/">{directory.name}/</a>')
-
-    # 🗑️
-    # 🗑
 
     files = list(entry for entry in p.iterdir() if entry.is_file())
     files.sort()
