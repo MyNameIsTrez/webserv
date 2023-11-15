@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>webserv</title>
+		<script>
+			function changeLocation() {
+				let string = document.getElementById("LocationTextbox").value;
+				if (!string.endsWith("/"))
+					string = string + "/";
+				if (string[0] != '/')
+					string = "/" + string;
+				document.getElementById("Form").setAttribute("action", "/cgis/python/upload.py" + string);
+			}
+		</script>
+	</head>
+	<body style="background-color: gray;">
+		<h3>Current upload location: </h3>
+		<input type="text" id="LocationTextbox"/>
+		<button onclick="changeLocation()">Change</button>
+		<br>
+		<br>
+		<br>
+		<br>
+		<br>
+		<form method="POST" enctype="multipart/form-data" id="Form" action="/cgis/python/upload.py/">
+			<input name="file" type="file" location="/public/" multiple/>
+			<input type="submit"/>
+		</form>
+	</body>
+</html>

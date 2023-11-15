@@ -1,6 +1,6 @@
 {
 	"connection_queue_length": 1,
-	"client_max_body_size": 42,
+	"client_max_body_size": 420420420,
 	"servers": [
 		{
 			"listen": [
@@ -13,14 +13,15 @@
 			"locations": {
 				"/": {
 					"root": "root",
-					"get_allowed": true
+					"get_allowed": true,
+					"delete_allowed": true
 				},
 				"/public/": {
 					"root": ".",
 					"get_allowed": true,
 					"post_allowed": true,
-					"delete_allowed": true,
-					"index": "a.html"
+					"delete_allowed": false,
+					"autoindex": true
 				},
 				"/cgis/bin/": {
 					"root": ".",
@@ -44,11 +45,13 @@
 				},
 				"/rfcs/": {
 					"root": ".",
-					"get_allowed": true
+					"get_allowed": true,
+					"delete_allowed": true
 				},
 				"/tests/": {
 					"root": ".",
 					"get_allowed": true,
+					"delete_allowed": true,
 					"autoindex": true
 				},
 				"/redirected/d": {
@@ -80,6 +83,7 @@
 				"/public/": {
 					"root": ".",
 					"get_allowed": true,
+					"delete_allowed": true,
 					"index": "b.html"
 				}
 			},

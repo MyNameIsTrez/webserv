@@ -83,6 +83,9 @@ This will print localhost's response: (by search-and-replacing example.com)
 3. Run `coverage.sh` to fuzz while generating coverage
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
 
+## Manual multipart request submission
+`clear && cat manual_multi_form_request.txt | REQUEST_METHOD=POST HTTP_CONTENT_TYPE='multipart/form-data; boundary=----WebKitFormBoundaryBRGOgydgtRaDx2Ju' python3 cgis/python/upload.py`
+
 ## Plan of attack
 
 Assuming `root /code/public;`, with this file tree:
