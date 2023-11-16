@@ -73,15 +73,13 @@ def get():
 		</style>
 		<script>
 			function requestDelete(file) {
-                // console.log(`file: ${file}`);
 				const response = fetch(file, {
 					method: "DELETE",
 				}).then((response) => {
-                    if (response.ok) {
-                        location.reload();
-                    } else {
+                    if (!response.ok) {
                         throw new Error("Failed to delete the file.");
                     }
+                    location.reload();
 				}).catch((error) => {
                     alert("Failed to delete the file.");
                 });
@@ -91,7 +89,7 @@ def get():
 	<body>
 		<form method="POST" enctype="multipart/form-data" id="Form">
 			<input name="file" type="file" multiple/>
-			<input type="submit" onclick="console.log('foo'); location.reload();"/>
+			<input type="submit"/>
 		</form>
         <h1>Index of """
         + path_info
@@ -168,10 +166,7 @@ def post():
 
             return
 
-    print("Content-Type: text/html")
-    print("Status: 205 Reset Content")
-    print()
-    print("Uploaded file")
+    get()
 
 
 if __name__ == "__main__":
