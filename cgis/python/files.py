@@ -66,7 +66,7 @@ def get():
 		</style>
 		<script>
 			function requestDelete(file) {
-                console.log(`file: ${file}`);
+                // console.log(`file: ${file}`);
 				const response = fetch(file, {
 					method: "DELETE",
 				}).then((response) => {
@@ -79,15 +79,12 @@ def get():
                     alert("Failed to delete the file.");
                 });
 			}
-			function updateAction() {
-				document.getElementById("Form").setAttribute("action", window.location.pathname);
-			}
 		</script>
 	</head>
 	<body>
 		<form method="POST" enctype="multipart/form-data" id="Form">
-			<input name="file" type="file" location="/public/" multiple/>
-			<input type="submit" onclick="updateAction()"/>
+			<input name="file" type="file" multiple/>
+			<input type="submit" onclick="console.log('foo'); location.reload();"/>
 		</form>
         <h1>Index of """
         + path_info
@@ -125,17 +122,13 @@ def post():
 
     # print(f"content_type: {content_type}", file=sys.stderr)
 
-    # with open("manual_multi_form_request.txt") as f:
-    #     data = f.buffer
-
-    data = sys.stdin.buffer
-
     forms, files = mp.parse_form_data(
         {
             "REQUEST_METHOD": "POST",
             "CONTENT_TYPE": content_type,
-            "wsgi.input": data,
+            "wsgi.input": sys.stdin.buffer,
         },
+        charset="utf-8",
         strict=True,
     )
 
@@ -148,7 +141,7 @@ def post():
 
     for name, file in files.iterallitems():
         filename = file.filename
-        value = file.value
+        value = file.raw
 
         # print(
         #     f"name {name} with filename {filename}: '{value}'",
@@ -157,7 +150,7 @@ def post():
 
         path = path_translated + filename
         try:
-            with open(path, "x") as f:
+            with open(path, "xb") as f:
                 f.write(value)
         except FileExistsError as e:
             print(f"Failed to open file at path {path}", file=sys.stderr)
@@ -168,7 +161,8 @@ def post():
 
             return
 
-    print("Content-Type: text/plain")
+    print("Content-Type: text/html")
+    print("Status: 205 Reset Content")
     print()
     print("Uploaded file")
 
