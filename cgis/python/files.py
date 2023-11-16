@@ -10,6 +10,7 @@ import multipart as mp
 def main():
     # request_method = "POST"
     request_method = os.environ.get("REQUEST_METHOD")
+
     if request_method == "GET":
         get()
     elif request_method == "POST":
@@ -18,15 +19,21 @@ def main():
         print("Content-Type: text/html")
         print("Status: 405 Method Not Allowed")
         print()
-        exit(0)
 
 
 def get():
+    path_info = os.environ.get("PATH_INFO")
+
+    if len(path_info) == 0 or path_info[-1] != "/":
+        print("Content-Type: text/html")
+        print("Status: 301 Moved Permanently")
+        print()
+        return
+
     print("Content-Type: text/html")
     print()
 
     path_translated = os.environ.get("PATH_TRANSLATED")
-    path_info = os.environ.get("PATH_INFO")
 
     p = Path(path_translated)
 
