@@ -99,46 +99,51 @@ public/
 ```
 
 ```py
-target = sanitize_request_target(target)
-
-# nginx just outright closes the connection
-if port_to_server_index.find(port) == port_to_server_index.end():
-	raise NOT_FOUND
-
-server_index = port_to_server_index.at(port)
-server = servers.at(server_index)
+server_index = get_server_index_from_client_server_name(client)
+server = servers[server_index]
 
 location = resolve_location(target, server)
+
+if not location.resolved:
+	raise NOT_FOUND
+
+if location.has_redirect:
+	client.redirect = location.path
+	raise MOVED_TEMPORARILY
 
 if not is_allowed_method(location, method):
 	raise METHOD_NOT_ALLOWED
 
-if target.ends_with("/"):
+if location.path[-1] == '/:
 	if method == "GET":
 		if location.has_index:
-			respond_with_file(location.path)
+			client.respond_with_file(location.index_path)
+			enable_writing_to_client(client)
 		elif location.autoindex:
-			respond_with_directory_listing(location.path)
+			client.respond_with_directory_listing(location.path)
+			enable_writing_to_client(client)
 		else
 			raise FORBIDDEN
 	else:
 		raise FORBIDDEN
 else:
-	struct stat status
-	if stat(location.path, &status) != -1 and status.type == DIRECTORY:
+	if is_directory(location.path):
 		if method == "DELETE":
 			raise METHOD_NOT_ALLOWED
 		else:
 			raise MOVED_PERMANENTLY
+
+	if location.is_cgi_directory:
+		start_cgi(client, location.cgi_settings, location.path, location.path_info, location.query_string)
 	elif method == "GET":
-		if target.starts_with("/cgi-bin/"):
-			start_cgi(target)
-		else:
-			respond_with_file(location.path)
+		respond_with_file(location.path)
+		enable_writing_to_client(client)
 	elif method == "POST":
 		create_file(location.path)
+		enable_writing_to_client(client)
 	else:
 		delete_file(location.path)
+		enable_writing_to_client(client)
 ```
 
 ```c++
