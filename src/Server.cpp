@@ -250,39 +250,37 @@ void Server::_swapRemove(T &vector, size_t index)
 
 void Server::_printContainerSizes(void)
 {
-	std::cerr
-		<< "MAPS: "
-		<< "_bind_fd_to_server_indices=" << _bind_fd_to_server_indices.size()
-		<< ", _bind_fd_to_port=" << _bind_fd_to_port.size()
-		<< ", _cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
-		<< ", _fd_to_client_index=" << _fd_to_client_index.size()
-		<< ", _fd_to_pfd_index=" << _fd_to_pfd_index.size()
-		<< ", _fd_to_fd_type=" << _fd_to_fd_type.size()
-		<< " | VECTORS: "
-		<< "_clients=" << _clients.size()
-		<< ", _pfds=" << _pfds.size()
-		<< std::endl;
+	Logger::info(
+		std::string("MAPS: ")
+		+ "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size())
+		+ ", _bind_fd_to_port=" + std::to_string(_bind_fd_to_port.size())
+		+ ", _cgi_pid_to_client_fd=" + std::to_string(_cgi_pid_to_client_fd.size())
+		+ ", _fd_to_client_index=" + std::to_string(_fd_to_client_index.size())
+		+ ", _fd_to_pfd_index=" + std::to_string(_fd_to_pfd_index.size())
+		+ ", _fd_to_fd_type=" + std::to_string(_fd_to_fd_type.size())
+		+ " | VECTORS: "
+		+ "_clients=" + std::to_string(_clients.size())
+		+ ", _pfds=" + std::to_string(_pfds.size()));
 }
 
 void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
-	std::cerr
-		<< "  fd: " << pfd.fd
-		<< ", fd_type: " << int(fd_type)
-		<< ", client_index: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
-		<< ", client_fd: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd)
-		<< ", revents:"
-		<< ((pfd.revents & POLLIN) ? " POLLIN" : "")
-		<< ((pfd.revents & POLLOUT) ? " POLLOUT" : "")
-		<< ((pfd.revents & POLLHUP) ? " POLLHUP" : "")
-		<< ((pfd.revents & POLLNVAL) ? " POLLNVAL" : "")
-		<< ((pfd.revents & POLLPRI) ? " POLLPRI" : "")
-		<< ((pfd.revents & POLLRDBAND) ? " POLLRDBAND" : "")
-		<< ((pfd.revents & POLLRDNORM) ? " POLLRDNORM" : "")
-		<< ((pfd.revents & POLLWRBAND) ? " POLLWRBAND" : "")
-		<< ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "")
-		<< ((pfd.revents & POLLERR) ? " POLLERR" : "")
-		<< std::endl;
+	Logger::info(
+		std::string("  fd: " + std::to_string(pfd.fd))
+		+ ", fd_type: " + std::to_string(int(fd_type))
+		+ ", client_index: " + std::to_string((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
+		+ ", client_fd: " + std::to_string((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd)
+		+ ", revents:"
+		+ ((pfd.revents & POLLIN) ? " POLLIN" : "")
+		+ ((pfd.revents & POLLOUT) ? " POLLOUT" : "")
+		+ ((pfd.revents & POLLHUP) ? " POLLHUP" : "")
+		+ ((pfd.revents & POLLNVAL) ? " POLLNVAL" : "")
+		+ ((pfd.revents & POLLPRI) ? " POLLPRI" : "")
+		+ ((pfd.revents & POLLRDBAND) ? " POLLRDBAND" : "")
+		+ ((pfd.revents & POLLRDNORM) ? " POLLRDNORM" : "")
+		+ ((pfd.revents & POLLWRBAND) ? " POLLWRBAND" : "")
+		+ ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "")
+		+ ((pfd.revents & POLLERR) ? " POLLERR" : ""));
 }
 
 // TODO: Don't let _fd_to_client_index nor _clients be passed in, by just getting it from the member variable;
