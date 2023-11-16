@@ -1,8 +1,7 @@
-"""This file handles multi-part form requests."""
+"""This file handles multipart form requests."""
 
 import os
 import sys
-from io import BytesIO
 
 import multipart as mp
 

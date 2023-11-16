@@ -1,7 +1,6 @@
 """This file sends a fancy directory listing containing trash can buttons."""
 
 import os
-import sys
 from pathlib import Path
 
 

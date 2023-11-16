@@ -1,4 +1,7 @@
-import json, os, sys, time
+import json
+import os
+import sys
+import time
 
 
 def main():
@@ -9,12 +12,15 @@ def main():
     print()
     print("xd")
     # exit(1)
-    return
+    # return
 
     print("Content-Type: foo")
 
     if os.environ.get("HTTP_CONTENT_LENGTH"):
-        print(f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}", file=sys.stderr)
+        print(
+            f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}",
+            file=sys.stderr,
+        )
     else:
         # TODO: Should this be unreachable? It's always reached and printing to stderr rn
         print("HTTP_CONTENT_LENGTH is not in env", file=sys.stderr)
