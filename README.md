@@ -45,6 +45,12 @@ This will print localhost's response: (by search-and-replacing example.com)
 ## Running siege
 
 - Siege a URL with `c` clients repeated `r` times with `siege -c2 -r3 http://localhost:8080`
+- Benchmark a URL indefinitely with `siege -b http://localhost:8080`
+
+## Memory usage
+
+- `valgrind --tool=massif ./webserv`
+- `ms_print massif.out.* > mem.log`
 
 ### Notes
 
