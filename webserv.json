@@ -14,7 +14,8 @@
 				"/": {
 					"root": "root",
 					"get_allowed": true,
-					"delete_allowed": true
+					"delete_allowed": true,
+					"autoindex": true
 				},
 				"/public/": {
 					"root": ".",

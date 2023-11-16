@@ -62,9 +62,17 @@ def main():
                     alert("Failed to delete the file.");
                 });
 			}
+			function updateAction() {
+                const path = window.location.pathname.replace("files.py", "upload.py");
+				document.getElementById("Form").setAttribute("action", path);
+			}
 		</script>
 	</head>
 	<body>
+		<form method="POST" enctype="multipart/form-data" id="Form">
+			<input name="file" type="file" location="/public/" multiple/>
+			<input type="submit" onclick="updateAction()"/>
+		</form>
         <h1>Index of """
         + path_info
         + "</h1>"
