@@ -18,6 +18,9 @@ endif
 ifdef SAN
 CFLAGS += -fsanitize=address,undefined
 endif
+ifdef SUPPRESS_LOGGING
+CFLAGS += -DSUPPRESS_LOGGING
+endif
 
 ################################################################################
 
