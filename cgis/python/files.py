@@ -11,6 +11,9 @@ def main():
     # request_method = "POST"
     request_method = os.environ.get("REQUEST_METHOD")
 
+    # with open("public/a.html") as f:
+    #     print(f"a.html contains: '{f.readlines()}'", file=sys.stderr)
+
     if request_method == "GET":
         get()
     elif request_method == "POST":
