@@ -638,11 +638,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 				throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
 			}
 
-			if (location.is_cgi_directory)
-			{
-				_startCGI(client, location.cgi_settings, location.script_name, location.path_info, location.query_string);
-			}
-			else if (location.path.back() == '/')
+			if (location.path.back() == '/')
 			{
 				if (method == "GET")
 				{
@@ -680,7 +676,11 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 					}
 				}
 
-				if (method == "GET")
+				if (location.is_cgi_directory)
+				{
+					_startCGI(client, location.cgi_settings, location.path, location.path_info, location.query_string);
+				}
+				else if (method == "GET")
 				{
 					client.respondWithFile(location.path);
 					_enableWritingToClient(client);
@@ -895,7 +895,6 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 			resolved.is_cgi_directory = location.is_cgi_directory;
 			resolved.cgi_settings = location.cgi_settings;
 
-			resolved.script_name = "";
 			resolved.path_info = "";
 			resolved.query_string = "";
 
@@ -917,7 +916,9 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 			else if (resolved.is_cgi_directory)
 			{
 				std::string unsplit_path = location.root + request_target;
-				resolved.script_name = "";
+				resolved.path = "";
+
+				bool target_is_directory = true;
 
 				size_t path_end_index = 0;
 				while (path_end_index < unsplit_path.length())
@@ -929,13 +930,15 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 						path_end_index++;
 					}
 
-					resolved.script_name = unsplit_path.substr(0, path_end_index);
+					resolved.path = unsplit_path.substr(0, path_end_index);
 
 					// TODO: Remove
 					// Logger::debug("path_end_index: " + std::to_string(path_end_index));
-					// Logger::debug("resolved.script_name: " + resolved.script_name);
+					// Logger::debug("resolved.path: " + resolved.path);
 
-					if (!std::filesystem::is_directory(resolved.script_name)
+					target_is_directory = std::filesystem::is_directory(resolved.path);
+
+					if (!target_is_directory
 						|| path_end_index >= unsplit_path.length()
 						|| unsplit_path.at(path_end_index) == '?')
 					{
@@ -945,22 +948,35 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 					path_end_index++;
 				}
 
-				size_t path_len = resolved.script_name.length();
-				size_t questionmark_index = unsplit_path.find("?", path_len);
-				// TODO: According to CGI RFC 3875 section 4.1.6. PATH_TRANSLATED we should translate "%2e" to ".", so do we want to do that?
-				resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
+				if (target_is_directory)
+				{
+					// We want to be able to send a 301 with "/cgis/python", and a directory listing with "/cgis/python/"
+					if (resolved.path.back() != '/' && unsplit_path.back() == '/')
+					{
+						resolved.path += '/';
+					}
+				}
+				else
+				{
+					size_t path_len = resolved.path.length();
+					size_t questionmark_index = unsplit_path.find("?", path_len);
+					// TODO: According to CGI RFC 3875 section 4.1.6. PATH_TRANSLATED we should translate "%2e" to ".", so do we want to do that?
+					resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
 
-				resolved.query_string = unsplit_path.substr(resolved.script_name.length() + resolved.path_info.length());
+					resolved.query_string = unsplit_path.substr(resolved.path.length() + resolved.path_info.length());
 
-				// Resolves "/.." to "/" to prevent escaping directories
-				resolved.script_name = std::filesystem::weakly_canonical(resolved.script_name);
-				// Resolving path_info may not be correct, I'm not sure, but it makes scripting easier
-				resolved.path_info = std::filesystem::weakly_canonical(resolved.path_info);
+					Logger::debug("resolved.path before resolve: " + resolved.path);
 
-				// Logger::debug("unsplit_path: " + unsplit_path);
-				// Logger::debug("resolved.script_name: " + resolved.script_name);
-				// Logger::debug("resolved.path_info: " + resolved.path_info);
-				// Logger::debug("resolved.query_string: " + resolved.query_string);
+					// Resolves "/.." to "/" to prevent escaping directories
+					resolved.path = std::filesystem::weakly_canonical(resolved.path);
+					// Resolving path_info may not be correct, I'm not sure, but it makes scripting easier
+					resolved.path_info = std::filesystem::weakly_canonical(resolved.path_info);
+
+					Logger::debug("unsplit_path: " + unsplit_path);
+					Logger::debug("resolved.path: " + resolved.path);
+					Logger::debug("resolved.path_info: " + resolved.path_info);
+					Logger::debug("resolved.query_string: " + resolved.query_string);
+				}
 			}
 			else if (resolved.has_index)
 			{

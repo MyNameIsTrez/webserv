@@ -76,7 +76,6 @@ private:
 		bool is_cgi_directory;
 		Config::CGISettingsDirective cgi_settings;
 
-		std::string script_name;
 		std::string path_info;
 		std::string query_string;
 
