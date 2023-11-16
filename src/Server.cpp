@@ -250,6 +250,8 @@ void Server::_swapRemove(T &vector, size_t index)
 
 void Server::_printContainerSizes(void)
 {
+	// std::cerr << "_clients=" << _clients.size() << std::endl;
+
 	Logger::info(
 		std::string("MAPS: ")
 		+ "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size())
