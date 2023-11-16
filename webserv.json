@@ -21,7 +21,7 @@
 					"root": ".",
 					"get_allowed": true,
 					"post_allowed": true,
-					"delete_allowed": false,
+					"delete_allowed": true,
 					"autoindex": true
 				},
 				"/cgis/bin/": {
