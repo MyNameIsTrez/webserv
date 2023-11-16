@@ -17,14 +17,14 @@
 					"delete_allowed": true,
 					"autoindex": true
 				},
-				"/public/": {
+				"/public": {
 					"root": ".",
 					"get_allowed": true,
 					"post_allowed": true,
 					"delete_allowed": true,
 					"autoindex": true
 				},
-				"/cgis/bin/": {
+				"/cgis/bin": {
 					"root": ".",
 					"cgi_settings": {
 						"cgi_execve_path": "/home/sbos/Programming/webserv/cgis/bin/execve"
@@ -34,7 +34,7 @@
 					"delete_allowed": true,
 					"autoindex": true
 				},
-				"/cgis/python/": {
+				"/cgis/python": {
 					"root": ".",
 					"cgi_settings": {
 						"cgi_execve_path": "/usr/bin/python3"
@@ -44,12 +44,12 @@
 					"delete_allowed": true,
 					"autoindex": true
 				},
-				"/rfcs/": {
+				"/rfcs": {
 					"root": ".",
 					"get_allowed": true,
 					"delete_allowed": true
 				},
-				"/tests/": {
+				"/tests": {
 					"root": ".",
 					"get_allowed": true,
 					"delete_allowed": true,
