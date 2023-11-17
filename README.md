@@ -73,7 +73,8 @@ This will print localhost's response: (by search-and-replacing example.com)
 - Nonexistent header type: `curl -X FOO localhost:18000`
 - Check whether the CGI is still running: `ps -aux | grep print.py`
 - Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
-- Create a `foo.txt` file containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
+- Create `foo.txt` containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
+- Create `stack_overflow.json` containing repeated `{"":`: `yes '{"":' | dd of=stack_overflow.json count=420420 bs=5`
 - POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:18000`
 
 ## Using nc
