@@ -246,9 +246,6 @@ void Config::_fillBindInfoToServerIndices()
 			addrinfo hint{};
 			hint.ai_family = AF_INET;
 			hint.ai_socktype = SOCK_STREAM;
-			protoent *proto = getprotobyname("tcp");
-			if (proto == NULL) throw Utils::SystemException("getprotobyname");
-			hint.ai_protocol = proto->p_proto;
 
 			addrinfo *result;
 			int status = getaddrinfo(listen_entry.address.c_str(), listen_entry.port.c_str(), &hint, &result);
