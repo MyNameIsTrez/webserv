@@ -252,10 +252,12 @@ void Config::_fillBindInfoToServerIndices()
 
 			addrinfo *result;
 			int status = getaddrinfo(listen_entry.address.c_str(), listen_entry.port.c_str(), &hint, &result);
-			if (status != 0) throw Utils::SystemException("getaddrinfo", gai_strerror(status));
+			if (status != 0) {
+				if (result != NULL) freeaddrinfo(result);
+				throw Utils::SystemException("getaddrinfo", gai_strerror(status));
+			}
 			if (result == NULL) throw Utils::SystemException("getaddrinfo");
 
-			// TODO: Is it possible for there not to be a single result while status == 0?
 			BindInfo bind_info;
 			sockaddr_in *ai_addr = reinterpret_cast<sockaddr_in *>(result->ai_addr);
 			bind_info.s_addr = ai_addr->sin_addr.s_addr;
