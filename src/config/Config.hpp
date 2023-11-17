@@ -151,6 +151,11 @@ private:
 		ConfigExceptionCantHaveBothIndexAndAutoindex() : ConfigException("Config exception: Can't have both index and autoindex"){};
 	};
 
+	struct ConfigExceptionLocationNeedsToStartWithSlash : public ConfigException
+	{
+		ConfigExceptionLocationNeedsToStartWithSlash() : ConfigException("Config exception: Location needs to start with '/'"){};
+	};
+
 	struct ConfigExceptionInvalidErrorPageCode : public ConfigException
 	{
 		ConfigExceptionInvalidErrorPageCode() : ConfigException("Config exception: Invalid error page code"){};

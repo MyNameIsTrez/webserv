@@ -1,7 +1,7 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"title": "webserv schema",
-	"description": "webserv is a C++ project at Codam",
+	"description": "webserv is a C++ project at Codam.",
 	"type": "object",
 	"additionalProperties": false,
 	"required": [
@@ -12,11 +12,13 @@
 	"properties": {
 		"connection_queue_length": {
 			"description": "How many connections can be queued before they start being rejected.",
+			"default": 420,
 			"type": "integer",
 			"minimum": 1
 		},
 		"client_max_body_size": {
 			"description": "The client's max body size.",
+			"default": 420420420,
 			"type": "integer",
 			"minimum": 0
 		},
@@ -35,9 +37,11 @@
 				],
 				"properties": {
 					"listen": {
-						"description": "An array of host:port combinations to listen to.",
+						"description": "An array of host:port to listen to.",
 						"type": "array",
 						"items": {
+							"description": "A host:port to listen to.",
+							"default": "localhost:8080",
 							"type": "string"
 						}
 					},
@@ -45,122 +49,138 @@
 						"description": "The names this server goes by.",
 						"type": "array",
 						"items": {
+							"description": "A name this server goes by.",
+							"default": "foo",
 							"type": "string"
 						}
 					},
 					"locations": {
 						"description": "Locations that clients can request.",
 						"type": "object",
-						"additionalProperties": {
-							"description": "A location.",
-							"type": "object",
-							"additionalProperties": false,
-							"properties": {
-								"cgi_execve_path": {
-									"description": "The path to the executable that execve() uses to start your script. For example '/usr/bin/python3'.",
-									"type": "string"
+						"additionalProperties": false,
+						"patternProperties": {
+							"^/.*$": {
+								"description": "A location.",
+								"type": "object",
+								"additionalProperties": false,
+								"properties": {
+									"cgi_execve_path": {
+										"description": "The path to the executable that execve() uses to start your script.",
+										"default": "/usr/bin/python3",
+										"type": "string"
+									},
+									"get_allowed": {
+										"description": "Whether GET requests are allowed.",
+										"default": true,
+										"type": "boolean"
+									},
+									"post_allowed": {
+										"description": "Whether POST requests are allowed.",
+										"default": true,
+										"type": "boolean"
+									},
+									"delete_allowed": {
+										"description": "Whether DELETE requests are allowed.",
+										"default": true,
+										"type": "boolean"
+									},
+									"autoindex": {
+										"description": "Whether autoindexing (directory listing) is turned on.",
+										"default": true,
+										"type": "boolean"
+									},
+									"index": {
+										"description": "A default file to provide when the client requests this location directory.",
+										"type": "string"
+									},
+									"redirect": {
+										"description": "Redirects the client to the value's location or URL.",
+										"default": "public",
+										"type": "string"
+									},
+									"root": {
+										"description": "If a client requests `/favicon.ico` and it is matched with the location `/` containing `\"root\": \"public\"` and `\"get_allowed\": \"true\"`, the client will be sent the file at `/public/favicon.ico`.",
+										"default": ".",
+										"type": "string"
+									}
 								},
-								"get_allowed": {
-									"description": "Whether GET requests are allowed.",
-									"type": "boolean"
-								},
-								"post_allowed": {
-									"description": "Whether POST requests are allowed.",
-									"type": "boolean"
-								},
-								"delete_allowed": {
-									"description": "Whether DELETE requests are allowed.",
-									"type": "boolean"
-								},
-								"autoindex": {
-									"description": "Whether autoindexing (directory listing) is turned on.",
-									"type": "boolean"
-								},
-								"index": {
-									"description": "A default file to provide if the user requests the directory.",
-									"type": "string"
-								},
-								"redirect": {
-									"description": "Redirects the client to the value's URL.",
-									"type": "string"
-								},
-								"root": {
-									"description": "Moves this request's root when the client requests this location.",
-									"type": "string"
-								}
-							},
-							"oneOf": [
-								{
-									"required": [
-										"root"
-									]
-								},
-								{
-									"required": [
-										"redirect"
-									]
-								}
-							],
-							"not": {
 								"oneOf": [
 									{
 										"required": [
-											"redirect"
-										],
-										"oneOf": [
-											{
-												"required": [
-													"cgi_settings"
-												]
-											},
-											{
-												"required": [
-													"get_allowed"
-												]
-											},
-											{
-												"required": [
-													"post_allowed"
-												]
-											},
-											{
-												"required": [
-													"delete_allowed"
-												]
-											},
-											{
-												"required": [
-													"autoindex"
-												]
-											},
-											{
-												"required": [
-													"index"
-												]
-											},
-											{
-												"required": [
-													"root"
-												]
-											}
+											"root"
 										]
 									},
 									{
 										"required": [
-											"autoindex",
-											"index"
+											"redirect"
 										]
 									}
-								]
+								],
+								"not": {
+									"oneOf": [
+										{
+											"required": [
+												"redirect"
+											],
+											"oneOf": [
+												{
+													"required": [
+														"cgi_settings"
+													]
+												},
+												{
+													"required": [
+														"get_allowed"
+													]
+												},
+												{
+													"required": [
+														"post_allowed"
+													]
+												},
+												{
+													"required": [
+														"delete_allowed"
+													]
+												},
+												{
+													"required": [
+														"autoindex"
+													]
+												},
+												{
+													"required": [
+														"index"
+													]
+												},
+												{
+													"required": [
+														"root"
+													]
+												}
+											]
+										},
+										{
+											"required": [
+												"autoindex",
+												"index"
+											]
+										}
+									]
+								}
 							}
 						}
 					},
 					"error_pages": {
-						"description": "An array of error pages.",
+						"description": "An object where the key is a HTTP error code, and the value is the path to an error page to send when that error code is received.",
 						"type": "object",
-						"additionalProperties": {
-							"description": "An error page path.",
-							"type": "string"
+						"additionalProperties": false,
+						"patternProperties": {
+							"^[1-9][0-9]*$": {
+								"description": "The key is a HTTP error code, and the value is the path to an error page to send when that error code is received.",
+								"default": "error_pages/404.html",
+								"type": "string"
+							}
 						}
 					}
 				}

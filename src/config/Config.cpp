@@ -178,6 +178,11 @@ Config::LocationDirective Config::_parseLocation(const std::pair<std::string, No
 
 	location_directive.uri = location_node.first;
 
+	if (location_directive.uri.front() != '/')
+	{
+		throw ConfigExceptionLocationNeedsToStartWithSlash();
+	}
+
 	for (const auto &location_property_it : location_object)
 	{
 		const std::string &location_property_key = location_property_it.first;

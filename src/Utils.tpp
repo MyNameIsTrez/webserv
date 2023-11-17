@@ -7,6 +7,10 @@ bool Utils::parseNumber(const std::string &str, T &number, T max)
 {
 	number = 0;
 
+	// Don't accept leading zeros
+	if (str.length() > 0 && str.at(0) == '0')
+		return false;
+
 	for (size_t i = 0; i < str.length(); i++)
 	{
 		char chr = str.at(i);
