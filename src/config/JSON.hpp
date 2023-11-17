@@ -54,6 +54,13 @@ private:
 	{
 		JSONExceptionDuplicateKey() : JSONException("JSON exception: Duplicate key"){};
 	};
+	struct JSONExceptionNestedTooDeep : public JSONException
+	{
+		JSONExceptionNestedTooDeep() : JSONException("JSON exception: Nested too deep"){};
+	};
+
+	static const int _max_depth = 5;
 
 	Tokenizer _tokenizer;
+	int _depth;
 };

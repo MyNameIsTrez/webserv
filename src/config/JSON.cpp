@@ -3,7 +3,7 @@
 #include "Config.hpp"
 #include "../Utils.hpp"
 
-JSON::JSON(std::istream &file) : _tokenizer(file)
+JSON::JSON(std::istream &file) : _tokenizer(file), _depth()
 {
 	const Token token = _tokenizer.getToken();
 	if (token.type != Token::OBJECT_OPEN)
@@ -49,6 +49,12 @@ Node JSON::_parseArray()
 	Node node;
 
 	std::vector<Node> array;
+
+	_depth++;
+	if (_depth > _max_depth)
+	{
+		throw JSONExceptionNestedTooDeep();
+	}
 
 	Token token = _tokenizer.getToken();
 	if (token.type != Token::ARRAY_CLOSE)
@@ -102,6 +108,8 @@ Node JSON::_parseArray()
 		}
 	}
 
+	_depth--;
+
 	node.setArray(array);
 
 	return node;
@@ -112,6 +120,12 @@ Node JSON::_parseObject()
 	Node node;
 
 	std::map<std::string, Node> object;
+
+	_depth++;
+	if (_depth > _max_depth)
+	{
+		throw JSONExceptionNestedTooDeep();
+	}
 
 	Token keyToken = _tokenizer.getToken();
 	if (keyToken.type != Token::OBJECT_CLOSE)
@@ -191,6 +205,8 @@ Node JSON::_parseObject()
 			}
 		}
 	}
+
+	_depth--;
 
 	node.setObject(object);
 
