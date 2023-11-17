@@ -32,13 +32,14 @@ public:
 	bool hasMoreTokens();
 	void rollBackToken();
 
-private:
-	char _getChar();
-
 	struct TokenException : public std::runtime_error
 	{
 		TokenException(const std::string &message) : std::runtime_error(message){};
 	};
+
+private:
+	char _getChar();
+
 	struct TokenExceptionRanOutOfNonWhitespaceCharacters : public TokenException
 	{
 		TokenExceptionRanOutOfNonWhitespaceCharacters() : TokenException("Token exception: Ran out of non-whitespace characters"){};

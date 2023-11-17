@@ -22,13 +22,14 @@ public:
 	void setArray(std::vector<Node> array);
 	void setObject(const std::unordered_map<std::string, Node> object);
 
-private:
-	std::variant<bool, size_t, std::string, std::vector<Node>, std::unordered_map<std::string, Node>> _value;
-
 	struct NodeException : public std::runtime_error
 	{
 		NodeException(const std::string &message) : std::runtime_error(message){};
 	};
+
+private:
+	std::variant<bool, size_t, std::string, std::vector<Node>, std::unordered_map<std::string, Node>> _value;
+
 	struct NodeExceptionGetBoolean : public NodeException
 	{
 		NodeExceptionGetBoolean() : NodeException("Node exception: Attempt to get boolean failed"){};

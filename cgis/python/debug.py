@@ -14,8 +14,6 @@ def main():
     # exit(1)
     # return
 
-    print("Content-Type: foo")
-
     if os.environ.get("HTTP_CONTENT_LENGTH"):
         print(
             f"HTTP_CONTENT_LENGTH: {os.environ.get('HTTP_CONTENT_LENGTH')}",

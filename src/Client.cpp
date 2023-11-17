@@ -152,7 +152,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 {
 	if (this->client_to_server_state == ClientToServerState::HEADER)
 	{
-		this->_header.append(received, bytes_read);
+		this->_header.append(received, static_cast<size_t>(bytes_read));
 
 		// Return if the header hasn't been fully read yet
 		size_t separator_index = this->_header.find("\r\n\r\n");

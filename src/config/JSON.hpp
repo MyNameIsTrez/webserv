@@ -10,6 +10,11 @@ public:
 
 	Node root;
 
+	struct JSONException : public std::runtime_error
+	{
+		JSONException(const std::string &message) : std::runtime_error(message){};
+	};
+
 private:
 	Node _parseBoolean();
 	Node _parseInteger();
@@ -17,10 +22,6 @@ private:
 	Node _parseArray();
 	Node _parseObject();
 
-	struct JSONException : public std::runtime_error
-	{
-		JSONException(const std::string &message) : std::runtime_error(message){};
-	};
 	struct JSONExceptionExpectedStringKey : public JSONException
 	{
 		JSONExceptionExpectedStringKey() : JSONException("JSON exception: Expected string key"){};

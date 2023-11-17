@@ -4,7 +4,7 @@ NAME := config_fuzzing
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wconversion
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -std=c++2b
 
 OBJDIR := obj
 
@@ -37,7 +37,13 @@ endif
 
 ################################################################################
 
-CFILES := src/Config.cpp src/Token.cpp src/Logger.cpp fuzzing/src/main.cpp
+CFILES :=\
+	src/config/Config.cpp\
+	src/config/JSON.cpp\
+	src/config/Node.cpp\
+	src/config/Tokenizer.cpp\
+	src/Logger.cpp\
+	fuzzing/src/main.cpp
 
 ################################################################################
 

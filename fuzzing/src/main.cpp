@@ -18,11 +18,23 @@ static void run(int argc, char *argv[], char *buf)
 	(void)argc;
 	(void)argv;
 
-	Config config;
 	std::stringstream config_stream(buf);
+
+	Config config;
 	try
 	{
-		config.init(config_stream);
+		JSON json(config_stream);
+
+		config.init(json);
+	}
+	catch (const Tokenizer::TokenException &e)
+	{
+	}
+	catch (const Node::NodeException &e)
+	{
+	}
+	catch (const JSON::JSONException &e)
+	{
 	}
 	catch (const Config::ConfigException &e)
 	{
