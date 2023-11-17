@@ -789,7 +789,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 	// If request is not chunked
 	else
 	{
-		Logger::info(std::string("Parsing non-chunked body substring"));
+		Logger::info(std::string("    Parsing non-chunked body substring"));
 		// If not all of extra_body should fit into the body
 		if (this->body.size() + extra_body.size() >= this->content_length)
 		{

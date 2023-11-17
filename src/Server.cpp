@@ -965,17 +965,17 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 					resolved.query_string = unsplit_path.substr(resolved.path.length() + resolved.path_info.length());
 
-					Logger::debug("resolved.path before resolve: " + resolved.path);
+					Logger::debug("    resolved.path before resolve: " + resolved.path);
 
 					// Resolves "/.." to "/" to prevent escaping directories
 					resolved.path = std::filesystem::weakly_canonical(resolved.path);
 					// Resolving path_info may not be correct, I'm not sure, but it makes scripting easier
 					resolved.path_info = std::filesystem::weakly_canonical(resolved.path_info);
 
-					Logger::debug("unsplit_path: " + unsplit_path);
-					Logger::debug("resolved.path: " + resolved.path);
-					Logger::debug("resolved.path_info: " + resolved.path_info);
-					Logger::debug("resolved.query_string: " + resolved.query_string);
+					Logger::debug("    unsplit_path: " + unsplit_path);
+					Logger::debug("    resolved.path: " + resolved.path);
+					Logger::debug("    resolved.path_info: " + resolved.path_info);
+					Logger::debug("    resolved.query_string: " + resolved.query_string);
 				}
 			}
 			else if (resolved.has_index)
