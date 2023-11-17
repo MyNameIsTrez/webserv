@@ -129,11 +129,6 @@ void Config::_parseClientMaxBodySize(const std::map<std::string, Node> &root_obj
 	}
 
 	client_max_body_size = root_object.at("client_max_body_size").getInteger();
-
-	if (client_max_body_size < 0)
-	{
-		throw ConfigExceptionClientMaxBodySizeIsSmallerThanZero();
-	}
 }
 
 Config::ListenEntry Config::_parseListen(const Node &listen_node)

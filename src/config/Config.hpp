@@ -120,11 +120,6 @@ private:
 		ConfigExceptionExpectedErrorPages() : ConfigException("Config exception: Expected error_pages"){};
 	};
 
-	struct ConfigExceptionClientMaxBodySizeIsSmallerThanZero : public ConfigException
-	{
-		ConfigExceptionClientMaxBodySizeIsSmallerThanZero() : ConfigException("Config exception: client_max_body_size is smaller than zero"){};
-	};
-
 	struct ConfigExceptionListenColonIsRequired : public ConfigException
 	{
 		ConfigExceptionListenColonIsRequired() : ConfigException("Config exception: Listen ':' is required"){};
