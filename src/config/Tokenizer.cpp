@@ -123,6 +123,7 @@ bool Tokenizer::hasMoreTokens()
 {
 	return !_file.eof();
 }
+
 void Tokenizer::rollBackToken()
 {
 	if (_file.eof())
@@ -134,5 +135,7 @@ void Tokenizer::rollBackToken()
 
 char Tokenizer::_getChar()
 {
-	return _file.get();
+	char c = _file.get();
+	if (_file.eof()) throw TokenExceptionRanOutOfNonWhitespaceCharacters();
+	return c;
 }
