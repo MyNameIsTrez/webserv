@@ -10,7 +10,7 @@ char Tokenizer::getWithoutWhitespace()
 
 	while (true)
 	{
-		_file.get(c);
+		c = _getChar();
 
 		if (!isspace(c))
 		{
@@ -43,11 +43,12 @@ Token Tokenizer::getToken()
 	{
 		token.type = Token::STRING;
 		token.string = "";
-		_file.get(c);
+		c = _getChar();
+
 		while (c != '"')
 		{
 			token.string += c;
-			_file.get(c);
+			c = _getChar();
 		}
 	}
 	else if (c == '{') // OBJECT_OPEN
@@ -81,7 +82,7 @@ Token Tokenizer::getToken()
 		while (c >= '0' && c <= '9')
 		{
 			std::streampos prevCharPos = _file.tellg();
-			_file.get(c);
+			c = _getChar();
 
 			if (_file.eof())
 				break;
@@ -96,7 +97,7 @@ Token Tokenizer::getToken()
 	}
 	else if (c == 't') // BOOLEAN_TRUE
 	{
-		if (!(get() == 'r' && get() == 'u' && get() == 'e'))
+		if (!(_getChar() == 'r' && _getChar() == 'u' && _getChar() == 'e'))
 		{
 			throw TokenExceptionExpectedBoolean();
 		}
@@ -104,7 +105,7 @@ Token Tokenizer::getToken()
 	}
 	else if (c == 'f') // BOOLEAN_FALSE
 	{
-		if (!(get() == 'a' && get() == 'l' && get() == 's' && get() == 'e'))
+		if (!(_getChar() == 'a' && _getChar() == 'l' && _getChar() == 's' && _getChar() == 'e'))
 		{
 			throw TokenExceptionExpectedBoolean();
 		}
@@ -129,4 +130,9 @@ void Tokenizer::rollBackToken()
 		_file.clear();
 	}
 	_file.seekg(_prevPos);
+}
+
+char Tokenizer::_getChar()
+{
+	return _file.get();
 }

@@ -1,6 +1,26 @@
 #pragma once
 
-#include "Token.hpp"
+#include <stdexcept>
+#include <string>
+
+struct Token
+{
+	enum
+	{
+		BOOLEAN_TRUE,
+		BOOLEAN_FALSE,
+		INTEGER,
+		STRING,
+		COMMA,
+		COLON,
+		ARRAY_OPEN,
+		ARRAY_CLOSE,
+		OBJECT_OPEN,
+		OBJECT_CLOSE,
+	} type;
+
+	std::string string;
+};
 
 class Tokenizer
 {
@@ -13,12 +33,8 @@ public:
 	void rollBackToken();
 
 private:
-	char get()
-	{
-		char c;
-		_file.get(c);
-		return (c);
-	}
+	char _getChar();
+
 	struct TokenException : public std::runtime_error
 	{
 		TokenException(const std::string &message) : std::runtime_error(message){};
