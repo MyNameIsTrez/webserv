@@ -24,6 +24,11 @@ void Config::init(const JSON &json)
 
 	_parseClientMaxBodySize(root_object);
 
+	if (!root_object.contains("servers"))
+	{
+		throw ConfigExceptionExpectedServers();
+	}
+
 	size_t server_index = 0;
 	for (const auto &server_it : root_object.at("servers").getArray())
 	{

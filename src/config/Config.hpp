@@ -103,6 +103,11 @@ private:
 		ConfigExceptionExpectedClientMaxBodySize() : ConfigException("Config exception: Expected client_max_body_size"){};
 	};
 
+	struct ConfigExceptionExpectedServers : public ConfigException
+	{
+		ConfigExceptionExpectedServers() : ConfigException("Config exception: Expected servers"){};
+	};
+
 	struct ConfigExceptionExpectedListen : public ConfigException
 	{
 		ConfigExceptionExpectedListen() : ConfigException("Config exception: Expected listen"){};
