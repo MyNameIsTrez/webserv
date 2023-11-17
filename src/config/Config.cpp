@@ -252,10 +252,7 @@ void Config::_fillBindInfoToServerIndices()
 
 			addrinfo *result;
 			int status = getaddrinfo(listen_entry.address.c_str(), listen_entry.port.c_str(), &hint, &result);
-			if (status != 0) {
-				if (result != NULL) freeaddrinfo(result);
-				throw Utils::SystemException("getaddrinfo", gai_strerror(status));
-			}
+			if (status != 0) throw Utils::SystemException("getaddrinfo", gai_strerror(status));
 			if (result == NULL) throw Utils::SystemException("getaddrinfo");
 
 			BindInfo bind_info;
