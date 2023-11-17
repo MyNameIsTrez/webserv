@@ -1,5 +1,7 @@
 #pragma once
 
+#include "../Status.hpp"
+
 #include <cassert>
 #include <fstream>
 #include <iostream>
@@ -11,8 +13,6 @@
 #include <unordered_map>
 #include <variant>
 #include <vector>
-
-#include "../Status.hpp"
 
 class JSON;
 struct Node;
@@ -77,8 +77,8 @@ public:
 	};
 
 private:
-	void _parseConnectionQueueLength(const std::unordered_map<std::string, Node> &root_object);
-	void _parseClientMaxBodySize(const std::unordered_map<std::string, Node> &root_object);
+	void _parseConnectionQueueLength(const std::map<std::string, Node> &root_object);
+	void _parseClientMaxBodySize(const std::map<std::string, Node> &root_object);
 
 	ListenEntry _parseListen(const Node &listen_node);
 	LocationDirective _parseLocation(const std::pair<std::string, Node> &location_node);

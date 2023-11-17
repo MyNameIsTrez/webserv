@@ -1,4 +1,5 @@
-#include "../../src/Config.hpp"
+#include "../../src/config/Config.hpp"
+#include "../../src/config/JSON.hpp"
 
 #include <assert.h>
 #include <fcntl.h>

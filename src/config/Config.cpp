@@ -29,7 +29,7 @@ void Config::init(const JSON &json)
 	{
 		ServerDirective server_directive{};
 
-		const std::unordered_map<std::string, Node> &server = server_it.getObject();
+		const std::map<std::string, Node> &server = server_it.getObject();
 		for (const auto &server_property_it : server)
 		{
 			if (!server.contains("listen"))
@@ -101,7 +101,7 @@ void Config::init(const JSON &json)
 	_fillBindInfoToServerIndices();
 }
 
-void Config::_parseConnectionQueueLength(const std::unordered_map<std::string, Node> &root_object)
+void Config::_parseConnectionQueueLength(const std::map<std::string, Node> &root_object)
 {
 	if (!root_object.contains("connection_queue_length"))
 	{
@@ -121,7 +121,7 @@ void Config::_parseConnectionQueueLength(const std::unordered_map<std::string, N
 	}
 }
 
-void Config::_parseClientMaxBodySize(const std::unordered_map<std::string, Node> &root_object)
+void Config::_parseClientMaxBodySize(const std::map<std::string, Node> &root_object)
 {
 	if (!root_object.contains("client_max_body_size"))
 	{

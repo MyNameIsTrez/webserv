@@ -5,6 +5,7 @@ NAME := config_fuzzing
 CC := c++
 
 CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -std=c++2b
+CFLAGS += -DSUPPRESS_LOGGING
 
 OBJDIR := obj
 
@@ -16,6 +17,9 @@ endif
 # ifdef SAN
 # CFLAGS += -fsanitize=address,undefined
 # endif
+ifdef SUPPRESS_LOGGING
+CFLAGS += -DSUPPRESS_LOGGING
+endif
 ifdef AFL
 NAME := config_fuzzing_afl
 CC := afl-clang-lto++

@@ -111,7 +111,7 @@ Node JSON::_parseObject()
 {
 	Node node;
 
-	std::unordered_map<std::string, Node> object;
+	std::map<std::string, Node> object;
 
 	Token keyToken = _tokenizer.getToken();
 	if (keyToken.type != Token::OBJECT_CLOSE)
