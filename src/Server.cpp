@@ -39,10 +39,8 @@ Server::Server(const Config &config)
 		const auto &bind_info = it.first;
 		const auto &server_indices = it.second;
 
-		protoent *proto = getprotobyname("tcp");
-		if (proto == NULL) throw Utils::SystemException("getprotobyname");
 		int bind_fd;
-		if ((bind_fd = socket(AF_INET, SOCK_STREAM, proto->p_proto)) == -1) throw Utils::SystemException("socket");
+		if ((bind_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) == -1) throw Utils::SystemException("socket");
 
 		_bind_fd_to_server_indices.emplace(bind_fd, server_indices);
 

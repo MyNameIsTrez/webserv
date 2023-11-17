@@ -56,12 +56,8 @@ int main(int argc, char *argv[])
 	buf = __AFL_FUZZ_TESTCASE_BUF;
 #elif defined GCOV || defined CTMIN
 	argc = 2;
-	buf = (unsigned char *)calloc(1024 + 1, sizeof(char));
-	if (read(0, buf, 1024) == -1)
-	{
-		perror("read()");
-		return EXIT_FAILURE;
-	}
+	std::string str_buf(std::istreambuf_iterator<char>(std::cin), {});
+	buf = (unsigned char *)str_buf.data();
 #endif
 
 #if defined AFL || defined GCOV
