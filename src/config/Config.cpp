@@ -247,10 +247,14 @@ void Config::_fillBindInfoToServerIndices()
 			hint.ai_family = AF_INET;
 			hint.ai_socktype = SOCK_STREAM;
 
+			protoent *proto = getprotobyname("tcp");
+			if (proto == NULL) throw ConfigExceptionGetProtoByName();
+			hint.ai_protocol = proto->p_proto;
+
 			addrinfo *result;
 			int status = getaddrinfo(listen_entry.address.c_str(), listen_entry.port.c_str(), &hint, &result);
-			if (status != 0) throw Utils::SystemException("getaddrinfo", gai_strerror(status));
-			if (result == NULL) throw Utils::SystemException("getaddrinfo");
+			if (status != 0) throw ConfigExceptionGetAddrInfo(gai_strerror(status));
+			if (result == NULL) throw ConfigExceptionGetAddrInfo();
 
 			BindInfo bind_info;
 			sockaddr_in *ai_addr = reinterpret_cast<sockaddr_in *>(result->ai_addr);

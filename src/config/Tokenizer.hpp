@@ -34,7 +34,7 @@ public:
 
 	struct TokenException : public std::runtime_error
 	{
-		TokenException(const std::string &message) : std::runtime_error(message){};
+		TokenException(const std::string &message) : std::runtime_error(message){}
 	};
 
 private:
@@ -42,19 +42,19 @@ private:
 
 	struct TokenExceptionRanOutOfNonWhitespaceCharacters : public TokenException
 	{
-		TokenExceptionRanOutOfNonWhitespaceCharacters() : TokenException("Token exception: Ran out of non-whitespace characters"){};
+		TokenExceptionRanOutOfNonWhitespaceCharacters() : TokenException("Token exception: Ran out of non-whitespace characters"){}
 	};
 	struct TokenExceptionExpectedBoolean : public TokenException
 	{
-		TokenExceptionExpectedBoolean() : TokenException("Token exception: Expected boolean"){};
+		TokenExceptionExpectedBoolean() : TokenException("Token exception: Expected boolean"){}
 	};
 	struct TokenExceptionNoMoreTokens : public TokenException
 	{
-		TokenExceptionNoMoreTokens() : TokenException("Token exception: No more tokens"){};
+		TokenExceptionNoMoreTokens() : TokenException("Token exception: No more tokens"){}
 	};
 	struct TokenExceptionUnexpectedCharacter : public TokenException
 	{
-		TokenExceptionUnexpectedCharacter() : TokenException("Token exception: Unexpected character"){};
+		TokenExceptionUnexpectedCharacter() : TokenException("Token exception: Unexpected character"){}
 	};
 
 	std::istream &_file;

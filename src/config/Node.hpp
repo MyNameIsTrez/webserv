@@ -24,7 +24,7 @@ public:
 
 	struct NodeException : public std::runtime_error
 	{
-		NodeException(const std::string &message) : std::runtime_error(message){};
+		NodeException(const std::string &message) : std::runtime_error(message){}
 	};
 
 private:
@@ -32,22 +32,22 @@ private:
 
 	struct NodeExceptionGetBoolean : public NodeException
 	{
-		NodeExceptionGetBoolean() : NodeException("Node exception: Attempt to get boolean failed"){};
+		NodeExceptionGetBoolean() : NodeException("Node exception: Attempt to get boolean failed"){}
 	};
 	struct NodeExceptionGetInteger : public NodeException
 	{
-		NodeExceptionGetInteger() : NodeException("Node exception: Attempt to get integer failed"){};
+		NodeExceptionGetInteger() : NodeException("Node exception: Attempt to get integer failed"){}
 	};
 	struct NodeExceptionGetString : public NodeException
 	{
-		NodeExceptionGetString() : NodeException("Node exception: Attempt to get string failed"){};
+		NodeExceptionGetString() : NodeException("Node exception: Attempt to get string failed"){}
 	};
 	struct NodeExceptionGetArray : public NodeException
 	{
-		NodeExceptionGetArray() : NodeException("Node exception: Attempt to get array failed"){};
+		NodeExceptionGetArray() : NodeException("Node exception: Attempt to get array failed"){}
 	};
 	struct NodeExceptionGetObject : public NodeException
 	{
-		NodeExceptionGetObject() : NodeException("Node exception: Attempt to get object failed"){};
+		NodeExceptionGetObject() : NodeException("Node exception: Attempt to get object failed"){}
 	};
 };

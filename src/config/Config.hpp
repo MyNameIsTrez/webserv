@@ -73,7 +73,7 @@ public:
 
 	struct ConfigException : public std::runtime_error
 	{
-		ConfigException(const std::string &message) : std::runtime_error(message){};
+		ConfigException(const std::string &message) : std::runtime_error(message){}
 	};
 
 private:
@@ -87,91 +87,105 @@ private:
 
 	struct ConfigExceptionExpectedConnectionQueueLength : public ConfigException
 	{
-		ConfigExceptionExpectedConnectionQueueLength() : ConfigException("Config exception: Expected connection_queue_length"){};
+		ConfigExceptionExpectedConnectionQueueLength() : ConfigException("Config exception: Expected connection_queue_length"){}
 	};
 	struct ConfigExceptionConnectionQueueLengthIsTooHigh : public ConfigException
 	{
-		ConfigExceptionConnectionQueueLengthIsTooHigh() : ConfigException("Config exception: connection_queue_length is too high"){};
+		ConfigExceptionConnectionQueueLengthIsTooHigh() : ConfigException("Config exception: connection_queue_length is too high"){}
 	};
 	struct ConfigExceptionConnectionQueueLengthIsSmallerThanOne : public ConfigException
 	{
-		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){};
+		ConfigExceptionConnectionQueueLengthIsSmallerThanOne() : ConfigException("Config exception: connection_queue_length is smaller than one"){}
 	};
 
 	struct ConfigExceptionExpectedClientMaxBodySize : public ConfigException
 	{
-		ConfigExceptionExpectedClientMaxBodySize() : ConfigException("Config exception: Expected client_max_body_size"){};
+		ConfigExceptionExpectedClientMaxBodySize() : ConfigException("Config exception: Expected client_max_body_size"){}
 	};
 
 	struct ConfigExceptionExpectedServers : public ConfigException
 	{
-		ConfigExceptionExpectedServers() : ConfigException("Config exception: Expected servers"){};
+		ConfigExceptionExpectedServers() : ConfigException("Config exception: Expected servers"){}
 	};
 
 	struct ConfigExceptionExpectedListen : public ConfigException
 	{
-		ConfigExceptionExpectedListen() : ConfigException("Config exception: Expected listen"){};
+		ConfigExceptionExpectedListen() : ConfigException("Config exception: Expected listen"){}
 	};
 	struct ConfigExceptionExpectedServerNames : public ConfigException
 	{
-		ConfigExceptionExpectedServerNames() : ConfigException("Config exception: Expected server_names"){};
+		ConfigExceptionExpectedServerNames() : ConfigException("Config exception: Expected server_names"){}
 	};
 	struct ConfigExceptionExpectedLocations : public ConfigException
 	{
-		ConfigExceptionExpectedLocations() : ConfigException("Config exception: Expected locations"){};
+		ConfigExceptionExpectedLocations() : ConfigException("Config exception: Expected locations"){}
 	};
 	struct ConfigExceptionExpectedErrorPages : public ConfigException
 	{
-		ConfigExceptionExpectedErrorPages() : ConfigException("Config exception: Expected error_pages"){};
+		ConfigExceptionExpectedErrorPages() : ConfigException("Config exception: Expected error_pages"){}
 	};
 
 	struct ConfigExceptionListenColonIsRequired : public ConfigException
 	{
-		ConfigExceptionListenColonIsRequired() : ConfigException("Config exception: Listen ':' is required"){};
+		ConfigExceptionListenColonIsRequired() : ConfigException("Config exception: Listen ':' is required"){}
 	};
 	struct ConfigExceptionMissingAddressBeforePortColon : public ConfigException
 	{
-		ConfigExceptionMissingAddressBeforePortColon() : ConfigException("Config exception: Missing address before port ':'"){};
+		ConfigExceptionMissingAddressBeforePortColon() : ConfigException("Config exception: Missing address before port ':'"){}
 	};
 	struct ConfigExceptionNoPortAfterColon : public ConfigException
 	{
-		ConfigExceptionNoPortAfterColon() : ConfigException("Config exception: No port after ':'"){};
+		ConfigExceptionNoPortAfterColon() : ConfigException("Config exception: No port after ':'"){}
 	};
 
 	struct ConfigExceptionNeedEitherRootOrRedirect : public ConfigException
 	{
-		ConfigExceptionNeedEitherRootOrRedirect() : ConfigException("Config exception: Need either root or redirect"){};
+		ConfigExceptionNeedEitherRootOrRedirect() : ConfigException("Config exception: Need either root or redirect"){}
 	};
 	struct ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect : public ConfigException
 	{
-		ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect() : ConfigException("Config exception: Can't have other properties with redirect"){};
+		ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect() : ConfigException("Config exception: Can't have other properties with redirect"){}
 	};
 	struct ConfigExceptionCantHaveBothIndexAndAutoindex : public ConfigException
 	{
-		ConfigExceptionCantHaveBothIndexAndAutoindex() : ConfigException("Config exception: Can't have both index and autoindex"){};
+		ConfigExceptionCantHaveBothIndexAndAutoindex() : ConfigException("Config exception: Can't have both index and autoindex"){}
 	};
 
 	struct ConfigExceptionLocationNeedsToStartWithSlash : public ConfigException
 	{
-		ConfigExceptionLocationNeedsToStartWithSlash() : ConfigException("Config exception: Location needs to start with '/'"){};
+		ConfigExceptionLocationNeedsToStartWithSlash() : ConfigException("Config exception: Location needs to start with '/'"){}
 	};
 
 	struct ConfigExceptionInvalidErrorPageCode : public ConfigException
 	{
-		ConfigExceptionInvalidErrorPageCode() : ConfigException("Config exception: Invalid error page code"){};
+		ConfigExceptionInvalidErrorPageCode() : ConfigException("Config exception: Invalid error page code"){}
 	};
 
 	struct ConfigExceptionUnknownKey : public ConfigException
 	{
-		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key"){};
+		ConfigExceptionUnknownKey() : ConfigException("Config exception: Unknown key"){}
+	};
+
+	struct ConfigExceptionGetProtoByName : public ConfigException
+	{
+		ConfigExceptionGetProtoByName() : ConfigException("Config exception in function 'getprotobyname'")
+		{}
+	};
+
+	struct ConfigExceptionGetAddrInfo : public ConfigException
+	{
+		ConfigExceptionGetAddrInfo() : ConfigException("Config exception in function 'getaddrinfo'")
+		{}
+		ConfigExceptionGetAddrInfo(const std::string &error_message) : ConfigException("Config exception in function 'getaddrinfo': " + error_message)
+		{}
 	};
 
 	struct ConfigExceptionDuplicateLocationInServer : public ConfigException
 	{
-		ConfigExceptionDuplicateLocationInServer() : ConfigException("Config exception: Duplicate location in server"){};
+		ConfigExceptionDuplicateLocationInServer() : ConfigException("Config exception: Duplicate location in server"){}
 	};
 	struct ConfigExceptionConflictingServerNameOnListen : public ConfigException
 	{
-		ConfigExceptionConflictingServerNameOnListen() : ConfigException("Config exception: Conflicting server name on listen"){};
+		ConfigExceptionConflictingServerNameOnListen() : ConfigException("Config exception: Conflicting server name on listen"){}
 	};
 };

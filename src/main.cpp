@@ -7,7 +7,7 @@
 
 struct FileNoAccess : public std::runtime_error
 {
-	FileNoAccess() : std::runtime_error("Error: Unable to open config"){};
+	FileNoAccess() : std::runtime_error("Error: Unable to open config"){}
 };
 
 int main(int argc, char *argv[])

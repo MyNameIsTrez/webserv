@@ -12,7 +12,7 @@ public:
 
 	struct JSONException : public std::runtime_error
 	{
-		JSONException(const std::string &message) : std::runtime_error(message){};
+		JSONException(const std::string &message) : std::runtime_error(message){}
 	};
 
 private:
@@ -24,39 +24,39 @@ private:
 
 	struct JSONExceptionExpectedStringKey : public JSONException
 	{
-		JSONExceptionExpectedStringKey() : JSONException("JSON exception: Expected string key"){};
+		JSONExceptionExpectedStringKey() : JSONException("JSON exception: Expected string key"){}
 	};
 	struct JSONExceptionExpectedIntegerKey : public JSONException
 	{
-		JSONExceptionExpectedIntegerKey() : JSONException("JSON exception: Expected integer key"){};
+		JSONExceptionExpectedIntegerKey() : JSONException("JSON exception: Expected integer key"){}
 	};
 	struct JSONExceptionExpectedColon : public JSONException
 	{
-		JSONExceptionExpectedColon() : JSONException("JSON exception: Expected colon"){};
+		JSONExceptionExpectedColon() : JSONException("JSON exception: Expected colon"){}
 	};
 	struct JSONExceptionExpectedComma : public JSONException
 	{
-		JSONExceptionExpectedComma() : JSONException("JSON exception: Expected comma"){};
+		JSONExceptionExpectedComma() : JSONException("JSON exception: Expected comma"){}
 	};
 	struct JSONExceptionExpectedObject : public JSONException
 	{
-		JSONExceptionExpectedObject() : JSONException("JSON exception: Expected object"){};
+		JSONExceptionExpectedObject() : JSONException("JSON exception: Expected object"){}
 	};
 	struct JSONExceptionInvalidInteger : public JSONException
 	{
-		JSONExceptionInvalidInteger() : JSONException("JSON exception: Invalid integer"){};
+		JSONExceptionInvalidInteger() : JSONException("JSON exception: Invalid integer"){}
 	};
 	struct JSONExceptionUnexpectedToken : public JSONException
 	{
-		JSONExceptionUnexpectedToken() : JSONException("JSON exception: Unexpected token"){};
+		JSONExceptionUnexpectedToken() : JSONException("JSON exception: Unexpected token"){}
 	};
 	struct JSONExceptionDuplicateKey : public JSONException
 	{
-		JSONExceptionDuplicateKey() : JSONException("JSON exception: Duplicate key"){};
+		JSONExceptionDuplicateKey() : JSONException("JSON exception: Duplicate key"){}
 	};
 	struct JSONExceptionNestedTooDeep : public JSONException
 	{
-		JSONExceptionNestedTooDeep() : JSONException("JSON exception: Nested too deep"){};
+		JSONExceptionNestedTooDeep() : JSONException("JSON exception: Nested too deep"){}
 	};
 
 	static const int _max_depth = 5;
