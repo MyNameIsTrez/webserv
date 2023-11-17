@@ -29,7 +29,6 @@ public:
 
 	char getWithoutWhitespace();
 	Token getToken();
-	bool hasMoreTokens();
 	void rollBackToken();
 
 	struct TokenException : public std::runtime_error

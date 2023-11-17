@@ -119,11 +119,6 @@ Token Tokenizer::getToken()
 	return token;
 }
 
-bool Tokenizer::hasMoreTokens()
-{
-	return !_file.eof();
-}
-
 void Tokenizer::rollBackToken()
 {
 	if (_file.eof())
