@@ -33,7 +33,7 @@ Token Tokenizer::getToken()
 {
 	if (_file.eof())
 	{
-		throw;
+		throw TokenExceptionRanOutOfNonWhitespaceCharacters();
 	}
 	_prevPos = _file.tellg();
 	char c = getWithoutWhitespace();
