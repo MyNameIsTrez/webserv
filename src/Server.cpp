@@ -250,8 +250,6 @@ void Server::_swapRemove(T &vector, size_t index)
 
 void Server::_printContainerSizes(void)
 {
-	// std::cerr << "_clients=" << _clients.size() << std::endl;
-
 	Logger::info(
 		std::string("MAPS: ")
 		+ "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size())
@@ -525,6 +523,8 @@ void Server::_acceptClient(int server_fd)
 	const std::string &server_port = _bind_fd_to_port.at(server_fd);
 
 	_clients.push_back(Client(client_fd, server_fd, server_port, _config.client_max_body_size));
+
+	std::cerr << "Added a client; " << _clients.size() << " clients now connected" << std::endl;
 }
 
 void Server::_reapChild(void)
@@ -678,7 +678,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 				if (location.is_cgi_directory)
 				{
-					_startCGI(client, location.cgi_settings, location.path, location.path_info, location.query_string);
+					_startCGI(client, location.cgi_execve_path, location.path, location.path_info, location.query_string);
 				}
 				else if (method == "GET")
 				{
@@ -760,7 +760,7 @@ void Server::_removeClientAttachments(int fd)
 	}
 }
 
-void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string)
+void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const std::string &script_name, const std::string &path_info, const std::string &query_string)
 {
 	Logger::info(std::string("  Starting CGI..."));
 
@@ -785,7 +785,7 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw Utils::SystemException("dup2");
 		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
 
-		_execveChild(client, cgi_settings, script_name, path_info, query_string);
+		_execveChild(client, cgi_execve_path, script_name, path_info, query_string);
 	}
 
 	if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
@@ -820,9 +820,9 @@ void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_s
 	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
 }
 
-void Server::_execveChild(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string)
+void Server::_execveChild(Client &client, const std::string &cgi_execve_path, const std::string &script_name, const std::string &path_info, const std::string &query_string)
 {
-	char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
+	char *argv0 = const_cast<char *>(cgi_execve_path.c_str());
 	char *argv1 = const_cast<char *>(script_name.c_str());
 	char *argv2 = const_cast<char *>(path_info.c_str());
 
@@ -858,7 +858,7 @@ void Server::_execveChild(Client &client, const Config::CGISettingsDirective &cg
 	const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
 	char **cgi_env = const_cast<char **>(cgi_env_vec.data());
 
-	execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
+	execve(cgi_execve_path.c_str(), argv, cgi_env);
 
 	// This gets turned into a ClientException by the parent process
 	throw Utils::SystemException("execve");
@@ -892,8 +892,8 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 			resolved.resolved = true;
 
-			resolved.is_cgi_directory = location.is_cgi_directory;
-			resolved.cgi_settings = location.cgi_settings;
+			resolved.is_cgi_directory = !location.cgi_execve_path.empty();
+			resolved.cgi_execve_path = location.cgi_execve_path;
 
 			resolved.path_info = "";
 			resolved.query_string = "";

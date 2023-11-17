@@ -23,18 +23,11 @@ public:
 	Config();
 	void init(const JSON &json);
 
-	struct CGISettingsDirective
-	{
-		std::string cgi_execve_path;
-		std::string cgi_execve_argv0;
-	};
-
 	struct LocationDirective
 	{
 		std::string uri;
 
-		bool is_cgi_directory;
-		CGISettingsDirective cgi_settings;
+		std::string cgi_execve_path;
 
 		bool get_allowed;
 		bool post_allowed;
@@ -156,11 +149,6 @@ private:
 	struct ConfigExceptionCantHaveBothIndexAndAutoindex : public ConfigException
 	{
 		ConfigExceptionCantHaveBothIndexAndAutoindex() : ConfigException("Config exception: Can't have both index and autoindex"){};
-	};
-
-	struct ConfigExceptionMissingCGISettingsProperty : public ConfigException
-	{
-		ConfigExceptionMissingCGISettingsProperty() : ConfigException("Config exception: Missing cgi_settings property"){};
 	};
 
 	struct ConfigExceptionInvalidErrorPageCode : public ConfigException

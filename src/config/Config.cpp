@@ -183,42 +183,9 @@ Config::LocationDirective Config::_parseLocation(const std::pair<std::string, No
 		const std::string &location_property_key = location_property_it.first;
 		const Node &location_property_value = location_property_it.second;
 
-		if (location_property_key == "cgi_settings")
+		if (location_property_key == "cgi_execve_path")
 		{
-			CGISettingsDirective &cgi_settings_directive = location_directive.cgi_settings;
-
-			location_directive.is_cgi_directory = true;
-
-			const auto &cgi_settings_object = location_property_value.getObject();
-
-			if (!cgi_settings_object.contains("cgi_execve_path"))
-			{
-				throw ConfigExceptionMissingCGISettingsProperty();
-			}
-
-			for (const auto &cgi_setting : cgi_settings_object)
-			{
-				const std::string &settings_property_key = cgi_setting.first;
-				const std::string &settings_property_value = cgi_setting.second.getString();
-
-				if (settings_property_key == "cgi_execve_path")
-				{
-					cgi_settings_directive.cgi_execve_path = settings_property_value;
-
-					if (!cgi_settings_object.contains("cgi_execve_argv0"))
-					{
-						cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
-					}
-				}
-				else if (settings_property_key == "cgi_execve_argv0")
-				{
-					cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
-				}
-				else
-				{
-					throw ConfigExceptionUnknownKey();
-				}
-			}
+			location_directive.cgi_execve_path = location_property_value.getString();
 		}
 		else if (location_property_key == "get_allowed")
 		{

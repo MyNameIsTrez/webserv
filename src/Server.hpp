@@ -65,8 +65,8 @@ private:
 	void _removeClient(int fd);
 	void _removeClientAttachments(int fd);
 
-	void _startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string);
-	void _execveChild(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string);
+	void _startCGI(Client &client, const std::string &cgi_execve_path, const std::string &script_name, const std::string &path_info, const std::string &query_string);
+	void _execveChild(Client &client, const std::string &cgi_execve_path, const std::string &script_name, const std::string &path_info, const std::string &query_string);
 	std::vector<const char *> _getCGIEnv(const std::vector<std::string> &cgi_headers);
 
 	struct ResolvedLocation
@@ -74,7 +74,7 @@ private:
 		bool resolved;
 
 		bool is_cgi_directory;
-		Config::CGISettingsDirective cgi_settings;
+		std::string cgi_execve_path;
 
 		std::string path_info;
 		std::string query_string;

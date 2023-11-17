@@ -11,16 +11,20 @@
 	],
 	"properties": {
 		"connection_queue_length": {
+			"description": "How many connections can be queued before they start being rejected.",
 			"type": "integer",
 			"minimum": 1
 		},
 		"client_max_body_size": {
+			"description": "The client's max body size.",
 			"type": "integer",
 			"minimum": 0
 		},
 		"servers": {
+			"description": "An array of servers.",
 			"type": "array",
 			"items": {
+				"description": "A server.",
 				"type": "object",
 				"additionalProperties": false,
 				"required": [
@@ -31,57 +35,57 @@
 				],
 				"properties": {
 					"listen": {
+						"description": "An array of host:port combinations to listen to.",
 						"type": "array",
 						"items": {
 							"type": "string"
 						}
 					},
 					"server_names": {
+						"description": "The names this server goes by.",
 						"type": "array",
 						"items": {
 							"type": "string"
 						}
 					},
 					"locations": {
+						"description": "Locations that clients can request.",
 						"type": "object",
 						"additionalProperties": {
+							"description": "A location.",
 							"type": "object",
 							"additionalProperties": false,
 							"properties": {
-								"cgi_settings": {
-									"type": "object",
-									"additionalProperties": false,
-									"required": [
-										"cgi_execve_path"
-									],
-									"properties": {
-										"cgi_execve_path": {
-											"type": "string"
-										},
-										"cgi_execve_argv0": {
-											"type": "string"
-										}
-									}
+								"cgi_execve_path": {
+									"description": "The path to the executable that execve() uses to start your script. For example '/usr/bin/python3'.",
+									"type": "string"
 								},
 								"get_allowed": {
+									"description": "Whether GET requests are allowed.",
 									"type": "boolean"
 								},
 								"post_allowed": {
+									"description": "Whether POST requests are allowed.",
 									"type": "boolean"
 								},
 								"delete_allowed": {
+									"description": "Whether DELETE requests are allowed.",
 									"type": "boolean"
 								},
 								"autoindex": {
+									"description": "Whether autoindexing (directory listing) is turned on.",
 									"type": "boolean"
 								},
 								"index": {
+									"description": "A default file to provide if the user requests the directory.",
 									"type": "string"
 								},
 								"redirect": {
+									"description": "Redirects the client to the value's URL.",
 									"type": "string"
 								},
 								"root": {
+									"description": "Moves this request's root when the client requests this location.",
 									"type": "string"
 								}
 							},
@@ -152,8 +156,10 @@
 						}
 					},
 					"error_pages": {
+						"description": "An array of error pages.",
 						"type": "object",
 						"additionalProperties": {
+							"description": "An error page path.",
 							"type": "string"
 						}
 					}

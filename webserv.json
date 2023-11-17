@@ -26,9 +26,7 @@
 				},
 				"/cgis/bin": {
 					"root": ".",
-					"cgi_settings": {
-						"cgi_execve_path": "/home/sbos/Programming/webserv/cgis/bin/execve"
-					},
+					"cgi_execve_path": "/home/sbos/Programming/webserv/cgis/bin/execve",
 					"get_allowed": true,
 					"post_allowed": true,
 					"delete_allowed": true,
@@ -36,9 +34,7 @@
 				},
 				"/cgis/python": {
 					"root": ".",
-					"cgi_settings": {
-						"cgi_execve_path": "/usr/bin/python3"
-					},
+					"cgi_execve_path": "/usr/bin/python3",
 					"get_allowed": true,
 					"post_allowed": true,
 					"delete_allowed": true,
