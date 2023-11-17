@@ -90,6 +90,20 @@ void Config::init(const JSON &json)
 
 					const std::string &page_path = error_page_node.second.getString();
 
+					// TODO: Make sure *every* Status enum is in here!
+					if (error_code != 200
+						&& error_code != 301
+						&& error_code != 302
+						&& error_code != 400
+						&& error_code != 403
+						&& error_code != 404
+						&& error_code != 405
+						&& error_code != 413
+						&& error_code != 500)
+					{
+						throw ConfigExceptionInvalidErrorPageCode();
+					}
+
 					server_directive.error_pages.emplace(Status::Status(error_code), page_path);
 				}
 			}
