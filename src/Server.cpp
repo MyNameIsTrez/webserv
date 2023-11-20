@@ -90,25 +90,8 @@ void Server::run(void)
         if (shutting_down_gracefully && servers_active)
         {
             L::info("\nShutting down gracefully...");
-
             servers_active = false;
-
-            for (const auto &fd_to_fd_type_pair : _fd_to_fd_type)
-            {
-                if (fd_to_fd_type_pair.second == FdType::SERVER)
-                {
-                    int fd = fd_to_fd_type_pair.first;
-
-                    size_t pfd_index = _fd_to_pfd_index.at(fd);
-                    _fd_to_pfd_index[_pfds.back().fd] = pfd_index;
-                    _swapRemove(_pfds, pfd_index);
-
-                    _fd_to_pfd_index.erase(fd);
-                    // We're not erasing from _fd_to_fd_type, since we're looping through it
-
-                    T::close(fd);
-                }
-            }
+            _shutDownGracefully();
         }
 
         // If the only fd left in _pfds is _sig_chld_pipe[PIPE_READ_INDEX], return
@@ -161,6 +144,24 @@ template <typename T> void Server::_swapRemove(T &vector, size_t index)
 {
     vector[index] = vector.back();
     vector.pop_back();
+}
+
+void Server::_shutDownGracefully(void)
+{
+    for (auto [fd, fd_type] : _fd_to_fd_type)
+    {
+        if (fd_type == FdType::SERVER)
+        {
+            size_t pfd_index = _fd_to_pfd_index.at(fd);
+            _fd_to_pfd_index[_pfds.back().fd] = pfd_index;
+            _swapRemove(_pfds, pfd_index);
+
+            _fd_to_pfd_index.erase(fd);
+            // We're not erasing from _fd_to_fd_type, since we're looping through it
+
+            T::close(fd);
+        }
+    }
 }
 
 void Server::_printContainerSizes(void)

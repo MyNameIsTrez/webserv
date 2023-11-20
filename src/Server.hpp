@@ -30,6 +30,7 @@ class Server
     };
 
     // UTILS
+    void _shutDownGracefully(void);
     void _printContainerSizes(void);
     void _printEvents(const pollfd &pfd, FdType fd_type);
     void _processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds);
