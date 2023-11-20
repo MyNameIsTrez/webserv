@@ -8,11 +8,8 @@
 
 #include <set>
 
-Config::Config(void) : connection_queue_length(), client_max_body_size(), servers(), bind_info_to_server_indices()
-{
-}
-
-void Config::init(const JSON &json)
+Config::Config(const JSON &json)
+    : connection_queue_length(), client_max_body_size(), servers(), bind_info_to_server_indices()
 {
     const auto &root_object = json.root.getObject();
 

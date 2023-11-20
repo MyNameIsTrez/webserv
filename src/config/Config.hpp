@@ -20,8 +20,7 @@ struct Node;
 class Config
 {
   public:
-    Config();
-    void init(const JSON &json);
+    Config(const JSON &json);
 
     struct LocationDirective
     {
