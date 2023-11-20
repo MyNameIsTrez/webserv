@@ -14,7 +14,7 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t *bytes, size_t length)
 
     try
     {
-        JSON json(config_stream);
+        JSON json(config_stream, 5);
 
         Config config(json);
     }

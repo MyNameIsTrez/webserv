@@ -23,7 +23,7 @@ static void run(int argc, char *argv[], char *buf)
 
     try
     {
-        JSON json(config_stream);
+        JSON json(config_stream, 5);
 
         Config config(json);
     }

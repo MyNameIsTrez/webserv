@@ -47,6 +47,7 @@ CFILES :=\
 	src/config/Node.cpp\
 	src/config/Tokenizer.cpp\
 	src/Logger.cpp\
+	src/Utils.cpp\
 	fuzzing/src/main.cpp
 
 ################################################################################
