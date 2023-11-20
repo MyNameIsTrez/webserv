@@ -67,9 +67,6 @@ Server::Server(const Config &config)
 	signal(SIGINT, _sigIntHandler);
 	signal(SIGPIPE, SIG_IGN);
 
-	// Demonstration purposes
-	// if (write(-1, "", 0)) throw Utils::SystemException("write");
-
 	if (pipe(_sig_chld_pipe) == -1) throw Utils::SystemException("pipe");
 	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
 	Logger::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
@@ -395,8 +392,7 @@ void Server::_sigChldHandler(int signum)
 	(void)signum;
 	Logger::info(std::string("In _sigChldHandler()"));
 
-	char dummy = '!';
-	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1) throw Utils::SystemException("write");
+	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], "!", 1) == -1) throw Utils::SystemException("write");
 }
 
 void Server::_handlePollnval(void)
