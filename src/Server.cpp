@@ -139,10 +139,10 @@ void Server::run(void)
             }
             throw T::SystemException("poll");
         }
-        // else if (event_count == 0)
-        // {
-        // 	L::info(std::string("poll() timed out"));
-        // }
+        else if (event_count == 0)
+        {
+            L::info("  poll() timed out");
+        }
 
         _printContainerSizes();
 
@@ -151,76 +151,7 @@ void Server::run(void)
         for (nfds_t pfd_index = _pfds.size(); pfd_index > 0;)
         {
             pfd_index--;
-
-            // If this pfd didn't have any event
-            if (_pfds[pfd_index].revents == 0)
-            {
-                continue;
-            }
-
-            int fd = _pfds[pfd_index].fd;
-
-            // If this pfd got removed
-            if (!_fd_to_pfd_index.contains(fd))
-            {
-                continue;
-            }
-
-            // If we've already iterated over this fd in this _pfds loop
-            if (seen_fds.contains(fd))
-            {
-                assert(false); // TODO: REMOVE! This is just here because I'm curious whether it happens
-                continue;
-            }
-            seen_fds.emplace(fd);
-
-            FdType fd_type = _fd_to_fd_type.at(fd);
-
-            _printEvents(_pfds[pfd_index], fd_type);
-
-            // TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
-            if (_pfds[pfd_index].revents & POLLNVAL)
-            {
-                _handlePollnval();
-            }
-
-            // If we are trying to write to a CGI script that closed its stdin,
-            // or we are trying to write to a disconnected client
-            if (_pfds[pfd_index].revents & POLLERR)
-            {
-                _handlePollerr(fd, fd_type);
-                continue;
-            }
-
-            // If the CGI script closed its stdout
-            if (_pfds[pfd_index].revents & POLLHUP)
-            {
-                assert(fd_type == FdType::CGI_TO_SERVER);
-
-                // If the server has read everything from the CGI script
-                if (!(_pfds[pfd_index].revents & POLLIN))
-                {
-                    _pollhupCGIToServer(fd);
-                    continue;
-                }
-            }
-
-            // If we can read
-            if (_pfds[pfd_index].revents & POLLIN)
-            {
-                bool skip_client = false;
-                _handlePollin(fd, fd_type, skip_client);
-                if (skip_client)
-                {
-                    continue;
-                }
-            }
-
-            // If we can write
-            if (_pfds[pfd_index].revents & POLLOUT)
-            {
-                _handlePollout(fd, fd_type, pfd_index);
-            }
+            _processPfd(_pfds[pfd_index], seen_fds);
         }
     }
 }
@@ -240,6 +171,77 @@ void Server::_printContainerSizes(void)
             ", _fd_to_client_index=" + std::to_string(_fd_to_client_index.size()) + ", _fd_to_pfd_index=" +
             std::to_string(_fd_to_pfd_index.size()) + ", _fd_to_fd_type=" + std::to_string(_fd_to_fd_type.size()) +
             " | VECTORS: " + "_clients=" + std::to_string(_clients.size()) + ", _pfds=" + std::to_string(_pfds.size()));
+}
+
+void Server::_processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds)
+{
+    // If this pfd didn't have any event
+    if (pfd.revents == 0)
+    {
+        return;
+    }
+
+    int fd = pfd.fd;
+
+    // If this pfd got removed
+    if (!_fd_to_pfd_index.contains(fd))
+    {
+        return;
+    }
+
+    // If we've already iterated over this fd in this _pfds loop
+    // This never happened in practice, but it doesn't hurt ¯\_(ツ)_/¯
+    if (seen_fds.contains(fd))
+    {
+        return;
+    }
+    seen_fds.emplace(fd);
+
+    FdType fd_type = _fd_to_fd_type.at(fd);
+
+    _printEvents(pfd, fd_type);
+
+    // TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
+    if (pfd.revents & POLLNVAL)
+    {
+        _handlePollnval();
+    }
+
+    // If we are trying to write to a CGI script that closed its stdin,
+    // or we are trying to write to a disconnected client
+    if (pfd.revents & POLLERR)
+    {
+        _handlePollerr(fd, fd_type);
+        return;
+    }
+
+    // If the CGI script closed its stdout
+    if (pfd.revents & POLLHUP)
+    {
+        assert(fd_type == FdType::CGI_TO_SERVER);
+
+        // If the server has read everything from the CGI script
+        if (!(pfd.revents & POLLIN))
+        {
+            _pollhupCGIToServer(fd);
+            return;
+        }
+    }
+
+    // If we can read
+    if (pfd.revents & POLLIN)
+    {
+        bool skip_client = false;
+        _handlePollin(fd, fd_type, skip_client);
+        if (skip_client)
+            return;
+    }
+
+    // If we can write
+    if (pfd.revents & POLLOUT)
+    {
+        _handlePollout(fd, fd_type);
+    }
 }
 
 void Server::_printEvents(const pollfd &pfd, FdType fd_type)
@@ -987,13 +989,13 @@ size_t Server::_getServerIndexFromClientServerName(const Client &client)
     return server_indices.at(0);
 }
 
-void Server::_handlePollout(int fd, FdType fd_type, nfds_t pfd_index)
+void Server::_handlePollout(int fd, FdType fd_type)
 {
     Client &client = _getClient(fd);
 
     if (fd_type == FdType::SERVER_TO_CGI)
     {
-        _writeToCGI(client, pfd_index);
+        _writeToCGI(client);
     }
     else if (fd_type == FdType::CLIENT)
     {
@@ -1006,7 +1008,7 @@ void Server::_handlePollout(int fd, FdType fd_type, nfds_t pfd_index)
     }
 }
 
-void Server::_writeToCGI(Client &client, nfds_t pfd_index)
+void Server::_writeToCGI(Client &client)
 {
     L::info(std::string("  Writing from the server to the CGI..."));
 
@@ -1031,6 +1033,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
         L::info(std::string("    write() detected 'Broken pipe'"));
 
         L::info(std::string("    Disabling server_to_cgi POLLOUT"));
+        size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
         _disableEvent(pfd_index, POLLOUT);
 
         client.server_to_cgi_state = Client::ServerToCGIState::DONE;
@@ -1043,6 +1046,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
     if (client.body_index == client.body.length())
     {
         L::info(std::string("    Disabling server_to_cgi POLLOUT"));
+        size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
         _disableEvent(pfd_index, POLLOUT);
 
         client.server_to_cgi_state = Client::ServerToCGIState::DONE;

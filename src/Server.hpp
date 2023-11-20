@@ -3,6 +3,8 @@
 #include "Client.hpp"
 #include "config/Config.hpp"
 
+#include <unordered_set>
+
 class Server
 {
   public:
@@ -30,6 +32,7 @@ class Server
     // UTILS
     void _printContainerSizes(void);
     void _printEvents(const pollfd &pfd, FdType fd_type);
+    void _processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds);
 
     Client &_getClient(int fd);
 
@@ -99,8 +102,8 @@ class Server
     size_t _getServerIndexFromClientServerName(const Client &client);
 
     // POLLOUT
-    void _handlePollout(int fd, FdType fd_type, nfds_t pfd_index);
-    void _writeToCGI(Client &client, nfds_t pfd_index);
+    void _handlePollout(int fd, FdType fd_type);
+    void _writeToCGI(Client &client);
     void _writeToClient(Client &client, int fd);
 
     // SIGNAL HANDLERS
