@@ -75,7 +75,6 @@ Server::~Server(void)
 
 void Server::run(void)
 {
-    // TODO: Handle multiple servers
     bool servers_active = true;
 
     std::unordered_set<int> seen_fds;
@@ -98,7 +97,6 @@ void Server::run(void)
         }
         else if (shutting_down_gracefully)
         {
-            // TODO: Do we want to use : iteration in other spots too?
             for (pollfd pfd : _pfds)
             {
                 L::info(std::string("  Waiting for poll fd ") + std::to_string(pfd.fd));
@@ -196,10 +194,9 @@ void Server::_processPfd(size_t pfd_index, std::unordered_set<int> &seen_fds)
 
     _printEvents(_pfds[pfd_index], fd_type);
 
-    // TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
     if (_pfds[pfd_index].revents & POLLNVAL)
     {
-        _handlePollnval();
+        assert(false);
     }
 
     // If we are trying to write to a CGI script that closed its stdin,
@@ -256,11 +253,8 @@ void Server::_printEvents(const pollfd &pfd, FdType fd_type)
             ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "") + ((pfd.revents & POLLERR) ? " POLLERR" : ""));
 }
 
-// TODO: Don't let _fd_to_client_index nor _clients be passed in, by just getting it from the member variable;
-// TODO: Do the same for other methods that are getting useless args!
-// This is called in many spots
-// due to the fact that client pointer can dangle
-// whenever the _clients vector resizes
+// This is called in many spots due to the fact
+// that a client pointer can dangle whenever the _clients vector resizes
 Client &Server::_getClient(int fd)
 {
     size_t client_index = _fd_to_client_index.at(fd);
@@ -309,8 +303,6 @@ void Server::_disableEvent(size_t pfd_index, short int event)
 
 void Server::_enableWritingToClient(Client &client)
 {
-    // TODO: Assert that response isn't empty?
-
     L::info(std::string("    In _enableWritingToClient()"));
     size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
     _enableEvent(client_pfd_index, POLLOUT);
@@ -320,8 +312,6 @@ void Server::_enableWritingToClient(Client &client)
 
 void Server::_enableWritingToCGI(Client &client)
 {
-    // TODO: Assert that response isn't empty?
-
     assert(client.server_to_cgi_state != Client::ServerToCGIState::DONE);
     assert(client.server_to_cgi_fd != -1);
 
@@ -363,13 +353,6 @@ void Server::_addFd(int fd, FdType fd_type, short int events)
     pfd.fd = fd;
     pfd.events = events;
     _pfds.push_back(pfd);
-}
-
-void Server::_handlePollnval(void)
-{
-    // TODO: Remove the client?
-    // TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
-    assert(false);
 }
 
 void Server::_handlePollerr(int fd, FdType fd_type)

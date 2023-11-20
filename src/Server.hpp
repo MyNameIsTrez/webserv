@@ -50,9 +50,6 @@ class Server
     void _addClientFd(int fd, size_t client_index, FdType fd_type, short int events);
     void _addFd(int fd, FdType fd_type, short int events);
 
-    // POLLNVAL
-    void _handlePollnval(void);
-
     // POLLERR
     void _handlePollerr(int fd, FdType fd_type);
 

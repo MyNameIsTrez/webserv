@@ -886,7 +886,7 @@ std::string Client::_getFileName(const std::string &path)
     return path.substr(slash_index + 1);
 }
 
-// TODO: Remove?
+// TODO: Remove? This has to do with the RFC asking us to relace the CGI's \n of headers with \r\n
 // std::string Client::_replaceAll(std::string input, const std::string&
 // needle, const std::string& replacement)
 // {
