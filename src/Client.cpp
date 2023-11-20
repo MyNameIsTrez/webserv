@@ -13,8 +13,9 @@
 #include <filesystem>
 #include <poll.h>
 #include <sstream>
-#include <unistd.h>
 #include <vector>
+
+namespace L = Logger;
 
 const char *Client::reason_phrase_table[] = {
 	[Status::OK] = "OK",
@@ -164,7 +165,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		std::vector<std::string> header_lines = this->_getHeaderLines();
 
 		std::string request_line = header_lines.at(0);
-		// Logger::debug("request_line: " + request_line);
+		// L::debug("request_line: " + request_line);
 		header_lines.erase(header_lines.begin());
 
 		this->_parseRequestLine(request_line);
@@ -279,7 +280,7 @@ void Client::respondWithFile(const std::string &path)
 		this->_response_content_type = it->second;
 	}
 
-	// Logger::info(std::string("    File name: '") + _getFileName(path) + "'");
+	// L::info(std::string("    File name: '") + _getFileName(path) + "'");
 	if (_getFileName(path) == "Makefile")
 	{
 		this->_response_content_type = "text/plain";
@@ -368,16 +369,16 @@ void Client::respondWithCreateFile(const std::string &path)
 
 	if (outfile)
 	{
-		Logger::debug("    File already exists");
+		L::debug("    File already exists");
 		throw ClientException(Status::BAD_REQUEST);
 	}
 
-	Logger::debug("    Creating file");
+	L::debug("    Creating file");
 	outfile.open(path, std::fstream::out);
 
 	if (!outfile)
 	{
-		Logger::debug("    Couldn't create file");
+		L::debug("    Couldn't create file");
 		throw ClientException(Status::BAD_REQUEST);
 	}
 
@@ -402,9 +403,9 @@ void Client::respondWithDeleteFile(const std::string &path)
 
 void Client::prependResponseHeader(void)
 {
-	Logger::info(std::string("    In prependResponseHeader()"));
+	L::info(std::string("    In prependResponseHeader()"));
 
-	Logger::debug("this->status: " + std::to_string(this->status));
+	L::debug("this->status: " + std::to_string(this->status));
 
 	std::string response_body = this->response;
 	this->response = "";
@@ -419,12 +420,6 @@ void Client::prependResponseHeader(void)
 		+ reason_phrase
 		+ "\r\n";
 
-	// TODO: Add?
-	// this->_addResponseHeader("Server", "webserv");
-
-	// TODO: Add?
-	// this->_addResponseHeader("Date", "Tue, 24 Oct 2023 08:27:34 GMT");
-
 	_addResponseHeader("Content-Type", this->_response_content_type);
 
 	// TODO: Use cgi_exit_status
@@ -436,7 +431,6 @@ void Client::prependResponseHeader(void)
 
 	_addResponseHeader("Content-Length", content_length_ss.str());
 
-	// TODO: Add more special status cases?
 	if (this->status == Status::MOVED_PERMANENTLY)
 	{
 		this->_addResponseHeader("Location", "http://" + this->server_name + ":" + this->server_port + this->request_target + "/");
@@ -458,7 +452,7 @@ void Client::prependResponseHeader(void)
 // See CGI RFC 3875 section 6.2.1. Document Response
 void Client::extractCGIDocumentResponseHeaders(void)
 {
-	Logger::info(std::string("    In extractCGIDocumentResponseHeaders()"));
+	L::info(std::string("    In extractCGIDocumentResponseHeaders()"));
 	// this->_header.append(received, bytes_read);
 
 	// We don't send the CGI headers on 500 Internal Server Error
@@ -475,12 +469,12 @@ void Client::extractCGIDocumentResponseHeaders(void)
 	}
 
 	std::string cgi_header = std::string(this->response.begin(), this->response.begin() + separator_index + 1);
-	// Logger::debug("cgi_header is '" + cgi_header + "'");
+	// L::debug("cgi_header is '" + cgi_header + "'");
 
 	// Erase the CGI header from this->response
-	// Logger::debug("separator_index is '" + std::to_string(separator_index) + "'");
+	// L::debug("separator_index is '" + std::to_string(separator_index) + "'");
 	this->response.erase(0, separator_index + 2);
-	// Logger::debug("this->response is '" + this->response + "'");
+	// L::debug("this->response is '" + this->response + "'");
 
 	std::vector<std::string> cgi_header_lines;
 
@@ -492,7 +486,7 @@ void Client::extractCGIDocumentResponseHeaders(void)
 			break;
 		std::string header_line = cgi_header.substr(start, i - start);
 		cgi_header_lines.push_back(header_line);
-		// Logger::debug("Pushed header line '" + header_line + "'");
+		// L::debug("Pushed header line '" + header_line + "'");
 		start = i + 1;
 	}
 
@@ -518,10 +512,10 @@ void Client::extractCGIDocumentResponseHeaders(void)
 	{
 		// See CGI RFC 3875 section 6.3.3. Status
 		std::string status_string = cgi_headers.at("STATUS");
-		// Logger::debug("status_string: " + status_string);
+		// L::debug("status_string: " + status_string);
 
 		size_t space_index = status_string.find(' ');
-		// Logger::debug("space_index: " + std::to_string(space_index));
+		// L::debug("space_index: " + std::to_string(space_index));
 		if (space_index == std::string::npos)
 		{
 			this->status = Status::INTERNAL_SERVER_ERROR;
@@ -529,10 +523,10 @@ void Client::extractCGIDocumentResponseHeaders(void)
 		}
 
 		std::string status_code_string = status_string.substr(0, space_index);
-		// Logger::debug("status_code_string: '" + status_code_string + "'");
+		// L::debug("status_code_string: '" + status_code_string + "'");
 
 		std::string reason_phrase = status_string.substr(space_index + 1);
-		// Logger::debug("reason_phrase: '" + reason_phrase + "'");
+		// L::debug("reason_phrase: '" + reason_phrase + "'");
 
 		int status_code;
 		if (!Utils::parseNumber(status_code_string, status_code, 999))
@@ -570,7 +564,7 @@ std::vector<std::string> Client::_getHeaderLines(void)
 {
 	std::vector<std::string> header_lines;
 
-	// Logger::debug("this->_header is '" + this->_header + "'");
+	// L::debug("this->_header is '" + this->_header + "'");
 
 	size_t start = 0;
 	while (true)
@@ -580,7 +574,7 @@ std::vector<std::string> Client::_getHeaderLines(void)
 			break;
 		std::string header_line = this->_header.substr(start, i - start);
 		header_lines.push_back(header_line);
-		// Logger::debug("Pushed header line '" + header_line + "'");
+		// L::debug("Pushed header line '" + header_line + "'");
 		start = i + 2;
 	}
 
@@ -596,7 +590,7 @@ void Client::_parseRequestLine(const std::string &line)
 	std::string request_method_string = line.substr(0, request_method_end_pos);
 	this->request_method = this->_getRequestMethodEnumFromString(request_method_string);
 	request_method_end_pos++;
-	Logger::info(std::string("    Request method: '") + this->getRequestMethodString() + "'");
+	L::info(std::string("    Request method: '") + this->getRequestMethodString() + "'");
 
 	// Find and set the request target
 	size_t path_end_pos = line.find_last_of(" ");
@@ -604,14 +598,14 @@ void Client::_parseRequestLine(const std::string &line)
 
 	this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
 	if (this->request_target.empty() || this->request_target.at(0) != '/') throw ClientException(Status::BAD_REQUEST);
-	Logger::info(std::string("    Request target: '") + this->request_target + "'");
+	L::info(std::string("    Request target: '") + this->request_target + "'");
 
 	path_end_pos++;
 
 	// Set the protocol
 	this->protocol = line.substr(path_end_pos);
 	if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
-	Logger::info(std::string("    Protocol: '") + this->protocol + "'");
+	L::info(std::string("    Protocol: '") + this->protocol + "'");
 }
 
 Client::RequestMethod Client::_getRequestMethodEnumFromString(const std::string &request_method_string) const
@@ -670,7 +664,7 @@ bool Client::_fillHeaders(const std::vector<std::string> &header_lines, std::uno
 
 		// Add key and value to the map
 		filled_headers.emplace(key, value);
-		// Logger::info(std::string("    Header key: '") + key + "', value: '" + value + "'");
+		// L::info(std::string("    Header key: '") + key + "', value: '" + value + "'");
 	}
 
 	return true;
@@ -692,7 +686,7 @@ void Client::_useHeaders(void)
 
 		if (!Utils::parseNumber(content_length_it->second, this->content_length, std::numeric_limits<size_t>::max())) throw ClientException(Status::BAD_REQUEST);
 
-		Logger::info(std::string("    Content length: ") + std::to_string(this->content_length));
+		L::info(std::string("    Content length: ") + std::to_string(this->content_length));
 	}
 
 	const auto &host_it = this->headers.find("HOST");
@@ -734,7 +728,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 {
 	if (this->_is_chunked)
 	{
-		Logger::info(std::string("Parsing chunked body substring"));
+		L::info(std::string("Parsing chunked body substring"));
 		this->_chunked_body_buffer.append(extra_body);
 		while (true)
 		{
@@ -806,7 +800,7 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 	// If request is not chunked
 	else
 	{
-		Logger::info(std::string("    Parsing non-chunked body substring"));
+		L::info(std::string("    Parsing non-chunked body substring"));
 		// If not all of extra_body should fit into the body
 		if (this->body.size() + extra_body.size() >= this->content_length)
 		{

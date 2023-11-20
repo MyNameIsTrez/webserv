@@ -16,6 +16,7 @@
 #include <sys/stat.h>
 #include <unordered_set>
 
+namespace L = Logger;
 namespace T = Throwing;
 
 bool shutting_down_gracefully = false;
@@ -42,7 +43,7 @@ Server::Server(const Config &config)
 
 		_bind_fd_to_server_indices.emplace(bind_fd, server_indices);
 
-		Logger::info(std::string("Adding address ") + std::to_string(bind_info.s_addr) + " with port " + std::to_string(ntohs(bind_info.sin_port)));
+		L::info(std::string("Adding address ") + std::to_string(bind_info.s_addr) + " with port " + std::to_string(ntohs(bind_info.sin_port)));
 		_bind_fd_to_port.emplace(bind_fd, std::to_string(ntohs(bind_info.sin_port)));
 
 		// Prevents "bind: Address already in use" error
@@ -61,7 +62,7 @@ Server::Server(const Config &config)
 
 		_addFd(bind_fd, FdType::SERVER, POLLIN);
 
-		Logger::info(std::string("Added bind fd ") + std::to_string(bind_fd));
+		L::info(std::string("Added bind fd ") + std::to_string(bind_fd));
 	}
 
 	T::signal(SIGINT, _sigIntHandler);
@@ -69,7 +70,7 @@ Server::Server(const Config &config)
 
 	T::pipe(_sig_chld_pipe);
 	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
-	Logger::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
+	L::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
 
 	T::signal(SIGCHLD, _sigChldHandler);
 }
@@ -94,7 +95,7 @@ void Server::run(void)
 	{
 		if (shutting_down_gracefully && servers_active)
 		{
-			Logger::info("\nShutting down gracefully...");
+			L::info("\nShutting down gracefully...");
 
 			servers_active = false;
 
@@ -120,7 +121,7 @@ void Server::run(void)
 		if (_pfds.size() == 1)
 		{
 			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
-			Logger::info(std::string("Gootbye"));
+			L::info(std::string("Gootbye"));
 			return;
 		}
 		else if (shutting_down_gracefully)
@@ -128,25 +129,25 @@ void Server::run(void)
 			// TODO: Do we want to use : iteration in other spots too?
 			for (pollfd pfd : _pfds)
 			{
-				Logger::info(std::string("  Waiting for poll fd ") + std::to_string(pfd.fd));
+				L::info(std::string("  Waiting for poll fd ") + std::to_string(pfd.fd));
 			}
 		}
 
-		Logger::info(std::string("Waiting for an event..."));
+		L::info(std::string("Waiting for an event..."));
 		// TODO: Consider having a timeout of 5000 ms or something again
 		int event_count = poll(_pfds.data(), _pfds.size(), -1);
 		if (event_count == -1)
 		{
 			if (errno == EINTR)
 			{
-				Logger::info(std::string("  poll() got interrupted by a signal handler"));
+				L::info(std::string("  poll() got interrupted by a signal handler"));
 				continue;
 			}
 			throw T::SystemException("poll");
 		}
 		// else if (event_count == 0)
 		// {
-		// 	Logger::info(std::string("poll() timed out"));
+		// 	L::info(std::string("poll() timed out"));
 		// }
 
 		_printContainerSizes();
@@ -240,7 +241,7 @@ void Server::_swapRemove(T &vector, size_t index)
 
 void Server::_printContainerSizes(void)
 {
-	Logger::info(
+	L::info(
 		std::string("MAPS: ")
 		+ "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size())
 		+ ", _bind_fd_to_port=" + std::to_string(_bind_fd_to_port.size())
@@ -255,7 +256,7 @@ void Server::_printContainerSizes(void)
 
 void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
-	Logger::info(
+	L::info(
 		std::string("  fd: " + std::to_string(pfd.fd))
 		+ ", fd_type: " + std::to_string(int(fd_type))
 		+ ", client_index: " + std::to_string((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
@@ -297,7 +298,7 @@ void Server::_removeFd(int &fd)
 {
 	assert(fd != -1);
 
-	Logger::info(std::string("    Removing fd ") + std::to_string(fd));
+	L::info(std::string("    Removing fd ") + std::to_string(fd));
 
 	size_t pfd_index = _fd_to_pfd_index.at(fd);
 	_fd_to_pfd_index[_pfds.back().fd] = pfd_index;
@@ -313,13 +314,13 @@ void Server::_removeFd(int &fd)
 
 void Server::_enableEvent(size_t pfd_index, short int event)
 {
-	Logger::info(std::string("    Enabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
+	L::info(std::string("    Enabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
 	_pfds[pfd_index].events |= event;
 }
 
 void Server::_disableEvent(size_t pfd_index, short int event)
 {
-	Logger::info(std::string("    Disabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
+	L::info(std::string("    Disabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
 	_pfds[pfd_index].events &= ~event;
 	_pfds[pfd_index].revents &= ~event;
 }
@@ -328,7 +329,7 @@ void Server::_enableWritingToClient(Client &client)
 {
 	// TODO: Assert that response isn't empty?
 
-	Logger::info(std::string("    In _enableWritingToClient()"));
+	L::info(std::string("    In _enableWritingToClient()"));
 	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
 	_enableEvent(client_pfd_index, POLLOUT);
 
@@ -342,7 +343,7 @@ void Server::_enableWritingToCGI(Client &client)
 	assert(client.server_to_cgi_state != Client::ServerToCGIState::DONE);
 	assert(client.server_to_cgi_fd != -1);
 
-	Logger::info(std::string("    In _enableWritingToCGI()"));
+	L::info(std::string("    In _enableWritingToCGI()"));
 	size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
 	_enableEvent(server_to_cgi_pfd_index, POLLOUT);
 
@@ -351,7 +352,7 @@ void Server::_enableWritingToCGI(Client &client)
 
 void Server::_disableReadingFromClient(Client &client)
 {
-	Logger::info(std::string("    In _disableReadingFromClient()"));
+	L::info(std::string("    In _disableReadingFromClient()"));
 	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
 	_disableEvent(client_pfd_index, POLLIN);
 
@@ -371,7 +372,7 @@ void Server::_addFd(int fd, FdType fd_type, short int events)
 {
 	assert(fd != -1);
 
-	Logger::info(std::string("    Adding fd ") + std::to_string(fd));
+	L::info(std::string("    Adding fd ") + std::to_string(fd));
 
 	_fd_to_fd_type.emplace(fd, fd_type);
 	_fd_to_pfd_index.emplace(fd, _pfds.size());
@@ -410,7 +411,7 @@ void Server::_handlePollerr(int fd, FdType fd_type)
 
 void Server::_pollhupCGIToServer(int fd)
 {
-	Logger::info(std::string("  In _pollhupCGIToServer()"));
+	L::info(std::string("  In _pollhupCGIToServer()"));
 
 	Client &client = _getClient(fd);
 
@@ -437,7 +438,7 @@ void Server::_pollhupCGIToServer(int fd)
 
 void Server::_cgiEnd(Client &client)
 {
-	Logger::debug("client.cgi_exit_status: " + std::to_string(client.cgi_exit_status));
+	L::debug("client.cgi_exit_status: " + std::to_string(client.cgi_exit_status));
 	if (client.cgi_exit_status != 0)
 	{
 		_respondClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
@@ -489,7 +490,7 @@ void Server::_handlePollin(int fd, FdType fd_type, bool &skip_client)
 void Server::_acceptClient(int server_fd)
 {
 	int client_fd = T::accept(server_fd, NULL, NULL);
-	Logger::info(std::string("    Accepted client fd ") + std::to_string(client_fd));
+	L::info(std::string("    Accepted client fd ") + std::to_string(client_fd));
 
 	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
@@ -502,7 +503,7 @@ void Server::_acceptClient(int server_fd)
 
 void Server::_reapChild(void)
 {
-	Logger::info(std::string("    In _reapChild()"));
+	L::info(std::string("    In _reapChild()"));
 
 	char dummy;
 	T::read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1);
@@ -548,12 +549,12 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 {
 	char received[MAX_RECEIVED_LEN] = {};
 
-	Logger::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
+	L::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
 
 	ssize_t bytes_read = T::read(fd, received, MAX_RECEIVED_LEN);
 	if (bytes_read == 0)
 	{
-		Logger::info(std::string("    Read 0 bytes"));
+		L::info(std::string("    Read 0 bytes"));
 
 		// TODO: Assert that we reached content_length
 		// TODO: Probably need to send the client a response like "expected more body bytes" if it's less than content_length
@@ -571,7 +572,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 	// assert(client.cgi_to_server_state != Client::CGIToServerState::DONE);
 	assert(client.server_to_client_state != Client::ServerToClientState::DONE);
 
-	Logger::info(std::string("    Read ") + std::to_string(bytes_read) + " bytes:\n----------\n" + std::string(received, bytes_read) + "\n----------\n");
+	L::info(std::string("    Read ") + std::to_string(bytes_read) + " bytes:\n----------\n" + std::string(received, bytes_read) + "\n----------\n");
 
 	if (fd_type == FdType::CLIENT)
 	{
@@ -586,7 +587,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 			const ResolvedLocation location = _resolveToLocation(client.request_target, server.locations);
 
-			Logger::info(std::string("    location.path: '") + location.path + "'");
+			L::info(std::string("    location.path: '") + location.path + "'");
 
 			if (!location.resolved)
 			{
@@ -665,7 +666,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 	else if (fd_type == FdType::CGI_TO_SERVER)
 	{
 		assert(client.cgi_to_server_state == Client::CGIToServerState::READING);
-		Logger::info(std::string("    Adding this substr to the response:\n----------\n") + std::string(received, bytes_read) + "\n----------\n");
+		L::info(std::string("    Adding this substr to the response:\n----------\n") + std::string(received, bytes_read) + "\n----------\n");
 		client.response += std::string(received, bytes_read);
 	}
 	else
@@ -678,7 +679,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 void Server::_removeClient(int fd)
 {
 	assert(fd != -1);
-	Logger::info(std::string("  Removing client with fd ") + std::to_string(fd));
+	L::info(std::string("  Removing client with fd ") + std::to_string(fd));
 
 	_removeClientAttachments(fd);
 
@@ -697,7 +698,7 @@ void Server::_removeClient(int fd)
 
 void Server::_removeClientAttachments(int fd)
 {
-	Logger::info(std::string("  Removing client attachments with fd ") + std::to_string(fd));
+	L::info(std::string("  Removing client attachments with fd ") + std::to_string(fd));
 
 	Client &client = _getClient(fd);
 
@@ -715,7 +716,7 @@ void Server::_removeClientAttachments(int fd)
 
 	if (client.cgi_pid != -1)
 	{
-		Logger::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") + std::to_string(client.cgi_pid));
+		L::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") + std::to_string(client.cgi_pid));
 		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
 		T::kill(client.cgi_pid, SIGTERM);
 
@@ -726,7 +727,7 @@ void Server::_removeClientAttachments(int fd)
 
 void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const std::string &script_name, const std::string &path_info, const std::string &query_string)
 {
-	Logger::info(std::string("  Starting CGI..."));
+	L::info(std::string("  Starting CGI..."));
 
 	int server_to_cgi_pipe[2];
 	int cgi_to_server_pipe[2];
@@ -765,7 +766,7 @@ void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const
 
 	if (client.server_to_cgi_state == Client::ServerToCGIState::DONE)
 	{
-		Logger::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
+		L::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
 		T::close(server_to_cgi_fd);
 	}
 	else
@@ -774,14 +775,14 @@ void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const
 		client.server_to_cgi_fd = server_to_cgi_fd;
 		client.server_to_cgi_state = Client::ServerToCGIState::WRITING;
 		_enableWritingToCGI(client);
-		Logger::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
+		L::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
 	}
 
 	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];
 	_addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
 	client.cgi_to_server_fd = cgi_to_server_fd;
 	client.cgi_to_server_state = Client::CGIToServerState::READING;
-	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
+	L::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
 }
 
 void Server::_execveChild(Client &client, const std::string &cgi_execve_path, const std::string &script_name, const std::string &path_info, const std::string &query_string)
@@ -894,8 +895,8 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 					resolved.path = unsplit_path.substr(0, path_end_index);
 
 					// TODO: Remove
-					// Logger::debug("path_end_index: " + std::to_string(path_end_index));
-					// Logger::debug("resolved.path: " + resolved.path);
+					// L::debug("path_end_index: " + std::to_string(path_end_index));
+					// L::debug("resolved.path: " + resolved.path);
 
 					target_is_directory = std::filesystem::is_directory(resolved.path);
 
@@ -926,17 +927,17 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
 					resolved.query_string = unsplit_path.substr(resolved.path.length() + resolved.path_info.length());
 
-					Logger::debug("    resolved.path before resolve: " + resolved.path);
+					L::debug("    resolved.path before resolve: " + resolved.path);
 
 					// Resolves "/.." to "/" to prevent escaping directories
 					resolved.path = std::filesystem::weakly_canonical(resolved.path);
 					// Resolving path_info may not be correct, I'm not sure, but it makes scripting easier
 					resolved.path_info = std::filesystem::weakly_canonical(resolved.path_info);
 
-					Logger::debug("    unsplit_path: " + unsplit_path);
-					Logger::debug("    resolved.path: " + resolved.path);
-					Logger::debug("    resolved.path_info: " + resolved.path_info);
-					Logger::debug("    resolved.query_string: " + resolved.query_string);
+					L::debug("    unsplit_path: " + unsplit_path);
+					L::debug("    resolved.path: " + resolved.path);
+					L::debug("    resolved.path_info: " + resolved.path_info);
+					L::debug("    resolved.query_string: " + resolved.query_string);
 				}
 			}
 			else if (resolved.has_index)
@@ -958,7 +959,7 @@ bool Server::_isAllowedMethod(const ResolvedLocation &location, Client::RequestM
 
 void Server::_respondClientException(const Client::ClientException &e, Client &client)
 {
-	Logger::info(std::string("  ") + e.what());
+	L::info(std::string("  ") + e.what());
 
 	client.status = e.status;
 
@@ -1013,7 +1014,7 @@ void Server::_handlePollout(int fd, FdType fd_type, nfds_t pfd_index)
 
 void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 {
-	Logger::info(std::string("  Writing from the server to the CGI..."));
+	L::info(std::string("  Writing from the server to the CGI..."));
 
 	assert(client.server_to_cgi_state == Client::ServerToCGIState::WRITING);
 
@@ -1027,14 +1028,14 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 
 	client.body_index += body_substr_len;
 
-	Logger::info(std::string("    Sending this body substr to the CGI that has a length of ") + std::to_string(body_substr.length()) + " bytes:\n----------\n" + body_substr + "\n----------\n");
+	L::info(std::string("    Sending this body substr to the CGI that has a length of ") + std::to_string(body_substr.length()) + " bytes:\n----------\n" + body_substr + "\n----------\n");
 
 	if (write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length()) == -1)
 	{
 		// Happens when the CGI script closed its stdin
-		Logger::info(std::string("    write() detected 'Broken pipe'"));
+		L::info(std::string("    write() detected 'Broken pipe'"));
 
-		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
+		L::info(std::string("    Disabling server_to_cgi POLLOUT"));
 		_disableEvent(pfd_index, POLLOUT);
 
 		client.server_to_cgi_state = Client::ServerToCGIState::DONE;
@@ -1046,7 +1047,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 	// If we don't have anything left to write
 	if (client.body_index == client.body.length())
 	{
-		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
+		L::info(std::string("    Disabling server_to_cgi POLLOUT"));
 		_disableEvent(pfd_index, POLLOUT);
 
 		client.server_to_cgi_state = Client::ServerToCGIState::DONE;
@@ -1056,7 +1057,7 @@ void Server::_writeToCGI(Client &client, nfds_t pfd_index)
 
 void Server::_writeToClient(Client &client, int fd)
 {
-	Logger::info(std::string("  Writing to the client..."));
+	L::info(std::string("  Writing to the client..."));
 
 	assert(client.client_fd == fd);
 	assert(client.server_to_client_state == Client::ServerToClientState::WRITING);
@@ -1070,7 +1071,7 @@ void Server::_writeToClient(Client &client, int fd)
 
 	client.response_index += response_substr_len;
 
-	Logger::info(std::string("    Sending this response substr to the client that has a length of ") + std::to_string(response_substr.length()) + " bytes:\n----------\n" + response_substr + "\n----------\n");
+	L::info(std::string("    Sending this response substr to the client that has a length of ") + std::to_string(response_substr.length()) + " bytes:\n----------\n" + response_substr + "\n----------\n");
 
 	// sleep(5); // TODO: REMOVE
 
@@ -1098,7 +1099,7 @@ void Server::_sigIntHandler(int signum)
 void Server::_sigChldHandler(int signum)
 {
 	(void)signum;
-	Logger::info(std::string("In _sigChldHandler()"));
+	L::info(std::string("In _sigChldHandler()"));
 
 	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], "!", 1) == -1) throw T::SystemException("write");
 }

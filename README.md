@@ -90,6 +90,19 @@ This will print localhost's response: (by search-and-replacing example.com)
 3. Run `coverage.sh` to fuzz while generating coverage
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
 
+`/src/fuzzing/afl/afl-output/master/queue/id\:000000\,time\:0\,execs\:0\,orig\:example.txt afl-showmap -o xd.log -- /src/fuzzing/config_fuzzing_ctmin`
+
+`afl-analyze -i /src/fuzzing/afl/afl-output/master/queue/id\:000000\,time\:0\,execs\:0\,orig\:example.txt -- /src/fuzzing/config_fuzzing_ctmin`
+
+`Note: Found constructor function _GLOBAL__sub_I_Tokenizer.cpp with prio 65535, we will not instrument this, putting it into a block list.
+Note: Found constructor function asan.module_ctor.119 with prio 1, we will not instrument this, putting it into a block list.`
+
+`afl-tmin -i /src/fuzzing/tests/example.txt -o /src/fuzzing/afl/trimmed-tests/example.txt -- /src/fuzzing/config_fuzzing_ctmin`
+
+`rm -f /src/fuzzing/afl/minimized-tests/example.txt && AFL_DEBUG=1 afl-cmin -i /src/fuzzing/tests -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/config_fuzzing_ctmin`
+
+`close(open("wowie.txt", O_WRONLY | O_CREAT, 0644));`
+
 ## Manual multipart request submission
 `clear && cat manual_multi_form_request.txt | REQUEST_METHOD=POST HTTP_CONTENT_TYPE='multipart/form-data; boundary=----WebKitFormBoundaryBRGOgydgtRaDx2Ju' python3 cgis/python/upload.py`
 

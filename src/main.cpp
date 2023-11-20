@@ -38,6 +38,6 @@ int main(int argc, char *argv[])
 	Server server(config);
 	server.run();
 
-	// signal(SIGCHLD, SIG_DFL); // TODO: Put this back in
+	// signal(SIGCHLD, SIG_DFL); // TODO: Put this back in?
 	return EXIT_SUCCESS;
 }

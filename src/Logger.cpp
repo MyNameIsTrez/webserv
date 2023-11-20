@@ -1,7 +1,9 @@
 #include "Logger.hpp"
 
+namespace L = Logger;
+
 #ifdef SUPPRESS_LOGGING
-Logger::Level Logger::level = Logger::Level::NONE;
+L::Level L::level = L::Level::NONE;
 #else
-Logger::Level Logger::level = Logger::Level::DEBUG;
+L::Level L::level = L::Level::DEBUG;
 #endif
