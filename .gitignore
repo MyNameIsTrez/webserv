@@ -46,6 +46,7 @@
 !./fn_descriptions.c
 !./Makefile
 !./README.md
+!requirements.txt
 !./subject.pdf
 !./TODO.md
 !./webserv.conf
