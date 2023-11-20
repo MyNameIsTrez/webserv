@@ -634,7 +634,8 @@ bool Client::_fillHeaders(const std::vector<std::string> &header_lines, std::uno
 		if (i == std::string::npos || i == 0) return false;
 		std::string key = line.substr(0, i);
 
-		i++; // Skip ':'
+		// Skip ':'
+		i++;
 
 		// Capitalize letters and replace '-' with '_'
 		for (size_t j = 0; j < key.size(); j++)

@@ -39,7 +39,7 @@ Token Tokenizer::getToken()
 	char c = getWithoutWhitespace();
 
 	Token token;
-	if (c == '"') // STRING
+	if (c == '"')
 	{
 		token.type = Token::STRING;
 		token.string = "";
@@ -51,31 +51,31 @@ Token Tokenizer::getToken()
 			c = _getChar();
 		}
 	}
-	else if (c == '{') // OBJECT_OPEN
+	else if (c == '{')
 	{
 		token.type = Token::OBJECT_OPEN;
 	}
-	else if (c == '}') // OBJECT_CLOSE
+	else if (c == '}')
 	{
 		token.type = Token::OBJECT_CLOSE;
 	}
-	else if (c == '[') // ARRAY_OPEN
+	else if (c == '[')
 	{
 		token.type = Token::ARRAY_OPEN;
 	}
-	else if (c == ']') // ARRAY_CLOSE
+	else if (c == ']')
 	{
 		token.type = Token::ARRAY_CLOSE;
 	}
-	else if (c == ',') // COMMA
+	else if (c == ',')
 	{
 		token.type = Token::COMMA;
 	}
-	else if (c == ':') // COLON
+	else if (c == ':')
 	{
 		token.type = Token::COLON;
 	}
-	else if (c >= '0' && c <= '9') // INTEGER
+	else if (c >= '0' && c <= '9')
 	{
 		token.type = Token::INTEGER;
 		token.string = c;
@@ -95,7 +95,7 @@ Token Tokenizer::getToken()
 			}
 		}
 	}
-	else if (c == 't') // BOOLEAN_TRUE
+	else if (c == 't')
 	{
 		if (!(_getChar() == 'r' && _getChar() == 'u' && _getChar() == 'e'))
 		{
@@ -103,7 +103,7 @@ Token Tokenizer::getToken()
 		}
 		token.type = Token::BOOLEAN_TRUE;
 	}
-	else if (c == 'f') // BOOLEAN_FALSE
+	else if (c == 'f')
 	{
 		if (!(_getChar() == 'a' && _getChar() == 'l' && _getChar() == 's' && _getChar() == 'e'))
 		{
