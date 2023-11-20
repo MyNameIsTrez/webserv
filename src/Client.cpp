@@ -133,7 +133,7 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 
         this->_useHeaders();
 
-        if (this->request_method != RequestMethod::POST || this->content_length == 0)
+        if (this->request_method != RequestMethod::POST || (this->content_length == 0 && !this->_is_chunked))
         {
             this->client_to_server_state = ClientToServerState::DONE;
             this->server_to_cgi_state = ServerToCGIState::DONE;
@@ -681,16 +681,9 @@ void Client::_parseBodyAppend(const std::string &extra_body)
 
                 _hexToNum(this->_chunked_body_buffer, this->_chunked_remaining_content_length);
 
-                this->content_length += this->_chunked_remaining_content_length; // TODO: This
-                                                                                 // isn't needed
-                                                                                 // but it's nice
-                                                                                 // to just update
-                                                                                 // it as
-                                                                                 // appropriate
-                                                                                 // (Maybe want to
-                                                                                 // delete because
-                                                                                 // it isn't
-                                                                                 // needed)
+                // This isn't needed, but it's nice to just update it as appropriate
+                this->content_length += this->_chunked_remaining_content_length;
+
                 this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN_ENDLINE;
             }
             if (this->_chunked_read_state == ChunkedReadState::READING_BODY)
@@ -738,10 +731,9 @@ void Client::_parseBodyAppend(const std::string &extra_body)
                     {
                         this->_chunked_read_state = ChunkedReadState::READING_CONTENT_LEN;
                     }
-                    // Should never reach
                     else
                     {
-                        assert(false); // TODO: Delete before submitting for eval
+                        assert(false);
                     }
                 }
                 // If buffer doesn't start with "\r\n" (This means client sent
