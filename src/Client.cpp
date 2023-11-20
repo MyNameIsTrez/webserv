@@ -115,7 +115,6 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
         if (separator_index == std::string::npos)
             return;
 
-        // TODO: Is the .end() implicit already?
         std::string extra_body = std::string(this->_header.begin() + separator_index + 4, this->_header.end());
 
         // Erase temporarily appended body bytes from _header
@@ -134,7 +133,6 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 
         this->_useHeaders();
 
-        // TODO: Can a GET or a DELETE have a body?
         if (this->request_method != RequestMethod::POST || this->content_length == 0)
         {
             this->client_to_server_state = ClientToServerState::DONE;
@@ -325,9 +323,6 @@ void Client::respondWithCreateFile(const std::string &path)
         throw ClientException(Status::BAD_REQUEST);
     }
 
-    // TODO: Is it necessary to flush manually before the ofstream's destructor
-    // gets called?
-    // TODO: Limit the body size somewhere before this point is even reached
     outfile << this->body;
 
     this->prependResponseHeader();
@@ -361,7 +356,6 @@ void Client::prependResponseHeader(void)
 
     _addResponseHeader("Content-Type", this->_response_content_type);
 
-    // TODO: Use cgi_exit_status
     std::stringstream content_length_ss;
     content_length_ss << response_body.length();
 
@@ -381,9 +375,6 @@ void Client::prependResponseHeader(void)
         assert(!this->redirect.empty());
         this->_addResponseHeader("Location", this->redirect);
     }
-
-    // TODO: Add?
-    // this->_addResponseHeader("Connection", "keep-alive");
 
     this->response += "\r\n" + response_body;
 }
@@ -647,13 +638,12 @@ void Client::_useHeaders(void)
     }
     else
     {
-        const std::string &host = host_it->second;
+        std::string host = host_it->second;
 
         size_t colon_index = host.find(":");
         if (colon_index == host.npos)
         {
-            // TODO: Uppercase
-            this->server_name = host;
+            this->server_name = Utils::upper(host);
         }
         else
         {
@@ -661,8 +651,7 @@ void Client::_useHeaders(void)
             if (colon_index == 0)
                 throw ClientException(Status::BAD_REQUEST);
 
-            // TODO: Uppercase
-            this->server_name = host.substr(0, colon_index);
+            this->server_name = Utils::upper(host.substr(0, colon_index));
 
             // nginx doesn't care what comes after the colon, if anything
         }

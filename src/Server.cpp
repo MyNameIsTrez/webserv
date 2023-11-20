@@ -71,11 +71,6 @@ Server::Server(const Config &config)
 
 Server::~Server(void)
 {
-    // TODO: close() the two _sig_chld_pipe fds and such
-
-    // TODO: close() the server socket
-
-    // TODO: Do anything else?
 }
 
 void Server::run(void)
@@ -111,7 +106,6 @@ void Server::run(void)
         }
 
         L::info(std::string("Waiting for an event..."));
-        // TODO: Consider having a timeout of 5000 ms or something again
         int event_count = poll(_pfds.data(), _pfds.size(), -1);
         if (event_count == -1)
         {

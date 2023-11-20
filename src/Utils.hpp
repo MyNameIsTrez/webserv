@@ -12,6 +12,8 @@ std::string &ltrim(std::string &s, const char *t);
 std::string &rtrim(std::string &s, const char *t);
 std::string &trim(std::string &s, const char *t);
 
+std::string upper(std::string str);
+
 template <class T> bool parseNumber(const std::string &str, T &number, T max);
 } // namespace Utils
 

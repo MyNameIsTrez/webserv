@@ -1,5 +1,7 @@
 #include "Utils.hpp"
 
+#include <algorithm>
+
 bool Utils::startsWith(const std::string &haystack, const std::string &needle)
 {
     return haystack.rfind(needle, 0) != std::string::npos;
@@ -20,4 +22,10 @@ std::string &Utils::rtrim(std::string &s, const char *t)
 std::string &Utils::trim(std::string &s, const char *t)
 {
     return ltrim(rtrim(s, t), t);
+}
+
+std::string Utils::upper(std::string str)
+{
+    std::transform(str.begin(), str.end(), str.begin(), ::toupper);
+    return str;
 }

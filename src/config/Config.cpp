@@ -61,7 +61,7 @@ Config::Config(const JSON &json)
             {
                 for (const auto &server_name_node : value.getArray())
                 {
-                    server_directive.server_names.push_back(server_name_node.getString());
+                    server_directive.server_names.push_back(Utils::upper(server_name_node.getString()));
                 }
             }
             else if (key == "locations")
@@ -83,7 +83,6 @@ Config::Config(const JSON &json)
 
                     const std::string &page_path = error_page_node.second.getString();
 
-                    // TODO: Make sure *every* Status enum is in here!
                     if (error_code != 200 && error_code != 301 && error_code != 302 && error_code != 400 &&
                         error_code != 403 && error_code != 404 && error_code != 405 && error_code != 413 &&
                         error_code != 500)
