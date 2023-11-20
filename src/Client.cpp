@@ -28,8 +28,6 @@ const char *Client::reason_phrase_table[] = {
 	[Status::INTERNAL_SERVER_ERROR] = "Internal Server Error",
 };
 
-/*	Orthodox Canonical Form */
-
 class Config;
 
 Client::Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size)
@@ -145,8 +143,6 @@ Client &Client::operator=(Client const &src)
 	this->_chunked_remaining_content_length = src._chunked_remaining_content_length;
 	return *this;
 }
-
-/*	Public member functions */
 
 void Client::appendReadString(char *received, ssize_t bytes_read)
 {
@@ -554,8 +550,6 @@ void Client::extractCGIDocumentResponseHeaders(void)
 
 	// TODO: What to do with headers that prependRespondHeader() doesn't expect?
 }
-
-/*	Private member functions */
 
 std::vector<std::string> Client::_getHeaderLines(void)
 {

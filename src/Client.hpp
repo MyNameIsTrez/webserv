@@ -9,19 +9,6 @@
 #include <unordered_map>
 #include <vector>
 
-// TODO: Remove this comment block when handing in
-/*
-// whole socket input
-Header string
-body string
-client_fd
-enum for request method
-content length
-size_t for sent characters (i)
-// Could maybe add enum for reading body vs header (not sure if has to) // State
-// Ignore chunked request doody for now (will be my part probably)
-*/
-
 class Client
 {
 public:

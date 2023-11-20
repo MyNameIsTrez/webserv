@@ -21,8 +21,6 @@ bool shutting_down_gracefully = false;
 
 int Server::_sig_chld_pipe[2];
 
-/*	Constructors */
-
 Server::Server(const Config &config)
 	: _config(config),
 	  _bind_fd_to_server_indices(),
@@ -77,8 +75,6 @@ Server::Server(const Config &config)
 	Logger::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
 	signal(SIGCHLD, _sigChldHandler);
 }
-
-/*	Public member functions */
 
 Server::~Server(void)
 {
@@ -235,8 +231,6 @@ void Server::run(void)
 		}
 	}
 }
-
-/*	Private member functions */
 
 // vector=[ A, B, C, D ] with index=1 results in [ A, D, C ]
 template <typename T>
