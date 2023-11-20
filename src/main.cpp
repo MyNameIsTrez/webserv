@@ -4,10 +4,18 @@
 #include "config/JSON.hpp"
 
 #include <cstdlib>
+#include <filesystem>
 
-struct FileNoAccess : public std::runtime_error
+struct CouldntOpenConfigFile : public std::runtime_error
 {
-    FileNoAccess() : std::runtime_error("Error: Unable to open config")
+    CouldntOpenConfigFile() : std::runtime_error("Error: Couldn't open config file")
+    {
+    }
+};
+
+struct ConfigFileTooLarge : public std::runtime_error
+{
+    ConfigFileTooLarge() : std::runtime_error("Error: Config file too large")
     {
     }
 };
@@ -23,11 +31,19 @@ int main(int argc, char *argv[])
     Config config;
     try
     {
-        std::ifstream config_file(argc == 2 ? argv[1] : "webserv.json");
-        if (!config_file.is_open())
-            throw FileNoAccess();
+        std::string file_name(argc == 2 ? argv[1] : "webserv.json");
 
-        // TODO: Limit file size
+        std::ifstream config_file(file_name);
+
+        if (!config_file.is_open())
+        {
+            throw CouldntOpenConfigFile();
+        }
+
+        if (std::filesystem::file_size(file_name) > 420420)
+        {
+            throw ConfigFileTooLarge();
+        }
 
         JSON json(config_file, 5);
 
@@ -42,6 +58,5 @@ int main(int argc, char *argv[])
     Server server(config);
     server.run();
 
-    // signal(SIGCHLD, SIG_DFL); // TODO: Put this back in?
     return EXIT_SUCCESS;
 }
