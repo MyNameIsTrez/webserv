@@ -204,9 +204,10 @@ void Client::respondWithFile(const std::string &path)
     assert(this->response.empty());
 
     std::ifstream file(path);
-    if (!file.is_open())
+    // We test is_regular_file() since ifstreams can also be directories
+    if (!file.is_open() || !std::filesystem::is_regular_file(path))
     {
-        throw ClientException(Status::NOT_FOUND);
+        throw ClientException(Status::FORBIDDEN);
     }
 
     std::stringstream file_body;
