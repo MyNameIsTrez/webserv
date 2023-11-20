@@ -41,6 +41,7 @@
 
 !YoupiBanane/**
 
+!.clang-format
 !./.gitignore
 !./fn_descriptions.c
 !./Makefile
