@@ -27,7 +27,9 @@ int main(int argc, char *argv[])
         if (!config_file.is_open())
             throw FileNoAccess();
 
-        JSON json(config_file);
+        // TODO: Limit file size
+
+        JSON json(config_file, 5);
 
         config.init(json);
     }

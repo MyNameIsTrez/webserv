@@ -6,7 +6,7 @@
 class JSON
 {
   public:
-    JSON(std::istream &file);
+    JSON(std::istream &file, int max_depth);
 
     Node root;
 
@@ -79,8 +79,7 @@ class JSON
         }
     };
 
-    static const int _max_depth = 5;
-
     Tokenizer _tokenizer;
+    int _max_depth;
     int _depth;
 };

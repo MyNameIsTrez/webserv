@@ -3,7 +3,7 @@
 #include "../Utils.hpp"
 #include "Config.hpp"
 
-JSON::JSON(std::istream &file) : _tokenizer(file), _depth()
+JSON::JSON(std::istream &file, int max_depth) : _tokenizer(file), _max_depth(max_depth), _depth()
 {
     const Token token = _tokenizer.getToken();
     if (token.type != Token::OBJECT_OPEN)
