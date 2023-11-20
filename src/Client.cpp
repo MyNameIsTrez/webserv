@@ -39,7 +39,7 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
 	  server_to_client_state(ServerToClientState::NOT_WRITING),
 	  request_method(),
 	  request_target(),
-	  protocol(),
+	  protocol("HTTP/1.1"),
 	  headers(),
 	  body(),
 	  body_index(),
