@@ -91,7 +91,7 @@ private:
 		bool delete_allowed;
 	};
 	ResolvedLocation _resolveToLocation(const std::string &request_target, const std::vector<Config::LocationDirective> &locations);
-	bool _isAllowedMethod(const ResolvedLocation &location, const std::string &method);
+	bool _isAllowedMethod(const ResolvedLocation &location, Client::RequestMethod method);
 
 	void _respondClientException(const Client::ClientException &e, Client &client);
 	size_t _getServerIndexFromClientServerName(const Client &client);

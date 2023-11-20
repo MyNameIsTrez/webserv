@@ -607,7 +607,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 		if (client.client_to_server_state == Client::ClientToServerState::DONE)
 		{
-			const std::string &method = client.request_method;
+			Client::RequestMethod method = client.request_method;
 
 			size_t server_index = _getServerIndexFromClientServerName(client);
 			const Config::ServerDirective &server = _config.servers.at(server_index);
@@ -632,7 +632,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 			if (location.path.back() == '/')
 			{
-				if (method == "GET")
+				if (method == Client::RequestMethod::GET)
 				{
 					if (location.has_index)
 					{
@@ -658,7 +658,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 			{
 				if (std::filesystem::is_directory(location.path))
 				{
-					if (method == "DELETE")
+					if (method == Client::RequestMethod::DELETE)
 					{
 						throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
 					}
@@ -672,12 +672,12 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 				{
 					_startCGI(client, location.cgi_execve_path, location.path, location.path_info, location.query_string);
 				}
-				else if (method == "GET")
+				else if (method == Client::RequestMethod::GET)
 				{
 					client.respondWithFile(location.path);
 					_enableWritingToClient(client);
 				}
-				else if (method == "POST")
+				else if (method == Client::RequestMethod::POST)
 				{
 					client.respondWithCreateFile(location.path);
 					_enableWritingToClient(client);
@@ -827,7 +827,7 @@ void Server::_execveChild(Client &client, const std::string &cgi_execve_path, co
 		cgi_headers.push_back("HTTP_" + it.first + "=" + it.second);
 	}
 
-	cgi_headers.push_back("REQUEST_METHOD=" + client.request_method);
+	cgi_headers.push_back("REQUEST_METHOD=" + client.getRequestMethodString());
 	cgi_headers.push_back("SCRIPT_NAME=" + script_name);
 	cgi_headers.push_back("PATH_INFO=" + path_info);
 	cgi_headers.push_back("QUERY_STRING=" + query_string);
@@ -980,22 +980,11 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 	return resolved;
 }
 
-bool Server::_isAllowedMethod(const ResolvedLocation &location, const std::string &method)
+bool Server::_isAllowedMethod(const ResolvedLocation &location, Client::RequestMethod method)
 {
-	if (method == "GET" && !location.get_allowed)
-	{
-		return false;
-	}
-	else if (method == "POST" && !location.post_allowed)
-	{
-		return false;
-	}
-	else if (method == "DELETE" && !location.delete_allowed)
-	{
-		return false;
-	}
-
-	return true;
+	return (method == Client::RequestMethod::GET    && location.get_allowed)
+	    || (method == Client::RequestMethod::POST   && location.post_allowed)
+	    || (method == Client::RequestMethod::DELETE && location.delete_allowed);
 }
 
 void Server::_respondClientException(const Client::ClientException &e, Client &client)

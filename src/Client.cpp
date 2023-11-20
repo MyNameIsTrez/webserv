@@ -37,7 +37,7 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
 	  server_to_cgi_state(ServerToCGIState::NOT_WRITING),
 	  cgi_to_server_state(CGIToServerState::NOT_READING),
 	  server_to_client_state(ServerToClientState::NOT_WRITING),
-	  request_method(),
+	  request_method(RequestMethod::NONE),
 	  request_target(),
 	  protocol("HTTP/1.1"),
 	  headers(),
@@ -168,16 +168,13 @@ void Client::appendReadString(char *received, ssize_t bytes_read)
 		header_lines.erase(header_lines.begin());
 
 		this->_parseRequestLine(request_line);
-		if (!this->_isValidRequestMethod()) throw ClientException(Status::METHOD_NOT_ALLOWED);
-		if (!this->_isValidRequestTarget()) throw ClientException(Status::BAD_REQUEST);
-		if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
 
 		if (!this->_fillHeaders(header_lines, this->headers)) throw ClientException(Status::BAD_REQUEST);
 
 		this->_useHeaders();
 
 		// TODO: Can a GET or a DELETE have a body?
-		if (this->request_method != "POST" || this->content_length == 0)
+		if (this->request_method != RequestMethod::POST || this->content_length == 0)
 		{
 			this->client_to_server_state = ClientToServerState::DONE;
 			this->server_to_cgi_state = ServerToCGIState::DONE;
@@ -551,6 +548,24 @@ void Client::extractCGIDocumentResponseHeaders(void)
 	// TODO: What to do with headers that prependRespondHeader() doesn't expect?
 }
 
+std::string Client::getRequestMethodString(void) const
+{
+	switch (this->request_method)
+	{
+		case RequestMethod::NONE:
+			assert(false);
+		case RequestMethod::GET:
+			return "GET";
+			break;
+		case RequestMethod::POST:
+			return "POST";
+			break;
+		case RequestMethod::DELETE:
+			return "DELETE";
+			break;
+	}
+}
+
 std::vector<std::string> Client::_getHeaderLines(void)
 {
 	std::vector<std::string> header_lines;
@@ -577,46 +592,53 @@ void Client::_parseRequestLine(const std::string &line)
 	// Find and set the request method
 	size_t request_method_end_pos = line.find(" ");
 	if (request_method_end_pos == std::string::npos) throw ClientException(Status::BAD_REQUEST);
-	this->request_method = line.substr(0, request_method_end_pos);
+
+	std::string request_method_string = line.substr(0, request_method_end_pos);
+	this->request_method = this->_getRequestMethodEnumFromString(request_method_string);
 	request_method_end_pos++;
-	Logger::info(std::string("    Request method: '") + this->request_method + "'");
+	Logger::info(std::string("    Request method: '") + this->getRequestMethodString() + "'");
 
 	// Find and set the request target
 	size_t path_end_pos = line.find_last_of(" ");
 	if (path_end_pos == std::string::npos || path_end_pos == request_method_end_pos - 1) throw ClientException(Status::BAD_REQUEST);
+
 	this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
-	path_end_pos++;
+	if (this->request_target.empty() || this->request_target.at(0) != '/') throw ClientException(Status::BAD_REQUEST);
 	Logger::info(std::string("    Request target: '") + this->request_target + "'");
+
+	path_end_pos++;
 
 	// Set the protocol
 	this->protocol = line.substr(path_end_pos);
-	Logger::info(std::string("    HTTP version: '") + this->protocol + "'");
+	if (!this->_isValidProtocol()) throw ClientException(Status::BAD_REQUEST);
+	Logger::info(std::string("    Protocol: '") + this->protocol + "'");
 }
 
-bool Client::_isValidRequestMethod(void)
+Client::RequestMethod Client::_getRequestMethodEnumFromString(const std::string &request_method_string) const
 {
-	return this->request_method == "GET" || this->request_method == "POST" || this->request_method == "DELETE";
-}
-
-bool Client::_isValidRequestTarget(void)
-{
-	return this->request_target[0] == '/';
+	if (request_method_string == "GET")
+	{
+		return RequestMethod::GET;
+	}
+	else if (request_method_string == "POST")
+	{
+		return RequestMethod::POST;
+	}
+	else if (request_method_string == "DELETE")
+	{
+		return RequestMethod::DELETE;
+	}
+	throw ClientException(Status::METHOD_NOT_ALLOWED);
 }
 
 // See RFC 9112 section 2.3
 bool Client::_isValidProtocol(void)
 {
-	if (this->protocol.size() < sizeof("HTTP/0.0") - 1)
-		return false;
-	if (!Utils::startsWith(this->protocol, "HTTP/"))
-		return false;
-	if (this->protocol[5] < '0' || this->protocol[5] > '9')
-		return false;
-	if (this->protocol[6] != '.')
-		return false;
-	if (this->protocol[7] < '0' || this->protocol[7] > '9')
-		return false;
-	return true;
+	return (this->protocol.size() == std::string("HTTP/0.0").size())
+		&& (Utils::startsWith(this->protocol, "HTTP/"))
+		&& (this->protocol[5] >= '0' && this->protocol[5] <= '9')
+		&& (this->protocol[6] == '.')
+		&& (this->protocol[7] >= '0' || this->protocol[7] <= '9');
 }
 
 bool Client::_fillHeaders(const std::vector<std::string> &header_lines, std::unordered_map<std::string, std::string> &filled_headers)

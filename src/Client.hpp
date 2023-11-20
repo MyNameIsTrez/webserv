@@ -57,6 +57,8 @@ public:
 
 	void extractCGIDocumentResponseHeaders(void);
 
+	std::string getRequestMethodString(void) const;
+
 	int server_fd;
 
 	Status::Status status;
@@ -78,7 +80,15 @@ public:
 	CGIToServerState cgi_to_server_state;
 	ServerToClientState server_to_client_state;
 
-	std::string request_method;
+	enum class RequestMethod
+	{
+		NONE,
+		GET,
+		POST,
+		DELETE
+	};
+
+	RequestMethod request_method;
 	std::string request_target;
 	std::string protocol;
 	std::unordered_map<std::string, std::string> headers;
@@ -104,8 +114,8 @@ private:
 	std::vector<std::string> _getHeaderLines(void);
 	void _parseRequestLine(const std::string &line);
 
-	bool _isValidRequestMethod(void);
-	bool _isValidRequestTarget(void);
+	RequestMethod _getRequestMethodEnumFromString(const std::string &request_method_string) const;
+
 	bool _isValidProtocol(void);
 
 	bool _fillHeaders(const std::vector<std::string> &header_lines, std::unordered_map<std::string, std::string> &filled_headers);
