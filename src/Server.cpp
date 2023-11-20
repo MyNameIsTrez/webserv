@@ -134,7 +134,7 @@ void Server::run(void)
         for (nfds_t pfd_index = _pfds.size(); pfd_index > 0;)
         {
             pfd_index--;
-            _processPfd(_pfds[pfd_index], seen_fds);
+            _processPfd(pfd_index, seen_fds);
         }
     }
 }
@@ -174,15 +174,15 @@ void Server::_printContainerSizes(void)
             " | VECTORS: " + "_clients=" + std::to_string(_clients.size()) + ", _pfds=" + std::to_string(_pfds.size()));
 }
 
-void Server::_processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds)
+void Server::_processPfd(size_t pfd_index, std::unordered_set<int> &seen_fds)
 {
     // If this pfd didn't have any event
-    if (pfd.revents == 0)
+    if (_pfds[pfd_index].revents == 0)
     {
         return;
     }
 
-    int fd = pfd.fd;
+    int fd = _pfds[pfd_index].fd;
 
     // If this pfd got removed
     if (!_fd_to_pfd_index.contains(fd))
@@ -200,29 +200,29 @@ void Server::_processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds)
 
     FdType fd_type = _fd_to_fd_type.at(fd);
 
-    _printEvents(pfd, fd_type);
+    _printEvents(_pfds[pfd_index], fd_type);
 
     // TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
-    if (pfd.revents & POLLNVAL)
+    if (_pfds[pfd_index].revents & POLLNVAL)
     {
         _handlePollnval();
     }
 
     // If we are trying to write to a CGI script that closed its stdin,
     // or we are trying to write to a disconnected client
-    if (pfd.revents & POLLERR)
+    if (_pfds[pfd_index].revents & POLLERR)
     {
         _handlePollerr(fd, fd_type);
         return;
     }
 
     // If the CGI script closed its stdout
-    if (pfd.revents & POLLHUP)
+    if (_pfds[pfd_index].revents & POLLHUP)
     {
         assert(fd_type == FdType::CGI_TO_SERVER);
 
         // If the server has read everything from the CGI script
-        if (!(pfd.revents & POLLIN))
+        if (!(_pfds[pfd_index].revents & POLLIN))
         {
             _pollhupCGIToServer(fd);
             return;
@@ -230,7 +230,7 @@ void Server::_processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds)
     }
 
     // If we can read
-    if (pfd.revents & POLLIN)
+    if (_pfds[pfd_index].revents & POLLIN)
     {
         bool skip_client = false;
         _handlePollin(fd, fd_type, skip_client);
@@ -239,7 +239,7 @@ void Server::_processPfd(const pollfd &pfd, std::unordered_set<int> &seen_fds)
     }
 
     // If we can write
-    if (pfd.revents & POLLOUT)
+    if (_pfds[pfd_index].revents & POLLOUT)
     {
         _handlePollout(fd, fd_type);
     }
