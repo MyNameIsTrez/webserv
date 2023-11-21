@@ -332,6 +332,15 @@ void Server::_disableReadingFromClient(Client &client)
     client.client_to_server_state = Client::ClientToServerState::DONE;
 }
 
+void Server::_disableServerToCGIPollout(Client &client)
+{
+    L::info(std::string("    Disabling server_to_cgi POLLOUT"));
+    size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
+    _disableEvent(pfd_index, POLLOUT);
+
+    client.server_to_cgi_state = Client::ServerToCGIState::DONE;
+}
+
 void Server::_addClientFd(int fd, size_t client_index, FdType fd_type, short int events)
 {
     assert(fd != -1);
@@ -931,7 +940,7 @@ bool Server::_isAllowedMethod(const ResolvedLocation &location, Client::RequestM
 
 void Server::_respondClientException(const Client::ClientException &e, Client &client)
 {
-    L::info(std::string("  ") + e.what());
+    L::info(std::string("  In _respondClientException() with error: ") + e.what());
 
     client.status = e.status;
 
@@ -1008,11 +1017,7 @@ void Server::_writeToCGI(Client &client)
         // Happens when the CGI script closed its stdin
         L::info(std::string("    write() detected 'Broken pipe'"));
 
-        L::info(std::string("    Disabling server_to_cgi POLLOUT"));
-        size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-        _disableEvent(pfd_index, POLLOUT);
-
-        client.server_to_cgi_state = Client::ServerToCGIState::DONE;
+        _disableServerToCGIPollout(client);
         _removeClientFd(client.server_to_cgi_fd);
 
         return;
@@ -1021,11 +1026,7 @@ void Server::_writeToCGI(Client &client)
     // If we don't have anything left to write
     if (client.body_index == client.body.length())
     {
-        L::info(std::string("    Disabling server_to_cgi POLLOUT"));
-        size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-        _disableEvent(pfd_index, POLLOUT);
-
-        client.server_to_cgi_state = Client::ServerToCGIState::DONE;
+        _disableServerToCGIPollout(client);
         _removeClientFd(client.server_to_cgi_fd);
     }
 }

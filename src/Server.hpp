@@ -46,6 +46,7 @@ class Server
     void _enableWritingToClient(Client &client);
     void _enableWritingToCGI(Client &client);
     void _disableReadingFromClient(Client &client);
+    void _disableServerToCGIPollout(Client &client);
 
     void _addClientFd(int fd, size_t client_index, FdType fd_type, short int events);
     void _addFd(int fd, FdType fd_type, short int events);
