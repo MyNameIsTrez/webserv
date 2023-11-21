@@ -104,6 +104,7 @@ void Server::run(void)
         }
 
         L::info(std::string("Waiting for an event..."));
+
         int event_count = poll(_pfds.data(), _pfds.size(), -1);
         if (event_count == -1)
         {
@@ -369,7 +370,6 @@ void Server::_handlePollerr(int fd, FdType fd_type)
     }
     else
     {
-        // TODO: Should be unreachable
         assert(false);
     }
 }
@@ -379,8 +379,6 @@ void Server::_pollhupCGIToServer(int fd)
     L::info(std::string("  In _pollhupCGIToServer()"));
 
     Client &client = _getClient(fd);
-
-    // TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
 
     client.client_to_server_state = Client::ClientToServerState::DONE;
 
@@ -651,7 +649,7 @@ void Server::_removeClient(int fd)
     assert(fd != -1);
     L::info(std::string("  Removing client with fd ") + std::to_string(fd));
 
-    _removeClientAttachments(fd);
+    _removeCGI(fd);
 
     Client &client = _getClient(fd);
 
@@ -666,7 +664,7 @@ void Server::_removeClient(int fd)
     _swapRemove(_clients, client_index);
 }
 
-void Server::_removeClientAttachments(int fd)
+void Server::_removeCGI(int fd)
 {
     L::info(std::string("  Removing client attachments with fd ") + std::to_string(fd));
 
@@ -768,9 +766,9 @@ void Server::_execveChild(Client &client, const std::string &cgi_execve_path, co
 
     std::vector<std::string> cgi_headers;
 
-    for (const auto &it : client.headers)
+    for (const auto &[key, value] : client.headers)
     {
-        cgi_headers.push_back("HTTP_" + it.first + "=" + it.second);
+        cgi_headers.push_back("HTTP_" + key + "=" + value);
     }
 
     cgi_headers.push_back("REQUEST_METHOD=" + client.getRequestMethodString());
@@ -937,7 +935,7 @@ void Server::_respondClientException(const Client::ClientException &e, Client &c
 
     client.status = e.status;
 
-    _removeClientAttachments(client.client_fd);
+    _removeCGI(client.client_fd);
 
     _disableReadingFromClient(client);
 
