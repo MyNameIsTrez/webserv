@@ -239,6 +239,7 @@ void Server::_processPfd(size_t pfd_index, std::unordered_set<int> &seen_fds)
 
 void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
+    L::info(std::string("  fd: " + std::to_string(pfd.fd))); // TODO: Remove
     L::info(std::string("  fd: " + std::to_string(pfd.fd)) + ", fd_type: " + std::to_string(int(fd_type)) +
             ", client_index: " +
             std::to_string(
@@ -511,7 +512,11 @@ void Server::_reapChild(void)
         client.cgi_exit_status = WEXITSTATUS(child_exit_status);
     }
 
-    if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
+    if (client.being_removed)
+    {
+        _removeClient(client_fd);
+    }
+    else if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
     {
         _cgiEnd(client);
     }
@@ -525,6 +530,8 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
             std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
 
     ssize_t bytes_read = T::read(fd, received, MAX_RECEIVED_LEN);
+
+    // If the client disconnected
     if (bytes_read == 0)
     {
         L::info(std::string("    Read 0 bytes"));
@@ -537,6 +544,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
         // and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
         assert(fd_type == FdType::CLIENT);
 
+        // It's fine that this also kills the CGI
         _removeClient(client.client_fd);
         skip_client = true;
 
@@ -655,51 +663,64 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
 void Server::_removeClient(int fd)
 {
-    assert(fd != -1);
-    L::info(std::string("  Removing client with fd ") + std::to_string(fd));
+    L::info(std::string("  In _removeClient() with fd ") + std::to_string(fd));
 
-    _removeCGI(fd);
+    assert(fd != -1);
 
     Client &client = _getClient(fd);
 
-    // TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
-    size_t client_index = _fd_to_client_index.at(client.client_fd);
+    client.being_removed = true;
 
-    _fd_to_client_index[_clients.back().client_fd] = client_index;
-    _fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
-    _fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
+    // TODO: We may also need to disable other stuff?
+    _disableReadingFromClient(client);
 
-    _removeClientFd(client.client_fd);
-    _swapRemove(_clients, client_index);
+    // This if-statement is here because _reapChild() *needs* client to still exist
+    // It assumes that this function gets called again after the CGI is reaped
+    if (!client.cgi_killed && client.cgi_pid != -1)
+    {
+        _killCGI(fd);
+    }
+    else
+    {
+        L::info(std::string("  Removing client with fd ") + std::to_string(fd));
+
+        if (client.cgi_to_server_fd != -1)
+        {
+            L::info(std::string("  Removing cgi_to_server_fd ") + std::to_string(client.cgi_to_server_fd));
+            _removeClientFd(client.cgi_to_server_fd);
+            client.cgi_to_server_state = Client::CGIToServerState::DONE;
+        }
+
+        // TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
+        size_t client_index = _fd_to_client_index.at(client.client_fd);
+
+        _fd_to_client_index[_clients.back().client_fd] = client_index;
+        _fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
+        _fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
+
+        _removeClientFd(client.client_fd);
+        _swapRemove(_clients, client_index);
+    }
 }
 
-void Server::_removeCGI(int fd)
+void Server::_killCGI(int fd)
 {
-    L::info(std::string("  Removing client attachments with fd ") + std::to_string(fd));
-
     Client &client = _getClient(fd);
 
-    if (client.server_to_cgi_fd != -1)
-    {
-        _removeClientFd(client.server_to_cgi_fd);
-        client.server_to_cgi_state = Client::ServerToCGIState::DONE;
-    }
-
-    if (client.cgi_to_server_fd != -1)
-    {
-        _removeClientFd(client.cgi_to_server_fd);
-        client.cgi_to_server_state = Client::CGIToServerState::DONE;
-    }
-
-    if (client.cgi_pid != -1)
+    if (!client.cgi_killed && client.cgi_pid != -1)
     {
         L::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") +
                 std::to_string(client.cgi_pid));
-        // TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
+
+        // TODO: Isn't there a race condition here, as the cgi process may have already ended and we'll still try to
+        // kill it?:
+        // TODO: what happens if a zombie process is kill()ed?
         T::kill(client.cgi_pid, SIGTERM);
 
-        _cgi_pid_to_client_fd.erase(client.cgi_pid);
-        client.cgi_pid = -1;
+        client.cgi_killed = true;
+
+        // TODO: I think we should also disable CGIToServer immediately
+        // to prevent Python error garbage caused by the SIGTERM being sent to the client?
     }
 }
 
@@ -944,7 +965,7 @@ void Server::_respondClientException(const Client::ClientException &e, Client &c
 
     client.status = e.status;
 
-    _removeCGI(client.client_fd);
+    _killCGI(client.client_fd);
 
     _disableReadingFromClient(client);
 
@@ -1061,6 +1082,9 @@ void Server::_writeToClient(Client &client, int fd)
 
     // sleep(5); // TODO: REMOVE
 
+    // TODO: Can't this remove the client before the CGI has finished
+    // TODO: appending to client.response?
+    // TODO: So should we check whether the cgi_to_server pipe is closed?
     if (client.response_index == client.response.length())
     {
         _removeClient(client.client_fd);

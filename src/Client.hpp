@@ -102,6 +102,8 @@ class Client
     int cgi_to_server_fd;
     pid_t cgi_pid;
     int cgi_exit_status;
+    bool cgi_killed;
+    bool being_removed;
     std::string redirect;
     std::string server_name;
     std::string server_port;

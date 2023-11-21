@@ -64,7 +64,7 @@ class Server
     void _reapChild(void);
     void _readFd(Client &client, int fd, FdType fd_type, bool &skip_client);
     void _removeClient(int fd);
-    void _removeCGI(int fd);
+    void _killCGI(int fd);
 
     void _startCGI(Client &client, const std::string &cgi_execve_path, const std::string &script_name,
                    const std::string &path_info, const std::string &query_string);

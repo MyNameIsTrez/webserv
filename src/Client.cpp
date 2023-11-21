@@ -38,9 +38,9 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
       server_to_client_state(ServerToClientState::NOT_WRITING), request_method(RequestMethod::NONE), request_target(),
       protocol("HTTP/1.1"), headers(), body(), body_index(), client_max_body_size(client_max_body_size), response(),
       response_index(), client_fd(client_fd), server_to_cgi_fd(-1), cgi_to_server_fd(-1), cgi_pid(-1),
-      cgi_exit_status(-1), redirect(), server_name(), server_port(server_port), content_type(), content_length(),
-      _custom_reason_phrase(), _response_content_type("application/octet-stream"), _header(), _is_chunked(),
-      _chunked_remaining_content_length(), _chunked_body_buffer(),
+      cgi_exit_status(-1), cgi_killed(), being_removed(), redirect(), server_name(), server_port(server_port),
+      content_type(), content_length(), _custom_reason_phrase(), _response_content_type("application/octet-stream"),
+      _header(), _is_chunked(), _chunked_remaining_content_length(), _chunked_body_buffer(),
       _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN)
 {
 }
@@ -53,10 +53,10 @@ Client::Client(Client const &src)
       body_index(src.body_index), client_max_body_size(src.client_max_body_size), response(src.response),
       response_index(src.response_index), client_fd(src.client_fd), server_to_cgi_fd(src.server_to_cgi_fd),
       cgi_to_server_fd(src.cgi_to_server_fd), cgi_pid(src.cgi_pid), cgi_exit_status(src.cgi_exit_status),
-      redirect(src.redirect), server_name(src.server_name), server_port(src.server_port),
-      content_type(src.content_type), content_length(src.content_length),
-      _custom_reason_phrase(src._custom_reason_phrase), _response_content_type(src._response_content_type),
-      _header(src._header), _is_chunked(src._is_chunked),
+      cgi_killed(src.cgi_killed), being_removed(src.being_removed), redirect(src.redirect),
+      server_name(src.server_name), server_port(src.server_port), content_type(src.content_type),
+      content_length(src.content_length), _custom_reason_phrase(src._custom_reason_phrase),
+      _response_content_type(src._response_content_type), _header(src._header), _is_chunked(src._is_chunked),
       _chunked_remaining_content_length(src._chunked_remaining_content_length),
       _chunked_body_buffer(src._chunked_body_buffer), _chunked_read_state(src._chunked_read_state)
 {
@@ -90,6 +90,8 @@ Client &Client::operator=(Client const &src)
     this->cgi_to_server_fd = src.cgi_to_server_fd;
     this->cgi_pid = src.cgi_pid;
     this->cgi_exit_status = src.cgi_exit_status;
+    this->cgi_killed = src.cgi_killed;
+    this->being_removed = src.being_removed;
     this->redirect = src.redirect;
     this->server_name = src.server_name;
     this->server_port = src.server_port;
