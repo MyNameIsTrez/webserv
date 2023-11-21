@@ -493,7 +493,7 @@ void Server::_acceptClient(int server_fd)
 
     _clients.push_back(Client(client_fd, server_fd, server_port, _config.client_max_body_size));
 
-    std::cerr << "Added a client; " << _clients.size() << " clients now connected" << std::endl;
+    std::cout << "Added a client; " << _clients.size() << " clients now connected" << std::endl;
 }
 
 void Server::_reapChild(void)
