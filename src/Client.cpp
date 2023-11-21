@@ -486,13 +486,10 @@ std::string Client::getRequestMethodString(void) const
         assert(false);
     case RequestMethod::GET:
         return "GET";
-        break;
     case RequestMethod::POST:
         return "POST";
-        break;
     case RequestMethod::DELETE:
         return "DELETE";
-        break;
     }
 }
 
