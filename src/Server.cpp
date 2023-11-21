@@ -350,7 +350,7 @@ void Server::_addFd(int fd, FdType fd_type, short int events)
     _fd_to_fd_type.emplace(fd, fd_type);
     _fd_to_pfd_index.emplace(fd, _pfds.size());
 
-    pollfd pfd;
+    pollfd pfd{};
     pfd.fd = fd;
     pfd.events = events;
     _pfds.push_back(pfd);
