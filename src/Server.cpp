@@ -729,16 +729,14 @@ void Server::_killCGI(int fd)
         L::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") +
                 std::to_string(client.cgi_pid));
 
-        // This doesn't seem to make a difference for preventing internal Python errors from leaking to the client
-        // when the client very quickly does Ctrl+C, unfortunately
-        _removeCGIToServerFd(fd);
-
         // TODO: Isn't there a race condition here, as the cgi process may have already ended and we'll still try to
         // kill it?:
         // TODO: what happens if a zombie process is kill()ed?
         T::kill(client.cgi_pid, SIGTERM);
 
         client.cgi_killed = true;
+
+        _removeCGIToServerFd(fd);
     }
 }
 
