@@ -1114,8 +1114,11 @@ void Server::_sigIntHandler(int signum)
 void Server::_sigChldHandler(int signum)
 {
     (void)signum;
-    L::info(std::string("In _sigChldHandler()"));
 
+    static char msg[] = "In _sigChldHandler()\n";
+    write(STDOUT_FILENO, msg, sizeof(msg) - 1);
+
+    // TODO: throwing isn't signal safe, so change!!
     if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], "!", 1) == -1)
         throw T::SystemException("write");
 }
