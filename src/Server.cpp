@@ -290,6 +290,47 @@ void Server::_removeFd(int &fd)
     fd = -1;
 }
 
+void Server::_removeServerToCGIFd(int fd)
+{
+    assert(fd != -1);
+
+    Client &client = _getClient(fd);
+
+    if (client.server_to_cgi_fd == -1)
+    {
+        return;
+    }
+
+    // TODO: Remove this since we're calling _removeClientFd() anyways?
+    // L::info(std::string("    Disabling server_to_cgi POLLOUT"));
+    // size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
+    // _disableEvent(pfd_index, POLLOUT);
+
+    L::info(std::string("  Removing server_to_cgi_fd ") + std::to_string(client.server_to_cgi_fd));
+
+    _removeClientFd(client.server_to_cgi_fd);
+
+    client.server_to_cgi_state = Client::ServerToCGIState::DONE;
+}
+
+void Server::_removeCGIToServerFd(int fd)
+{
+    assert(fd != -1);
+
+    Client &client = _getClient(fd);
+
+    if (client.cgi_to_server_fd == -1)
+    {
+        return;
+    }
+
+    L::info(std::string("  Removing cgi_to_server_fd ") + std::to_string(client.cgi_to_server_fd));
+
+    _removeClientFd(client.cgi_to_server_fd);
+
+    client.cgi_to_server_state = Client::CGIToServerState::DONE;
+}
+
 void Server::_enableEvent(size_t pfd_index, short int event)
 {
     L::info(std::string("    Enabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
@@ -333,15 +374,6 @@ void Server::_disableReadingFromClient(Client &client)
     client.client_to_server_state = Client::ClientToServerState::DONE;
 }
 
-void Server::_disableServerToCGIPollout(Client &client)
-{
-    L::info(std::string("    Disabling server_to_cgi POLLOUT"));
-    size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-    _disableEvent(pfd_index, POLLOUT);
-
-    client.server_to_cgi_state = Client::ServerToCGIState::DONE;
-}
-
 void Server::_addClientFd(int fd, size_t client_index, FdType fd_type, short int events)
 {
     assert(fd != -1);
@@ -370,9 +402,7 @@ void Server::_handlePollerr(int fd, FdType fd_type)
 {
     if (fd_type == FdType::SERVER_TO_CGI)
     {
-        Client &client = _getClient(fd);
-        client.server_to_cgi_state = Client::ServerToCGIState::DONE;
-        _removeClientFd(client.server_to_cgi_fd);
+        _removeServerToCGIFd(fd);
     }
     else if (fd_type == FdType::CLIENT)
     {
@@ -392,16 +422,8 @@ void Server::_pollhupCGIToServer(int fd)
 
     client.client_to_server_state = Client::ClientToServerState::DONE;
 
-    if (client.server_to_cgi_fd != -1)
-    {
-        client.server_to_cgi_state = Client::ServerToCGIState::DONE;
-        _removeClientFd(client.server_to_cgi_fd);
-    }
-
-    // Close and remove cgi_to_server
-    assert(client.cgi_to_server_fd != -1);
-    _removeClientFd(client.cgi_to_server_fd);
-    client.cgi_to_server_state = Client::CGIToServerState::DONE;
+    _removeServerToCGIFd(fd);
+    _removeCGIToServerFd(fd);
 
     if (client.cgi_pid == -1)
     {
@@ -684,12 +706,7 @@ void Server::_removeClient(int fd)
     {
         L::info(std::string("  Removing client with fd ") + std::to_string(fd));
 
-        if (client.cgi_to_server_fd != -1)
-        {
-            L::info(std::string("  Removing cgi_to_server_fd ") + std::to_string(client.cgi_to_server_fd));
-            _removeClientFd(client.cgi_to_server_fd);
-            client.cgi_to_server_state = Client::CGIToServerState::DONE;
-        }
+        _removeCGIToServerFd(fd);
 
         // TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
         size_t client_index = _fd_to_client_index.at(client.client_fd);
@@ -712,15 +729,16 @@ void Server::_killCGI(int fd)
         L::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") +
                 std::to_string(client.cgi_pid));
 
+        // This doesn't seem to make a difference for preventing internal Python errors from leaking to the client
+        // when the client very quickly does Ctrl+C, unfortunately
+        _removeCGIToServerFd(fd);
+
         // TODO: Isn't there a race condition here, as the cgi process may have already ended and we'll still try to
         // kill it?:
         // TODO: what happens if a zombie process is kill()ed?
         T::kill(client.cgi_pid, SIGTERM);
 
         client.cgi_killed = true;
-
-        // TODO: I think we should also disable CGIToServer immediately
-        // to prevent Python error garbage caused by the SIGTERM being sent to the client?
     }
 }
 
@@ -1038,8 +1056,7 @@ void Server::_writeToCGI(Client &client)
         // Happens when the CGI script closed its stdin
         L::info(std::string("    write() detected 'Broken pipe'"));
 
-        _disableServerToCGIPollout(client);
-        _removeClientFd(client.server_to_cgi_fd);
+        _removeServerToCGIFd(client.server_to_cgi_fd);
 
         return;
     }
@@ -1047,8 +1064,7 @@ void Server::_writeToCGI(Client &client)
     // If we don't have anything left to write
     if (client.body_index == client.body.length())
     {
-        _disableServerToCGIPollout(client);
-        _removeClientFd(client.server_to_cgi_fd);
+        _removeServerToCGIFd(client.server_to_cgi_fd);
     }
 }
 
