@@ -1,5 +1,6 @@
 #include "Throwing.hpp"
 
+#include <fcntl.h>
 #include <unistd.h>
 
 namespace T = Throwing;
@@ -54,6 +55,14 @@ int T::accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen)
     if (fd == -1)
         throw T::SystemException("accept");
     return fd;
+}
+
+int T::fcntl(int fd, int cmd, int arg)
+{
+    int returned = ::fcntl(fd, cmd, arg);
+    if (returned == -1)
+        throw T::SystemException("fcntl");
+    return returned;
 }
 
 ssize_t T::read(int fd, void *buf, size_t count)

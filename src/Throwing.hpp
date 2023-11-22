@@ -27,6 +27,7 @@ void signal(int signum, sighandler_t handler);
 void pipe(int pipefd[2]);
 void close(int fd);
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
+int fcntl(int fd, int cmd, int arg);
 ssize_t read(int fd, void *buf, size_t count);
 void kill(pid_t pid, int sig);
 pid_t fork(void);

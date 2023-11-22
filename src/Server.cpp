@@ -8,6 +8,7 @@
 #include "defines.hpp"
 
 #include <cassert>
+#include <fcntl.h>
 #include <filesystem>
 #include <iostream>
 #include <netdb.h>
@@ -36,7 +37,7 @@ Server::Server(const Config &config)
 
     for (const auto &[bind_info, server_indices] : _config.bind_info_to_server_indices)
     {
-        int bind_fd = T::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+        int bind_fd = T::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
 
         _bind_fd_to_server_indices.emplace(bind_fd, server_indices);
 
@@ -461,6 +462,10 @@ void Server::_acceptClient(int server_fd)
 {
     int client_fd = T::accept(server_fd, NULL, NULL);
     L::info(std::string("    Accepted client fd ") + std::to_string(client_fd));
+
+    // Make client_fd non-blocking
+    int status_flags = T::fcntl(client_fd, F_GETFL, 0);
+    T::fcntl(client_fd, F_SETFL, status_flags | O_NONBLOCK);
 
     _addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
