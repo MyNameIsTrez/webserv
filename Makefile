@@ -63,11 +63,6 @@ fclean: clean
 .PHONY: re
 re: fclean all
 
-# TODO: Use coverage
-# .PHONY: coverage
-# coverage: re
-# 	./$(NAME); cd obj; /Users/sbos/Library/Python/3.9/bin/gcovr --html-nested coverage.html -r ..
-
 ################################################################################
 
 # Source and explanation: https://stackoverflow.com/a/52036564/13279557

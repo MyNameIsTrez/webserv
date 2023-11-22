@@ -61,8 +61,6 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Running Codam's tester
 
-# TODO: Figure out wtf we're supposed to do with this tester
-
 - First run `export REQUEST_METHOD="GET" SERVER_PROTOCOL="HTTP/1.1" PATH_INFO="/foo/bar"`
 - Then run `./cgi_tester`, and press Enter once
 

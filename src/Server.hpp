@@ -124,9 +124,6 @@ class Server
 
     int _unreaped_cgi_count;
 
-    // If the Host server name doesn't match any server directive's server names,
-    // default to the first server index (Note that the port in the "Host" header is always entirely ignored)
-    // TODO: Default construct
     std::unordered_map<int, std::vector<size_t>> _bind_fd_to_server_indices;
     std::unordered_map<int, std::string> _bind_fd_to_port;
 

@@ -1069,9 +1069,7 @@ void Server::_writeToClient(Client &client)
         return;
     }
 
-    // TODO: Can't this remove the client before the CGI has finished
-    // TODO: appending to client.response?
-    // TODO: So should we check whether the cgi_to_server pipe is closed?
+    // This is safe, since we read the entire CGI response before reaching this
     if (client.response_index == client.response.length())
     {
         _removeClient(client.client_fd);
