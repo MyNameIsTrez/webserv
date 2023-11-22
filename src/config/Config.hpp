@@ -67,7 +67,7 @@ class Config
 
     int connection_queue_length;
     size_t client_max_body_size;
-    size_t poll_timeout_ms;
+    size_t reap_frequency_ms;
     std::vector<ServerDirective> servers;
     std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
 
@@ -117,23 +117,23 @@ class Config
         }
     };
 
-    struct ConfigExceptionExpectedPollTimeoutMs : public ConfigException
+    struct ConfigExceptionExpectedReapFrequencyMs : public ConfigException
     {
-        ConfigExceptionExpectedPollTimeoutMs() : ConfigException("Config exception: Expected poll_timeout_ms")
+        ConfigExceptionExpectedReapFrequencyMs() : ConfigException("Config exception: Expected reap_frequency_ms")
         {
         }
     };
-    struct ConfigExceptionPollTimeoutMsIsLessThan100 : public ConfigException
+    struct ConfigExceptionReapFrequencyMsIsLessThan100 : public ConfigException
     {
-        ConfigExceptionPollTimeoutMsIsLessThan100()
-            : ConfigException("Config exception: poll_timeout_ms is less than 100")
+        ConfigExceptionReapFrequencyMsIsLessThan100()
+            : ConfigException("Config exception: reap_frequency_ms is less than 100")
         {
         }
     };
-    struct ConfigExceptionPollTimeoutMsIsGreaterThan10000 : public ConfigException
+    struct ConfigExceptionReapFrequencyMsIsGreaterThan10000 : public ConfigException
     {
-        ConfigExceptionPollTimeoutMsIsGreaterThan10000()
-            : ConfigException("Config exception: poll_timeout_ms is greater than 10000")
+        ConfigExceptionReapFrequencyMsIsGreaterThan10000()
+            : ConfigException("Config exception: reap_frequency_ms is greater than 10000")
         {
         }
     };

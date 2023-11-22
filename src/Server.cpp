@@ -98,7 +98,7 @@ void Server::run(void)
         L::info(std::string("Waiting for an event..."));
 
         assert(_unreaped_cgi_count >= 0);
-        int timeout = _unreaped_cgi_count > 0 ? _config.poll_timeout_ms : -1;
+        int timeout = _unreaped_cgi_count > 0 ? _config.reap_frequency_ms : -1;
         int event_count = poll(_pfds.data(), _pfds.size(), timeout);
         if (event_count == -1)
         {
@@ -235,7 +235,6 @@ void Server::_processPfd(size_t pfd_index, std::unordered_set<int> &seen_fds)
 
 void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
-    L::info(std::string("  fd: " + std::to_string(pfd.fd))); // TODO: Remove
     L::info(std::string("  fd: " + std::to_string(pfd.fd)) + ", fd_type: " + std::to_string(int(fd_type)) +
             ", client_index: " + std::to_string(fd_type == FdType::SERVER ? -1 : _fd_to_client_index.at(pfd.fd)) +
             ", client_fd: " +
@@ -292,11 +291,6 @@ void Server::_removeServerToCGIFd(int fd)
     {
         return;
     }
-
-    // TODO: Remove this since we're calling _removeClientFd() anyways?
-    // L::info(std::string("    Disabling server_to_cgi POLLOUT"));
-    // size_t pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-    // _disableEvent(pfd_index, POLLOUT);
 
     L::info(std::string("  Removing server_to_cgi_fd ") + std::to_string(client.server_to_cgi_fd));
 
@@ -551,10 +545,6 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
     {
         L::info(std::string("    Read 0 bytes"));
 
-        // TODO: Assert that we reached content_length
-        // TODO: Probably need to send the client a response like "expected more body bytes" if it's less than
-        // content_length
-
         // Always true, since cgi_to_server is the only other read() caller,
         // and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
         assert(fd_type == FdType::CLIENT);
@@ -671,7 +661,6 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
     }
     else
     {
-        // TODO: Should be unreachable
         assert(false);
     }
 }
@@ -686,7 +675,6 @@ void Server::_removeClient(int fd)
 
     client.being_removed = true;
 
-    // TODO: We may also need to disable other stuff?
     _disableReadingFromClient(client);
 
     // This if-statement is here because _reapChildCGIScripts() *needs* client to still exist
@@ -701,7 +689,6 @@ void Server::_removeClient(int fd)
 
         _removeCGIToServerFd(fd);
 
-        // TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
         size_t client_index = _fd_to_client_index.at(client.client_fd);
 
         _fd_to_client_index[_clients.back().client_fd] = client_index;
@@ -722,9 +709,6 @@ void Server::_killCGI(int fd)
         L::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") +
                 std::to_string(client.cgi_pid));
 
-        // TODO: Isn't there a race condition here, as the cgi process may have already ended and we'll still try to
-        // kill it?:
-        // TODO: what happens if a zombie process is kill()ed?
         T::kill(client.cgi_pid, SIGTERM);
 
         client.cgi_killed = true;
@@ -747,7 +731,7 @@ void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const
     pid_t forked_pid = T::fork();
     if (forked_pid == CHILD)
     {
-        // TODO: Comment why this was necessary
+        // Prevents having the child process receive any Ctrl+C
         T::signal(SIGINT, SIG_IGN);
 
         T::close(server_to_cgi_pipe[PIPE_WRITE_INDEX]);
@@ -824,13 +808,12 @@ void Server::_execveChild(Client &client, const std::string &cgi_execve_path, co
     cgi_headers.push_back("PATH_TRANSLATED=" + std::string(std::filesystem::current_path()) + path_info);
     cgi_headers.push_back("SERVER_PROTOCOL=HTTP/1.1");
 
-    // TODO: Give some of these values?
     cgi_headers.push_back("AUTH_TYPE=");
     cgi_headers.push_back("REMOTE_ADDR=");
     cgi_headers.push_back("REMOTE_HOST=");
     cgi_headers.push_back("REMOTE_IDENT=");
     cgi_headers.push_back("REMOTE_USER=");
-    cgi_headers.push_back("SERVER_SOFTWARE="); // TODO: Share this with the HTTP response?
+    cgi_headers.push_back("SERVER_SOFTWARE=");
 
     const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
     char **cgi_env = const_cast<char **>(cgi_env_vec.data());
@@ -906,10 +889,6 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
 
                     resolved.path = unsplit_path.substr(0, path_end_index);
 
-                    // TODO: Remove
-                    // L::debug("path_end_index: " + std::to_string(path_end_index));
-                    // L::debug("resolved.path: " + resolved.path);
-
                     target_is_directory = std::filesystem::is_directory(resolved.path);
 
                     if (!target_is_directory || path_end_index >= unsplit_path.length() ||
@@ -934,8 +913,9 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
                 {
                     size_t path_len = resolved.path.length();
                     size_t questionmark_index = unsplit_path.find("?", path_len);
-                    // TODO: According to CGI RFC 3875 section 4.1.6. PATH_TRANSLATED we should translate "%2e" to ".",
-                    // so do we want to do that?
+
+                    // According to CGI RFC 3875 section 4.1.6. PATH_TRANSLATED
+                    // we should translate "%2e" to ".", so do we want to do that?
                     resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
 
                     resolved.query_string = unsplit_path.substr(resolved.path.length() + resolved.path_info.length());
@@ -1020,7 +1000,6 @@ void Server::_handlePollout(int fd, FdType fd_type)
     }
     else
     {
-        // TODO: Should be unreachable
         assert(false);
     }
 }
@@ -1031,12 +1010,11 @@ void Server::_writeToCGI(Client &client)
 
     assert(client.server_to_cgi_state == Client::ServerToCGIState::WRITING);
 
-    size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
+    size_t max_cgi_write_len = MAX_CGI_WRITE_LEN;
     size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
 
     assert(body_substr_len > 0);
 
-    // TODO: substr() can fail
     std::string body_substr = client.body.substr(client.body_index, body_substr_len);
 
     client.body_index += body_substr_len;
@@ -1072,7 +1050,7 @@ void Server::_writeToClient(Client &client)
 
     assert(client.server_to_client_state == Client::ServerToClientState::WRITING);
 
-    size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config; HAS to be >= 1
+    size_t max_client_write_len = MAX_CLIENT_WRITE_LEN;
     size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
 
     assert(response_substr_len > 0);

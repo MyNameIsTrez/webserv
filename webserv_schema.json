@@ -7,7 +7,7 @@
 	"required": [
 		"connection_queue_length",
 		"client_max_body_size",
-		"poll_timeout_ms",
+		"reap_frequency_ms",
 		"servers"
 	],
 	"properties": {
@@ -23,8 +23,8 @@
 			"type": "integer",
 			"minimum": 0
 		},
-		"poll_timeout_ms": {
-			"description": "The poll timeout in milliseconds. This is used to periodically reap CGI scripts.",
+		"reap_frequency_ms": {
+			"description": "Used to periodically reap CGI scripts.",
 			"default": 1000,
 			"type": "integer",
 			"minimum": 100,

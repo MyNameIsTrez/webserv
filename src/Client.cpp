@@ -365,10 +365,6 @@ void Client::prependResponseHeader(void)
     std::stringstream content_length_ss;
     content_length_ss << response_body.length();
 
-    // TODO: Use _replaceAll(str, "\n", "\r\n"):
-    // cgi_rfc3875.pdf: "The server MUST translate the header data from the CGI
-    // header syntax to the HTTP header syntax if these differ."
-
     _addResponseHeader("Content-Length", content_length_ss.str());
 
     if (this->status == Status::MOVED_PERMANENTLY)
@@ -474,8 +470,6 @@ void Client::extractCGIDocumentResponseHeaders(void)
         this->status = Status::Status(status_code);
         this->_custom_reason_phrase = reason_phrase;
     }
-
-    // TODO: What to do with headers that prependRespondHeader() doesn't expect?
 }
 
 std::string Client::getRequestMethodString(void) const
@@ -888,17 +882,3 @@ std::string Client::_getFileName(const std::string &path)
         return "";
     return path.substr(slash_index + 1);
 }
-
-// TODO: Remove? This has to do with the RFC asking us to relace the CGI's \n of headers with \r\n
-// std::string Client::_replaceAll(std::string input, const std::string&
-// needle, const std::string& replacement)
-// {
-// 	size_t start_pos = 0;
-// 	while((start_pos = input.find(needle, start_pos)) != std::string::npos)
-// 	{
-// 		input.replace(start_pos, needle.size(), replacement);
-// 		start_pos += replacement.size(); // Handles case where
-// 'replacement' is a substring of 'needle'
-// 	}
-// 	return input;
-// }

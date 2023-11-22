@@ -9,7 +9,7 @@
 #include <set>
 
 Config::Config(const JSON &json)
-    : connection_queue_length(), client_max_body_size(), poll_timeout_ms(), servers(), bind_info_to_server_indices()
+    : connection_queue_length(), client_max_body_size(), reap_frequency_ms(), servers(), bind_info_to_server_indices()
 {
     const auto &root_object = json.root.getObject();
 
@@ -135,20 +135,20 @@ void Config::_parseClientMaxBodySize(const std::map<std::string, Node> &root_obj
 
 void Config::_parsePollTimeoutMs(const std::map<std::string, Node> &root_object)
 {
-    if (!root_object.contains("poll_timeout_ms"))
+    if (!root_object.contains("reap_frequency_ms"))
     {
-        throw ConfigExceptionExpectedPollTimeoutMs();
+        throw ConfigExceptionExpectedReapFrequencyMs();
     }
 
-    poll_timeout_ms = root_object.at("poll_timeout_ms").getInteger();
+    reap_frequency_ms = root_object.at("reap_frequency_ms").getInteger();
 
-    if (poll_timeout_ms < 100)
+    if (reap_frequency_ms < 100)
     {
-        throw ConfigExceptionPollTimeoutMsIsLessThan100();
+        throw ConfigExceptionReapFrequencyMsIsLessThan100();
     }
-    if (poll_timeout_ms > 10000)
+    if (reap_frequency_ms > 10000)
     {
-        throw ConfigExceptionPollTimeoutMsIsGreaterThan10000();
+        throw ConfigExceptionReapFrequencyMsIsGreaterThan10000();
     }
 }
 

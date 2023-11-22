@@ -1,7 +1,7 @@
 {
 	"connection_queue_length": 420,
 	"client_max_body_size": 420420420,
-	"poll_timeout_ms": 1000,
+	"reap_frequency_ms": 1000,
 	"servers": [
 		{
 			"listen": [
