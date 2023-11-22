@@ -34,11 +34,8 @@ Server::Server(const Config &config)
 
     constructed_singleton = true;
 
-    for (const auto &it : _config.bind_info_to_server_indices)
+    for (const auto &[bind_info, server_indices] : _config.bind_info_to_server_indices)
     {
-        const auto &bind_info = it.first;
-        const auto &server_indices = it.second;
-
         int bind_fd = T::socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
 
         _bind_fd_to_server_indices.emplace(bind_fd, server_indices);

@@ -28,7 +28,7 @@ Config::Config(const JSON &json)
         ServerDirective server_directive{};
 
         const std::map<std::string, Node> &server = server_it.getObject();
-        for (const auto &server_property_it : server)
+        for (const auto &[key, value] : server)
         {
             if (!server.contains("listen"))
             {
@@ -46,9 +46,6 @@ Config::Config(const JSON &json)
             {
                 throw ConfigExceptionExpectedErrorPages();
             }
-
-            const std::string &key = server_property_it.first;
-            const Node &value = server_property_it.second;
 
             if (key == "listen")
             {
@@ -73,15 +70,15 @@ Config::Config(const JSON &json)
             }
             else if (key == "error_pages")
             {
-                for (const auto &error_page_node : value.getObject())
+                for (const auto &[error_code_str, page_path_node] : value.getObject())
                 {
                     int error_code;
-                    if (!Utils::parseNumber(error_page_node.first, error_code, std::numeric_limits<int>::max()))
+                    if (!Utils::parseNumber(error_code_str, error_code, std::numeric_limits<int>::max()))
                     {
                         throw ConfigExceptionInvalidErrorPageCode();
                     }
 
-                    const std::string &page_path = error_page_node.second.getString();
+                    const std::string &page_path = page_path_node.getString();
 
                     if (error_code != 200 && error_code != 301 && error_code != 302 && error_code != 400 &&
                         error_code != 403 && error_code != 404 && error_code != 405 && error_code != 413 &&
@@ -204,11 +201,8 @@ Config::LocationDirective Config::_parseLocation(const std::pair<std::string, No
         throw ConfigExceptionLocationNeedsToStartWithSlash();
     }
 
-    for (const auto &location_property_it : location_object)
+    for (const auto &[location_property_key, location_property_value] : location_object)
     {
-        const std::string &location_property_key = location_property_it.first;
-        const Node &location_property_value = location_property_it.second;
-
         if (location_property_key == "cgi_execve_path")
         {
             location_directive.cgi_execve_path = location_property_value.getString();
