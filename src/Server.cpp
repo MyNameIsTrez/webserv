@@ -114,8 +114,6 @@ void Server::run(void)
         {
             L::info("  poll() timed out");
             _reapChildCGIScripts();
-
-            // TODO: Maybe also remove timed out clients somehow?
         }
 
         _printContainerSizes();
@@ -1014,7 +1012,7 @@ void Server::_handlePollout(int fd, FdType fd_type)
     }
     else if (fd_type == FdType::CLIENT)
     {
-        _writeToClient(client, fd);
+        _writeToClient(client);
     }
     else
     {
@@ -1059,11 +1057,10 @@ void Server::_writeToCGI(Client &client)
     }
 }
 
-void Server::_writeToClient(Client &client, int fd)
+void Server::_writeToClient(Client &client)
 {
     L::info(std::string("  Writing to the client..."));
 
-    assert(client.client_fd == fd);
     assert(client.server_to_client_state == Client::ServerToClientState::WRITING);
 
     size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config; HAS to be >= 1
@@ -1080,7 +1077,7 @@ void Server::_writeToClient(Client &client, int fd)
 
     // sleep(5); // TODO: REMOVE
 
-    if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
+    if (write(client.client_fd, response_substr.c_str(), response_substr.length()) == -1)
     {
         // Reached when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
         _removeClient(client.client_fd);

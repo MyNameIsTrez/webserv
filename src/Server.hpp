@@ -111,7 +111,7 @@ class Server
     // POLLOUT
     void _handlePollout(int fd, FdType fd_type);
     void _writeToCGI(Client &client);
-    void _writeToClient(Client &client, int fd);
+    void _writeToClient(Client &client);
 
     // SIGNAL HANDLERS
     static void _sigIntHandler(int signum);
