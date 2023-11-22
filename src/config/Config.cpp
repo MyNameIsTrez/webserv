@@ -9,13 +9,13 @@
 #include <set>
 
 Config::Config(const JSON &json)
-    : connection_queue_length(), client_max_body_size(), servers(), bind_info_to_server_indices()
+    : connection_queue_length(), client_max_body_size(), poll_timeout_ms(), servers(), bind_info_to_server_indices()
 {
     const auto &root_object = json.root.getObject();
 
     _parseConnectionQueueLength(root_object);
-
     _parseClientMaxBodySize(root_object);
+    _parsePollTimeoutMs(root_object);
 
     if (!root_object.contains("servers"))
     {
@@ -116,13 +116,13 @@ void Config::_parseConnectionQueueLength(const std::map<std::string, Node> &root
     size_t connection_queue_length_size_t = root_object.at("connection_queue_length").getInteger();
     if (connection_queue_length_size_t > std::numeric_limits<int>::max())
     {
-        throw ConfigExceptionConnectionQueueLengthIsTooHigh();
+        throw ConfigExceptionConnectionQueueLengthIsGreaterThanIntMax();
     }
     connection_queue_length = connection_queue_length_size_t;
 
     if (connection_queue_length < 1)
     {
-        throw ConfigExceptionConnectionQueueLengthIsSmallerThanOne();
+        throw ConfigExceptionConnectionQueueLengthIsLessThanOne();
     }
 }
 
@@ -134,6 +134,25 @@ void Config::_parseClientMaxBodySize(const std::map<std::string, Node> &root_obj
     }
 
     client_max_body_size = root_object.at("client_max_body_size").getInteger();
+}
+
+void Config::_parsePollTimeoutMs(const std::map<std::string, Node> &root_object)
+{
+    if (!root_object.contains("poll_timeout_ms"))
+    {
+        throw ConfigExceptionExpectedPollTimeoutMs();
+    }
+
+    poll_timeout_ms = root_object.at("poll_timeout_ms").getInteger();
+
+    if (poll_timeout_ms < 100)
+    {
+        throw ConfigExceptionPollTimeoutMsIsLessThan100();
+    }
+    if (poll_timeout_ms > 10000)
+    {
+        throw ConfigExceptionPollTimeoutMsIsGreaterThan10000();
+    }
 }
 
 Config::ListenEntry Config::_parseListen(const Node &listen_node)
@@ -269,12 +288,12 @@ void Config::_fillBindInfoToServerIndices()
                 throw ConfigExceptionDuplicateLocationInServer();
             bind_infos_in_server.insert(bind_info);
 
-            // Deliberately creates the vector if it is missing
+            // Deliberately creating vector with [] operator if it doesn't exist
             bind_info_to_server_indices[bind_info].push_back(server_index);
 
             for (const std::string &server_name : server.server_names)
             {
-                // Deliberately creates the vector if it is missing
+                // Deliberately creating vector with [] operator if it doesn't exist
                 if (names_of_bind_info[bind_info].contains(server_name))
                     throw ConfigExceptionConflictingServerNameOnListen();
 

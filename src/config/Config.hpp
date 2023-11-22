@@ -67,6 +67,7 @@ class Config
 
     int connection_queue_length;
     size_t client_max_body_size;
+    size_t poll_timeout_ms;
     std::vector<ServerDirective> servers;
     std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
 
@@ -80,6 +81,7 @@ class Config
   private:
     void _parseConnectionQueueLength(const std::map<std::string, Node> &root_object);
     void _parseClientMaxBodySize(const std::map<std::string, Node> &root_object);
+    void _parsePollTimeoutMs(const std::map<std::string, Node> &root_object);
 
     ListenEntry _parseListen(const Node &listen_node);
     LocationDirective _parseLocation(const std::pair<std::string, Node> &location_node);
@@ -93,17 +95,17 @@ class Config
         {
         }
     };
-    struct ConfigExceptionConnectionQueueLengthIsTooHigh : public ConfigException
+    struct ConfigExceptionConnectionQueueLengthIsGreaterThanIntMax : public ConfigException
     {
-        ConfigExceptionConnectionQueueLengthIsTooHigh()
-            : ConfigException("Config exception: connection_queue_length is too high")
+        ConfigExceptionConnectionQueueLengthIsGreaterThanIntMax()
+            : ConfigException("Config exception: connection_queue_length is greater than int max")
         {
         }
     };
-    struct ConfigExceptionConnectionQueueLengthIsSmallerThanOne : public ConfigException
+    struct ConfigExceptionConnectionQueueLengthIsLessThanOne : public ConfigException
     {
-        ConfigExceptionConnectionQueueLengthIsSmallerThanOne()
-            : ConfigException("Config exception: connection_queue_length is smaller than one")
+        ConfigExceptionConnectionQueueLengthIsLessThanOne()
+            : ConfigException("Config exception: connection_queue_length is less than one")
         {
         }
     };
@@ -111,6 +113,27 @@ class Config
     struct ConfigExceptionExpectedClientMaxBodySize : public ConfigException
     {
         ConfigExceptionExpectedClientMaxBodySize() : ConfigException("Config exception: Expected client_max_body_size")
+        {
+        }
+    };
+
+    struct ConfigExceptionExpectedPollTimeoutMs : public ConfigException
+    {
+        ConfigExceptionExpectedPollTimeoutMs() : ConfigException("Config exception: Expected poll_timeout_ms")
+        {
+        }
+    };
+    struct ConfigExceptionPollTimeoutMsIsLessThan100 : public ConfigException
+    {
+        ConfigExceptionPollTimeoutMsIsLessThan100()
+            : ConfigException("Config exception: poll_timeout_ms is less than 100")
+        {
+        }
+    };
+    struct ConfigExceptionPollTimeoutMsIsGreaterThan10000 : public ConfigException
+    {
+        ConfigExceptionPollTimeoutMsIsGreaterThan10000()
+            : ConfigException("Config exception: poll_timeout_ms is greater than 10000")
         {
         }
     };
@@ -212,18 +235,18 @@ class Config
 
     struct ConfigExceptionGetProtoByName : public ConfigException
     {
-        ConfigExceptionGetProtoByName() : ConfigException("Config exception in function 'getprotobyname'")
+        ConfigExceptionGetProtoByName() : ConfigException("Config exception: In function 'getprotobyname'")
         {
         }
     };
 
     struct ConfigExceptionGetAddrInfo : public ConfigException
     {
-        ConfigExceptionGetAddrInfo() : ConfigException("Config exception in function 'getaddrinfo'")
+        ConfigExceptionGetAddrInfo() : ConfigException("Config exception: In function 'getaddrinfo'")
         {
         }
         ConfigExceptionGetAddrInfo(const std::string &error_message)
-            : ConfigException("Config exception in function 'getaddrinfo': " + error_message)
+            : ConfigException("Config exception: In function 'getaddrinfo': " + error_message)
         {
         }
     };

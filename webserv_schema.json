@@ -7,6 +7,7 @@
 	"required": [
 		"connection_queue_length",
 		"client_max_body_size",
+		"poll_timeout_ms",
 		"servers"
 	],
 	"properties": {
@@ -21,6 +22,13 @@
 			"default": 420420420,
 			"type": "integer",
 			"minimum": 0
+		},
+		"poll_timeout_ms": {
+			"description": "The poll timeout in milliseconds. This is used to periodically reap CGI scripts.",
+			"default": 1000,
+			"type": "integer",
+			"minimum": 100,
+			"maximum": 10000
 		},
 		"servers": {
 			"description": "An array of servers.",

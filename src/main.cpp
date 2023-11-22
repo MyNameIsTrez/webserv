@@ -47,6 +47,10 @@ int main(int argc, char *argv[])
     Config config(json);
 
     Server server(config);
+
+    // Showcase it being a singleton
+    // Server server2(config);
+
     server.run();
 
     return EXIT_SUCCESS;

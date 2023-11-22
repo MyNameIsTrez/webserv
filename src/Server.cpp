@@ -14,19 +14,26 @@
 #include <netinet/in.h>
 #include <poll.h>
 #include <sys/stat.h>
+#include <sys/wait.h>
 #include <unordered_set>
 
 namespace L = Logger;
 namespace T = Throwing;
 
-bool shutting_down_gracefully = false;
-
-int Server::_sig_chld_pipe[2];
+bool Server::constructed_singleton = false;
+bool Server::shutting_down_gracefully = false;
 
 Server::Server(const Config &config)
     : _config(config), _bind_fd_to_server_indices(), _bind_fd_to_port(), _cgi_pid_to_client_fd(), _fd_to_client_index(),
       _fd_to_pfd_index(), _fd_to_fd_type(), _clients(), _pfds()
 {
+    if (constructed_singleton)
+    {
+        throw ServerExceptionAlreadyConstructedThisSingleton();
+    }
+
+    constructed_singleton = true;
+
     for (const auto &it : _config.bind_info_to_server_indices)
     {
         const auto &bind_info = it.first;
@@ -61,16 +68,6 @@ Server::Server(const Config &config)
 
     T::signal(SIGINT, _sigIntHandler);
     T::signal(SIGPIPE, SIG_IGN);
-
-    T::pipe(_sig_chld_pipe);
-    _addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
-    L::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
-
-    T::signal(SIGCHLD, _sigChldHandler);
-}
-
-Server::~Server(void)
-{
 }
 
 void Server::run(void)
@@ -85,13 +82,11 @@ void Server::run(void)
         {
             L::info("\nShutting down gracefully...");
             servers_active = false;
-            _shutDownGracefully();
+            _shutDownServers();
         }
 
-        // If the only fd left in _pfds is _sig_chld_pipe[PIPE_READ_INDEX], return
-        if (_pfds.size() == 1)
+        if (_pfds.size() == 0)
         {
-            _removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
             L::info(std::string("Gootbye"));
             return;
         }
@@ -105,7 +100,7 @@ void Server::run(void)
 
         L::info(std::string("Waiting for an event..."));
 
-        int event_count = poll(_pfds.data(), _pfds.size(), -1);
+        int event_count = poll(_pfds.data(), _pfds.size(), _config.poll_timeout_ms);
         if (event_count == -1)
         {
             if (errno == EINTR)
@@ -118,6 +113,9 @@ void Server::run(void)
         else if (event_count == 0)
         {
             L::info("  poll() timed out");
+            _reapChildCGIScripts();
+
+            // TODO: Maybe also remove timed out clients somehow?
         }
 
         _printContainerSizes();
@@ -139,7 +137,7 @@ template <typename T> void Server::_swapRemove(T &vector, size_t index)
     vector.pop_back();
 }
 
-void Server::_shutDownGracefully(void)
+void Server::_shutDownServers(void)
 {
     for (auto [fd, fd_type] : _fd_to_fd_type)
     {
@@ -241,13 +239,9 @@ void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
     L::info(std::string("  fd: " + std::to_string(pfd.fd))); // TODO: Remove
     L::info(std::string("  fd: " + std::to_string(pfd.fd)) + ", fd_type: " + std::to_string(int(fd_type)) +
-            ", client_index: " +
-            std::to_string(
-                (fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd)) +
+            ", client_index: " + std::to_string(fd_type == FdType::SERVER ? -1 : _fd_to_client_index.at(pfd.fd)) +
             ", client_fd: " +
-            std::to_string((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD)
-                               ? -1
-                               : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd) +
+            std::to_string(fd_type == FdType::SERVER ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd) +
             ", revents:" + ((pfd.revents & POLLIN) ? " POLLIN" : "") + ((pfd.revents & POLLOUT) ? " POLLOUT" : "") +
             ((pfd.revents & POLLHUP) ? " POLLHUP" : "") + ((pfd.revents & POLLNVAL) ? " POLLNVAL" : "") +
             ((pfd.revents & POLLPRI) ? " POLLPRI" : "") + ((pfd.revents & POLLRDBAND) ? " POLLRDBAND" : "") +
@@ -433,7 +427,7 @@ void Server::_pollhupCGIToServer(int fd)
 
 void Server::_cgiEnd(Client &client)
 {
-    L::debug("client.cgi_exit_status: " + std::to_string(client.cgi_exit_status));
+    L::debug("  In _cgiEnd(), where client.cgi_exit_status: " + std::to_string(client.cgi_exit_status));
     if (client.cgi_exit_status != 0)
     {
         _respondClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
@@ -454,30 +448,19 @@ void Server::_handlePollin(int fd, FdType fd_type, bool &skip_client)
     }
     else
     {
-        if (fd_type == FdType::SIG_CHLD)
-        {
-            _reapChild();
+        assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
 
-            // TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
+        Client &client = _getClient(fd);
+
+        try
+        {
+            _readFd(client, fd, fd_type, skip_client);
+        }
+        catch (const Client::ClientException &e)
+        {
+            _respondClientException(e, client);
 
             skip_client = true;
-        }
-        else
-        {
-            assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
-
-            Client &client = _getClient(fd);
-
-            try
-            {
-                _readFd(client, fd, fd_type, skip_client);
-            }
-            catch (const Client::ClientException &e)
-            {
-                _respondClientException(e, client);
-
-                skip_client = true;
-            }
         }
     }
 }
@@ -496,51 +479,61 @@ void Server::_acceptClient(int server_fd)
     std::cout << "Added a client; " << _clients.size() << " clients now connected" << std::endl;
 }
 
-void Server::_reapChild(void)
+void Server::_reapChildCGIScripts(void)
 {
-    L::info(std::string("    In _reapChild()"));
+    L::info(std::string("    In _reapChildCGIScripts()"));
 
-    char dummy;
-    T::read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1);
-
-    // Reaps all children that have exited
-    // waitpid() returns 0 if no more children can be reaped right now
-    // WNOHANG guarantees that this call doesn't block
-    // This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
-    // TODO: Are there other options we should use?
-    int child_exit_status;
-    pid_t child_pid = T::waitpid(-1, &child_exit_status, WNOHANG);
-
-    // Reached when the client disconnects before the CGI has finished
-    if (!_cgi_pid_to_client_fd.contains(child_pid))
+    while (true)
     {
-        return;
-    }
+        // Reaps all children that have exited
+        // WNOHANG guarantees that this call doesn't block
+        int child_exit_status;
+        pid_t child_pid = waitpid(-1, &child_exit_status, WNOHANG);
 
-    int client_fd = _cgi_pid_to_client_fd.at(child_pid);
-    size_t client_index = _fd_to_client_index.at(client_fd);
-    Client &client = _clients.at(client_index);
+        // If there are no children at this moment
+        if (errno == ECHILD)
+        {
+            return;
+        }
+        // If the children aren't ready to be reaped yet
+        if (child_pid == 0)
+        {
+            return;
+        }
 
-    _cgi_pid_to_client_fd.erase(client.cgi_pid);
-    client.cgi_pid = -1;
+        // Reached when the client disconnects before the CGI has finished
+        if (!_cgi_pid_to_client_fd.contains(child_pid))
+        {
+            continue;
+        }
 
-    assert(client.client_to_server_state == Client::ClientToServerState::DONE);
-    assert(client.server_to_cgi_state == Client::ServerToCGIState::DONE);
-    assert(client.cgi_to_server_state != Client::CGIToServerState::NOT_READING);
-    assert(client.server_to_client_state == Client::ServerToClientState::NOT_WRITING);
+        L::info(std::string("    Reaping child_pid ") + std::to_string(child_pid));
 
-    if (WIFEXITED(child_exit_status))
-    {
-        client.cgi_exit_status = WEXITSTATUS(child_exit_status);
-    }
+        int client_fd = _cgi_pid_to_client_fd.at(child_pid);
+        size_t client_index = _fd_to_client_index.at(client_fd);
+        Client &client = _clients.at(client_index);
 
-    if (client.being_removed)
-    {
-        _removeClient(client_fd);
-    }
-    else if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
-    {
-        _cgiEnd(client);
+        _cgi_pid_to_client_fd.erase(client.cgi_pid);
+        client.cgi_pid = -1;
+
+        assert(client.client_to_server_state == Client::ClientToServerState::DONE);
+        assert(client.server_to_cgi_state == Client::ServerToCGIState::DONE);
+        assert(client.cgi_to_server_state != Client::CGIToServerState::NOT_READING);
+        assert(client.server_to_client_state == Client::ServerToClientState::NOT_WRITING);
+
+        if (WIFEXITED(child_exit_status))
+        {
+            client.cgi_exit_status = WEXITSTATUS(child_exit_status);
+        }
+
+        if (client.being_removed)
+        {
+            _removeClient(client_fd);
+        }
+        else if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
+        {
+            _cgiEnd(client);
+        }
     }
 }
 
@@ -696,7 +689,7 @@ void Server::_removeClient(int fd)
     // TODO: We may also need to disable other stuff?
     _disableReadingFromClient(client);
 
-    // This if-statement is here because _reapChild() *needs* client to still exist
+    // This if-statement is here because _reapChildCGIScripts() *needs* client to still exist
     // It assumes that this function gets called again after the CGI is reaped
     if (!client.cgi_killed && client.cgi_pid != -1)
     {
@@ -1108,17 +1101,5 @@ void Server::_writeToClient(Client &client, int fd)
 void Server::_sigIntHandler(int signum)
 {
     (void)signum;
-    shutting_down_gracefully = true;
-}
-
-void Server::_sigChldHandler(int signum)
-{
-    (void)signum;
-
-    static char msg[] = "In _sigChldHandler()\n";
-    write(STDOUT_FILENO, msg, sizeof(msg) - 1);
-
-    // TODO: throwing isn't signal safe, so change!!
-    if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], "!", 1) == -1)
-        throw T::SystemException("write");
+    Server::shutting_down_gracefully = true;
 }

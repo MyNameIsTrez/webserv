@@ -28,7 +28,6 @@ void pipe(int pipefd[2]);
 void close(int fd);
 int accept(int sockfd, struct sockaddr *addr, socklen_t *addrlen);
 ssize_t read(int fd, void *buf, size_t count);
-pid_t waitpid(pid_t pid, int *wstatus, int options);
 void kill(pid_t pid, int sig);
 pid_t fork(void);
 void dup2(int oldfd, int newfd);

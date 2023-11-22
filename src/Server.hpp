@@ -9,9 +9,16 @@ class Server
 {
   public:
     Server(const Config &config);
-    virtual ~Server(void);
 
     void run(void);
+
+    struct ServerExceptionAlreadyConstructedThisSingleton : std::runtime_error
+    {
+        ServerExceptionAlreadyConstructedThisSingleton()
+            : std::runtime_error("Server exception: Already constructed this singleton")
+        {
+        }
+    };
 
   private:
     Server(void);
@@ -23,14 +30,13 @@ class Server
     enum class FdType
     {
         SERVER,
-        SIG_CHLD,
         CLIENT,
         SERVER_TO_CGI,
         CGI_TO_SERVER,
     };
 
     // UTILS
-    void _shutDownGracefully(void);
+    void _shutDownServers(void);
     void _printContainerSizes(void);
     void _printEvents(const pollfd &pfd, FdType fd_type);
     void _processPfd(size_t pfd_index, std::unordered_set<int> &seen_fds);
@@ -63,7 +69,7 @@ class Server
     // POLLIN
     void _handlePollin(int fd, FdType fd_type, bool &skip_client);
     void _acceptClient(int server_fd);
-    void _reapChild(void);
+    void _reapChildCGIScripts(void);
     void _readFd(Client &client, int fd, FdType fd_type, bool &skip_client);
     void _removeClient(int fd);
     void _killCGI(int fd);
@@ -109,9 +115,9 @@ class Server
 
     // SIGNAL HANDLERS
     static void _sigIntHandler(int signum);
-    static void _sigChldHandler(int signum);
 
-    static int _sig_chld_pipe[2];
+    static bool constructed_singleton;
+    static bool shutting_down_gracefully;
 
     const Config &_config;
 

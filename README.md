@@ -44,8 +44,21 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Running siege
 
-- Siege a URL with `c` clients repeated `r` times with `siege -c2 -r3 http://localhost:8080`
 - Benchmark a URL indefinitely with `siege -b http://localhost:8080`
+- Siege a URL with `c` clients repeated `r` times with `siege -c2 -r3 http://localhost:8080`
+- Let 5 clients send a POST request sending `a` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/public/a.html'`
+- Let 5 clients send a POST request sending `1k_lines.txt` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/tests/sent/1k_lines.txt'`
+
+# TODO: This sometimes hangs :((
+`clear && valgrind ./webserv test_webserv.json &>log.log`
+`siege -b http://localhost:8080/cgis/python/debug.py`
+`curl localhost:8080/cgis/python/debug.py`
+
+This has ~5 clients always hang:
+`siege -c10 -r10 http://localhost:8080/cgis/python/debug.py`
+
+This is the minimum setup to have a ~1/10 chance to get a hang:
+`siege -c3 -r1 http://localhost:8080/cgis/python/debug.py`
 
 ## Memory usage
 

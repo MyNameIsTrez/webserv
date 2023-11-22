@@ -1,6 +1,5 @@
 #include "Throwing.hpp"
 
-#include <sys/wait.h>
 #include <unistd.h>
 
 namespace T = Throwing;
@@ -63,14 +62,6 @@ ssize_t T::read(int fd, void *buf, size_t count)
     if (bytes_read == -1)
         throw T::SystemException("read");
     return bytes_read;
-}
-
-pid_t T::waitpid(pid_t pid, int *wstatus, int options)
-{
-    pid_t child_pid = ::waitpid(pid, wstatus, options);
-    if (child_pid == -1)
-        throw T::SystemException("waitpid");
-    return child_pid;
 }
 
 void T::kill(pid_t pid, int sig)
