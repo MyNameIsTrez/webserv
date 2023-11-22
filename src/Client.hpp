@@ -118,6 +118,8 @@ class Client
 
     RequestMethod _getRequestMethodEnumFromString(const std::string &request_method_string) const;
 
+    void _decodeRequestTarget(void);
+
     bool _isValidProtocol(void);
 
     bool _fillHeaders(const std::vector<std::string> &header_lines,
@@ -133,8 +135,6 @@ class Client
 
     std::string _getFileExtension(const std::string &path);
     std::string _getFileName(const std::string &path);
-
-    // std::string _replaceAll(std::string input, const std::string& needle, const std::string& replacement);
 
     std::string _custom_reason_phrase;
 

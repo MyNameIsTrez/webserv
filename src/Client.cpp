@@ -528,6 +528,9 @@ void Client::_parseRequestLine(const std::string &line)
     this->request_target = line.substr(request_method_end_pos, path_end_pos - request_method_end_pos);
     if (this->request_target.empty() || this->request_target.at(0) != '/')
         throw ClientException(Status::BAD_REQUEST);
+
+    this->_decodeRequestTarget();
+
     L::info(std::string("    Request target: '") + this->request_target + "'");
 
     path_end_pos++;
@@ -554,6 +557,11 @@ Client::RequestMethod Client::_getRequestMethodEnumFromString(const std::string 
         return RequestMethod::DELETE;
     }
     throw ClientException(Status::METHOD_NOT_ALLOWED);
+}
+
+void Client::_decodeRequestTarget(void)
+{
+    this->request_target = Utils::replaceAll(this->request_target, "%20", " ");
 }
 
 // See RFC 9112 section 2.3

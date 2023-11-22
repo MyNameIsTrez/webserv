@@ -29,3 +29,14 @@ std::string Utils::upper(std::string str)
     std::transform(str.begin(), str.end(), str.begin(), ::toupper);
     return str;
 }
+
+std::string Utils::replaceAll(std::string input, const std::string &needle, const std::string &replacement)
+{
+    size_t start_pos = 0;
+    while ((start_pos = input.find(needle, start_pos)) != std::string::npos)
+    {
+        input.replace(start_pos, needle.size(), replacement);
+        start_pos += replacement.size(); // Handles case where 'replacement' is a substring of 'needle'
+    }
+    return input;
+}
