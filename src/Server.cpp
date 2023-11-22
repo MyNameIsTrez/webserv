@@ -464,8 +464,7 @@ void Server::_acceptClient(int server_fd)
     L::info(std::string("    Accepted client fd ") + std::to_string(client_fd));
 
     // Make client_fd non-blocking
-    int status_flags = T::fcntl(client_fd, F_GETFL, 0);
-    T::fcntl(client_fd, F_SETFL, status_flags | O_NONBLOCK);
+    T::fcntl(client_fd, F_SETFL, O_NONBLOCK);
 
     _addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
