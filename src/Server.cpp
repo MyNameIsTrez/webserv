@@ -24,8 +24,8 @@ bool Server::constructed_singleton = false;
 bool Server::shutting_down_gracefully = false;
 
 Server::Server(const Config &config)
-    : _config(config), _bind_fd_to_server_indices(), _bind_fd_to_port(), _cgi_pid_to_client_fd(), _fd_to_client_index(),
-      _fd_to_pfd_index(), _fd_to_fd_type(), _clients(), _pfds()
+    : _config(config), _unreaped_cgi_count(), _bind_fd_to_server_indices(), _bind_fd_to_port(), _cgi_pid_to_client_fd(),
+      _fd_to_client_index(), _fd_to_pfd_index(), _fd_to_fd_type(), _clients(), _pfds()
 {
     if (constructed_singleton)
     {
@@ -97,7 +97,9 @@ void Server::run(void)
 
         L::info(std::string("Waiting for an event..."));
 
-        int event_count = poll(_pfds.data(), _pfds.size(), _config.poll_timeout_ms);
+        assert(_unreaped_cgi_count >= 0);
+        int timeout = _unreaped_cgi_count > 0 ? _config.poll_timeout_ms : -1;
+        int event_count = poll(_pfds.data(), _pfds.size(), timeout);
         if (event_count == -1)
         {
             if (errno == EINTR)
@@ -152,7 +154,8 @@ void Server::_shutDownServers(void)
 
 void Server::_printContainerSizes(void)
 {
-    L::info(std::string("MAPS: ") + "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size()) +
+    L::info(std::string("VARIABLES: _unreaped_cgi_count=") + std::to_string(_unreaped_cgi_count) +
+            " | MAPS: " + "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size()) +
             ", _bind_fd_to_port=" + std::to_string(_bind_fd_to_port.size()) +
             ", _cgi_pid_to_client_fd=" + std::to_string(_cgi_pid_to_client_fd.size()) +
             ", _fd_to_client_index=" + std::to_string(_fd_to_client_index.size()) + ", _fd_to_pfd_index=" +
@@ -496,6 +499,8 @@ void Server::_reapChildCGIScripts(void)
             return;
         }
 
+        _unreaped_cgi_count--;
+
         // Reached when the client disconnects before the CGI has finished
         if (!_cgi_pid_to_client_fd.contains(child_pid))
         {
@@ -787,6 +792,8 @@ void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const
     client.cgi_to_server_fd = cgi_to_server_fd;
     client.cgi_to_server_state = Client::CGIToServerState::READING;
     L::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
+
+    _unreaped_cgi_count++;
 }
 
 void Server::_execveChild(Client &client, const std::string &cgi_execve_path, const std::string &script_name,
