@@ -533,12 +533,12 @@ void Server::_reapChildCGIScripts(void)
 
 void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 {
-    char received[MAX_RECEIVED_LEN] = {};
+    char received[MAX_READ_LEN] = {};
 
     L::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " +
-            std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
+            std::to_string(MAX_READ_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
 
-    ssize_t bytes_read = T::read(fd, received, MAX_RECEIVED_LEN);
+    ssize_t bytes_read = T::read(fd, received, MAX_READ_LEN);
 
     // If the client disconnected
     if (bytes_read == 0)

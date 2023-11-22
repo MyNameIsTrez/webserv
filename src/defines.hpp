@@ -1,9 +1,8 @@
 #pragma once
 
-#define MAX_RECEIVED_LEN 100
-
-#define MAX_CGI_WRITE_LEN 100
-#define MAX_CLIENT_WRITE_LEN 100
+#define MAX_READ_LEN 10000
+#define MAX_CGI_WRITE_LEN 10000
+#define MAX_CLIENT_WRITE_LEN 10000
 
 #define CHILD 0
 
