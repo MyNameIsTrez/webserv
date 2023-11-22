@@ -4,7 +4,7 @@ See the [documentation](https://llvm.org/docs/LibFuzzer.html) for more informati
 
 ## Run fuzzer with address sanitizer
 
-`clear && clang++-14 -fsanitize=fuzzer,undefined,address -Wall -Wextra -Werror -Wpedantic -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -std=c++2b -g3 -Wfatal-errors -fprofile-instr-generate -fcoverage-mapping --coverage -DSUPPRESS_LOGGING webserv_fuzzer.cpp ../src/config/Config.cpp ../src/config/JSON.cpp ../src/config/Node.cpp ../src/config/Tokenizer.cpp ../src/Logger.cpp ../src/Utils.cpp && mkdir -p ./corp && ./a.out ./corp -dict=conf.dict`
+`clear && clang++-14 -fsanitize=fuzzer,undefined,address -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -fstandalone-debug -std=c++2b -g3 -Wfatal-errors -fprofile-instr-generate -fcoverage-mapping --coverage -DSUPPRESS_LOGGING webserv_fuzzer.cpp ../src/config/Config.cpp ../src/config/JSON.cpp ../src/config/Node.cpp ../src/config/Tokenizer.cpp ../src/Logger.cpp ../src/Utils.cpp && mkdir -p ./corp && ./a.out ./corp -dict=conf.dict`
 
 ## Create .profdata coverage information
 

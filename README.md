@@ -48,6 +48,7 @@ This will print localhost's response: (by search-and-replacing example.com)
 - Siege a URL with `c` clients repeated `r` times with `siege -c2 -r3 http://localhost:8080`
 - Let 5 clients send a POST request sending `a` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/public/a.html'`
 - Let 5 clients send a POST request sending `1k_lines.txt` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/tests/sent/1k_lines.txt'`
+- Let 10 clients send 10 GET requests to the CGI script `debug.py` with `siege -c10 -r10 http://localhost:8080/cgis/python/debug.py`
 
 ## Memory usage
 
@@ -73,6 +74,7 @@ This will print localhost's response: (by search-and-replacing example.com)
 - POST with newline trimming: `curl -d @tests/1_line.txt localhost:18000`
 - DELETE: `curl -X DELETE localhost:18000`
 - Nonexistent header type: `curl -X FOO localhost:18000`
+- Start CGI script `debug.py`: `curl http://localhost:8080/cgis/python/debug.py`
 - Check whether the CGI is still running: `ps -aux | grep print.py`
 - Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
 - Create `foo.txt` containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
