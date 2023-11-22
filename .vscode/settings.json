@@ -84,7 +84,8 @@
 		"cinttypes": "cpp",
 		"variant": "cpp",
 		"set": "cpp",
-		"cassert": "cpp"
+		"cassert": "cpp",
+		"csignal": "cpp"
 	},
 	"C_Cpp.default.cppStandard": "c++23",
 	"json.schemas": [

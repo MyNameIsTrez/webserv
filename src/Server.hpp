@@ -111,6 +111,7 @@ class Server
     // POLLOUT
     void _handlePollout(int fd, FdType fd_type);
     void _writeToCGI(Client &client);
+    ssize_t _writeString(int fd, const std::string &msg);
     void _writeToClient(Client &client);
 
     // SIGNAL HANDLERS

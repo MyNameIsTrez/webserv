@@ -1040,7 +1040,7 @@ void Server::_writeToCGI(Client &client)
     L::info(std::string("    Sending this body substr to the CGI that has a length of ") +
             std::to_string(body_substr.length()) + " bytes:\n----------\n" + body_substr + "\n----------\n");
 
-    if (write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length()) == -1)
+    if (_writeString(client.server_to_cgi_fd, body_substr) == -1)
     {
         // Happens when the CGI script closed its stdin
         L::info(std::string("    write() detected 'Broken pipe'"));
@@ -1055,6 +1055,11 @@ void Server::_writeToCGI(Client &client)
     {
         _removeServerToCGIFd(client.server_to_cgi_fd);
     }
+}
+
+ssize_t Server::_writeString(int fd, const std::string &msg)
+{
+    return write(fd, msg.c_str(), msg.length());
 }
 
 void Server::_writeToClient(Client &client)
@@ -1075,16 +1080,12 @@ void Server::_writeToClient(Client &client)
     L::info(std::string("    Sending this response substr to the client that has a length of ") +
             std::to_string(response_substr.length()) + " bytes:\n----------\n" + response_substr + "\n----------\n");
 
-    // sleep(5); // TODO: REMOVE
-
-    if (write(client.client_fd, response_substr.c_str(), response_substr.length()) == -1)
+    if (_writeString(client.client_fd, response_substr) == -1)
     {
         // Reached when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
         _removeClient(client.client_fd);
         return;
     }
-
-    // sleep(5); // TODO: REMOVE
 
     // TODO: Can't this remove the client before the CGI has finished
     // TODO: appending to client.response?

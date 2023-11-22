@@ -49,17 +49,6 @@ This will print localhost's response: (by search-and-replacing example.com)
 - Let 5 clients send a POST request sending `a` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/public/a.html'`
 - Let 5 clients send a POST request sending `1k_lines.txt` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/tests/sent/1k_lines.txt'`
 
-# TODO: This sometimes hangs :((
-`clear && valgrind ./webserv test_webserv.json &>log.log`
-`siege -b http://localhost:8080/cgis/python/debug.py`
-`curl localhost:8080/cgis/python/debug.py`
-
-This has ~5 clients always hang:
-`siege -c10 -r10 http://localhost:8080/cgis/python/debug.py`
-
-This is the minimum setup to have a ~1/10 chance to get a hang:
-`siege -c3 -r1 http://localhost:8080/cgis/python/debug.py`
-
 ## Memory usage
 
 - `valgrind --tool=massif ./webserv`
@@ -102,19 +91,6 @@ This is the minimum setup to have a ~1/10 chance to get a hang:
 2. Run `setup.sh` to compile for afl-cmin + afl-tmin, generate tests, and compile for AFL
 3. Run `coverage.sh` to fuzz while generating coverage
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
-
-`/src/fuzzing/afl/afl-output/master/queue/id\:000000\,time\:0\,execs\:0\,orig\:example.txt afl-showmap -o xd.log -- /src/fuzzing/config_fuzzing_ctmin`
-
-`afl-analyze -i /src/fuzzing/afl/afl-output/master/queue/id\:000000\,time\:0\,execs\:0\,orig\:example.txt -- /src/fuzzing/config_fuzzing_ctmin`
-
-`Note: Found constructor function _GLOBAL__sub_I_Tokenizer.cpp with prio 65535, we will not instrument this, putting it into a block list.
-Note: Found constructor function asan.module_ctor.119 with prio 1, we will not instrument this, putting it into a block list.`
-
-`afl-tmin -i /src/fuzzing/tests/example.txt -o /src/fuzzing/afl/trimmed-tests/example.txt -- /src/fuzzing/config_fuzzing_ctmin`
-
-`rm -f /src/fuzzing/afl/minimized-tests/example.txt && AFL_DEBUG=1 afl-cmin -i /src/fuzzing/tests -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/config_fuzzing_ctmin`
-
-`close(open("wowie.txt", O_WRONLY | O_CREAT, 0644));`
 
 ## Manual multipart request submission
 `clear && cat manual_multi_form_request.txt | REQUEST_METHOD=POST HTTP_CONTENT_TYPE='multipart/form-data; boundary=----WebKitFormBoundaryBRGOgydgtRaDx2Ju' python3 cgis/python/upload.py`
