@@ -601,7 +601,42 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
                 {
                     if (location.has_index)
                     {
-                        client.respondWithFile(location.index_path, true);
+                        L::info(std::string("    location.index_path: '") + location.index_path + "'");
+
+                        if (!std::filesystem::is_regular_file(location.index_path))
+                        {
+                            std::ifstream file(location.index_path);
+
+                            // file.is_open() returns true when file refers to an existing directory
+                            if (file.is_open() && !location.index_directive.empty() &&
+                                (location.index_directive.back() != '/' ||
+                                 (location.index_directive.front() == '/' && location.index_directive.back() == '/')))
+                            {
+                                // This is done to respond with a correct Location header
+                                // This should maybe be done earlier on, so it affects more places?
+                                if (location.index_directive.back() == '/')
+                                {
+                                    throw Client::ClientException(Status::INTERNAL_SERVER_ERROR);
+                                }
+
+                                if (location.index_directive.front() == '/')
+                                {
+                                    client.request_target = location.index_directive;
+                                }
+                                else
+                                {
+                                    client.request_target = "/" + location.index_directive;
+                                }
+
+                                throw Client::ClientException(Status::MOVED_PERMANENTLY);
+                            }
+                            else
+                            {
+                                throw Client::ClientException(Status::FORBIDDEN);
+                            }
+                        }
+
+                        client.respondWithFile(location.index_path);
                         _enableWritingToClient(client);
                     }
                     else if (location.autoindex)
@@ -640,7 +675,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
                 }
                 else if (method == Client::RequestMethod::GET)
                 {
-                    client.respondWithFile(location.path, false);
+                    client.respondWithFile(location.path);
                     _enableWritingToClient(client);
                 }
                 else if (method == Client::RequestMethod::POST)
@@ -865,7 +900,9 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
             resolved.has_redirect = !location.redirect.empty();
 
             resolved.path = location.root + std::filesystem::weakly_canonical(request_target).string();
+
             resolved.index_path = "";
+            resolved.index_directive = "";
 
             resolved.get_allowed = location.get_allowed;
             resolved.post_allowed = location.post_allowed;
@@ -939,7 +976,20 @@ Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_t
             }
             else if (resolved.has_index)
             {
-                resolved.index_path = resolved.path + location.index;
+                std::string index;
+
+                // Prevent "public//foo"
+                if (!location.index.empty() && location.index.front() == '/')
+                {
+                    index = location.index.substr(1);
+                }
+                else
+                {
+                    index = location.index;
+                }
+
+                resolved.index_path = resolved.path + index;
+                resolved.index_directive = location.index;
             }
         }
     }

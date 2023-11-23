@@ -201,7 +201,7 @@ void Client::respondWithError(const std::unordered_map<Status::Status, std::stri
     this->prependResponseHeader();
 }
 
-void Client::respondWithFile(const std::string &path, bool is_index_path)
+void Client::respondWithFile(const std::string &path)
 {
     assert(this->response.empty());
 
@@ -209,22 +209,7 @@ void Client::respondWithFile(const std::string &path, bool is_index_path)
 
     if (!std::filesystem::is_regular_file(path))
     {
-        if (is_index_path)
-        {
-            // file.is_open() returns true when path refers to an existing directory
-            if (file.is_open() && !path.empty() && path.back() != '/')
-            {
-                throw ClientException(Status::MOVED_PERMANENTLY);
-            }
-            else
-            {
-                throw ClientException(Status::FORBIDDEN);
-            }
-        }
-        else
-        {
-            throw ClientException(Status::NOT_FOUND);
-        }
+        throw ClientException(Status::NOT_FOUND);
     }
 
     std::stringstream file_body;

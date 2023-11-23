@@ -96,6 +96,7 @@ class Server
 
         std::string path;
         std::string index_path;
+        std::string index_directive;
 
         bool get_allowed;
         bool post_allowed;

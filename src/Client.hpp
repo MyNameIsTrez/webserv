@@ -48,7 +48,7 @@ class Client
     void appendReadString(char *received, ssize_t bytes_read);
 
     void respondWithError(const std::unordered_map<Status::Status, std::string> &error_pages);
-    void respondWithFile(const std::string &path, bool is_index_path);
+    void respondWithFile(const std::string &path);
     void respondWithDirectoryListing(const std::string &path);
     void respondWithCreateFile(const std::string &path);
     void respondWithDeleteFile(const std::string &path);
