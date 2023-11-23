@@ -841,7 +841,7 @@ void Server::_execveChild(Client &client, const std::string &cgi_execve_path, co
     cgi_headers.push_back("QUERY_STRING=" + query_string);
     cgi_headers.push_back("CONTENT_LENGTH=" + std::to_string(client.content_length));
     cgi_headers.push_back("CONTENT_TYPE=" + client.content_type);
-    cgi_headers.push_back("SERVER_NAME=" + client.server_name);
+    cgi_headers.push_back("SERVER_NAME=" + client.unuppercased_server_name);
     cgi_headers.push_back("SERVER_PORT=" + client.server_port);
     cgi_headers.push_back("GATEWAY_INTERFACE=CGI/1.1");
     cgi_headers.push_back("PATH_TRANSLATED=" + std::string(std::filesystem::current_path()) + path_info);

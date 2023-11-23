@@ -38,10 +38,10 @@ Client::Client(int client_fd, int server_fd, const std::string &server_port, con
       server_to_client_state(ServerToClientState::NOT_WRITING), request_method(RequestMethod::NONE), request_target(),
       protocol("HTTP/1.1"), headers(), body(), body_index(), client_max_body_size(client_max_body_size), response(),
       response_index(), client_fd(client_fd), server_to_cgi_fd(-1), cgi_to_server_fd(-1), cgi_pid(-1),
-      cgi_exit_status(-1), cgi_killed(), being_removed(), redirect(), server_name(), server_port(server_port),
-      content_type(), content_length(), _custom_reason_phrase(), _response_content_type("application/octet-stream"),
-      _header(), _is_chunked(), _chunked_remaining_content_length(), _chunked_body_buffer(),
-      _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN)
+      cgi_exit_status(-1), cgi_killed(), being_removed(), redirect(), server_name(), unuppercased_server_name(),
+      server_port(server_port), content_type(), content_length(), _custom_reason_phrase(),
+      _response_content_type("application/octet-stream"), _header(), _is_chunked(), _chunked_remaining_content_length(),
+      _chunked_body_buffer(), _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN)
 {
 }
 
@@ -54,9 +54,10 @@ Client::Client(Client const &src)
       response_index(src.response_index), client_fd(src.client_fd), server_to_cgi_fd(src.server_to_cgi_fd),
       cgi_to_server_fd(src.cgi_to_server_fd), cgi_pid(src.cgi_pid), cgi_exit_status(src.cgi_exit_status),
       cgi_killed(src.cgi_killed), being_removed(src.being_removed), redirect(src.redirect),
-      server_name(src.server_name), server_port(src.server_port), content_type(src.content_type),
-      content_length(src.content_length), _custom_reason_phrase(src._custom_reason_phrase),
-      _response_content_type(src._response_content_type), _header(src._header), _is_chunked(src._is_chunked),
+      server_name(src.server_name), unuppercased_server_name(src.unuppercased_server_name),
+      server_port(src.server_port), content_type(src.content_type), content_length(src.content_length),
+      _custom_reason_phrase(src._custom_reason_phrase), _response_content_type(src._response_content_type),
+      _header(src._header), _is_chunked(src._is_chunked),
       _chunked_remaining_content_length(src._chunked_remaining_content_length),
       _chunked_body_buffer(src._chunked_body_buffer), _chunked_read_state(src._chunked_read_state)
 {
@@ -94,6 +95,7 @@ Client &Client::operator=(Client const &src)
     this->being_removed = src.being_removed;
     this->redirect = src.redirect;
     this->server_name = src.server_name;
+    this->unuppercased_server_name = src.unuppercased_server_name;
     this->server_port = src.server_port;
     this->content_type = src.content_type;
     this->content_length = src.content_length;
@@ -366,8 +368,8 @@ void Client::prependResponseHeader(void)
 
     if (this->status == Status::MOVED_PERMANENTLY)
     {
-        this->_addResponseHeader("Location",
-                                 "http://" + this->server_name + ":" + this->server_port + this->request_target + "/");
+        this->_addResponseHeader("Location", "http://" + this->unuppercased_server_name + ":" + this->server_port +
+                                                 this->request_target + "/");
     }
     else if (this->status == Status::MOVED_TEMPORARILY)
     {
@@ -645,7 +647,7 @@ void Client::_useHeaders(void)
         size_t colon_index = host.find(":");
         if (colon_index == host.npos)
         {
-            this->server_name = Utils::upper(host);
+            this->server_name = host;
         }
         else
         {
@@ -653,10 +655,13 @@ void Client::_useHeaders(void)
             if (colon_index == 0)
                 throw ClientException(Status::BAD_REQUEST);
 
-            this->server_name = Utils::upper(host.substr(0, colon_index));
+            this->server_name = host.substr(0, colon_index);
 
             // nginx doesn't care what comes after the colon, if anything
         }
+
+        this->unuppercased_server_name = this->server_name;
+        this->server_name = Utils::upper(this->server_name);
     }
 
     const auto &content_type_it = this->headers.find("CONTENT_TYPE");

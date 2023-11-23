@@ -106,6 +106,7 @@ class Client
     bool being_removed;
     std::string redirect;
     std::string server_name;
+    std::string unuppercased_server_name;
     std::string server_port;
     std::string content_type;
     size_t content_length;
