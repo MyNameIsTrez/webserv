@@ -1,0 +1,37 @@
+// curl -v localhost: 8080 -H "host:Foo"
+{
+	"client_max_body_size": 420420420,
+	"connection_queue_length": 420,
+	"servers": [
+		{
+			"error_pages": {},
+			"listen": [
+				"localhost:8080"
+			],
+			"locations": {
+				"/": {
+					"index": "a.html",
+					"root": "public",
+					"get_allowed": true
+				}
+			},
+			"server_names": []
+		},
+		{
+			"error_pages": {},
+			"listen": [
+				"localhost:8080"
+			],
+			"locations": {
+				"/": {
+					"index": "b.html",
+					"root": "public",
+					"get_allowed": true
+				}
+			},
+			"server_names": [
+				"foo"
+			]
+		}
+	]
+}

@@ -3,23 +3,37 @@
 #include <iostream>
 #include <sstream>
 
-#include "../src/Config.hpp"
+#include "../src/config/Config.hpp"
+#include "../src/config/JSON.hpp"
 
-extern "C" int LLVMFuzzerTestOneInput(const uint8_t *bytes, size_t length) {
-	std::string str((char *)bytes, length);
+extern "C" int LLVMFuzzerTestOneInput(const uint8_t *bytes, size_t length)
+{
+    std::string str((char *)bytes, length);
 
-	std::stringstream config_stream(str);
-	Config config;
-	try
-	{
-		config.init(config_stream);
-		// throw InvalidLineException();
-	}
-	catch (const Config::ConfigException &e)
-	{
-		// abort();
-		return EXIT_FAILURE;
-	}
+    std::stringstream config_stream(str);
 
-	return EXIT_SUCCESS;
+    try
+    {
+        JSON json(config_stream, 5);
+
+        Config config(json);
+    }
+    catch (const Tokenizer::TokenException &e)
+    {
+        return EXIT_FAILURE;
+    }
+    catch (const Node::NodeException &e)
+    {
+        return EXIT_FAILURE;
+    }
+    catch (const JSON::JSONException &e)
+    {
+        return EXIT_FAILURE;
+    }
+    catch (const Config::ConfigException &e)
+    {
+        return EXIT_FAILURE;
+    }
+
+    return EXIT_SUCCESS;
 }

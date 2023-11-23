@@ -18,6 +18,8 @@ make -C /src/fuzzing DEBUG=1 CTMIN=1 #SAN=1
 
 mkdir -p /src/fuzzing/afl
 
+# TODO: Try this: `Are you aware of the '-T all' parallelize option that improves the speed for large/slow corpuses?`
+
 mkdir -p /src/fuzzing/afl/minimized-tests
 rm -rf /src/fuzzing/afl/minimized-tests/*
 afl-cmin -i /src/fuzzing/tests -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/config_fuzzing_ctmin

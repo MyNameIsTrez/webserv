@@ -8,288 +8,293 @@
 
 #include <set>
 
-Config::Config(void)
-	: connection_queue_length(),
-	  client_max_body_size(),
-	  servers(),
-	  bind_info_to_server_indices()
+Config::Config(const JSON &json)
+    : connection_queue_length(), client_max_body_size(), reap_frequency_ms(), servers(), bind_info_to_server_indices()
 {
+    const auto &root_object = json.root.getObject();
+
+    _parseConnectionQueueLength(root_object);
+    _parseClientMaxBodySize(root_object);
+    _parsePollTimeoutMs(root_object);
+
+    if (!root_object.contains("servers"))
+    {
+        throw ConfigExceptionExpectedServers();
+    }
+
+    size_t server_index = 0;
+    for (const auto &server_it : root_object.at("servers").getArray())
+    {
+        ServerDirective server_directive{};
+
+        const std::map<std::string, Node> &server = server_it.getObject();
+        for (const auto &[key, value] : server)
+        {
+            if (!server.contains("listen"))
+            {
+                throw ConfigExceptionExpectedListen();
+            }
+            if (!server.contains("server_names"))
+            {
+                throw ConfigExceptionExpectedServerNames();
+            }
+            if (!server.contains("locations"))
+            {
+                throw ConfigExceptionExpectedLocations();
+            }
+            if (!server.contains("error_pages"))
+            {
+                throw ConfigExceptionExpectedErrorPages();
+            }
+
+            if (key == "listen")
+            {
+                for (const auto &listen_node : value.getArray())
+                {
+                    server_directive.listen.push_back(_parseListen(listen_node));
+                }
+            }
+            else if (key == "server_names")
+            {
+                for (const auto &server_name_node : value.getArray())
+                {
+                    server_directive.server_names.push_back(Utils::upper(server_name_node.getString()));
+                }
+            }
+            else if (key == "locations")
+            {
+                for (const auto &location_node : value.getObject())
+                {
+                    server_directive.locations.push_back(_parseLocation(location_node));
+                }
+            }
+            else if (key == "error_pages")
+            {
+                for (const auto &[error_code_str, page_path_node] : value.getObject())
+                {
+                    int error_code;
+                    if (!Utils::parseNumber(error_code_str, error_code, std::numeric_limits<int>::max()))
+                    {
+                        throw ConfigExceptionInvalidErrorPageCode();
+                    }
+
+                    const std::string &page_path = page_path_node.getString();
+
+                    if (error_code != 200 && error_code != 301 && error_code != 302 && error_code != 400 &&
+                        error_code != 403 && error_code != 404 && error_code != 405 && error_code != 413 &&
+                        error_code != 500)
+                    {
+                        throw ConfigExceptionInvalidErrorPageCode();
+                    }
+
+                    server_directive.error_pages.emplace(Status::Status(error_code), page_path);
+                }
+            }
+            else
+            {
+                throw ConfigExceptionUnknownKey();
+            }
+        }
+
+        servers.push_back(server_directive);
+        server_index++;
+    }
+
+    _fillBindInfoToServerIndices();
 }
 
-void Config::init(const JSON &json)
+void Config::_parseConnectionQueueLength(const std::map<std::string, Node> &root_object)
 {
-	const auto &root_object = json.root.getObject();
+    if (!root_object.contains("connection_queue_length"))
+    {
+        throw ConfigExceptionExpectedConnectionQueueLength();
+    }
 
-	_parseConnectionQueueLength(root_object);
+    size_t connection_queue_length_size_t = root_object.at("connection_queue_length").getInteger();
+    if (connection_queue_length_size_t > std::numeric_limits<int>::max())
+    {
+        throw ConfigExceptionConnectionQueueLengthIsGreaterThanIntMax();
+    }
+    connection_queue_length = connection_queue_length_size_t;
 
-	_parseClientMaxBodySize(root_object);
-
-	size_t server_index = 0;
-	for (const auto &server_it : root_object.at("servers").getArray())
-	{
-		ServerDirective server_directive{};
-
-		const std::unordered_map<std::string, Node> &server = server_it.getObject();
-		for (const auto &server_property_it : server)
-		{
-			if (!server.contains("listen"))
-			{
-				throw ConfigExceptionExpectedListen();
-			}
-
-			const std::string &key = server_property_it.first;
-			const Node &value = server_property_it.second;
-
-			if (key == "listen")
-			{
-				for (const auto &listen_node : value.getArray())
-				{
-					server_directive.listen.push_back(_parseListen(listen_node));
-				}
-			}
-			else if (key == "server_names")
-			{
-				for (const auto &server_name_node : value.getArray())
-				{
-					server_directive.server_names.push_back(server_name_node.getString());
-				}
-			}
-			else if (key == "locations")
-			{
-				for (const auto &location_node : value.getObject())
-				{
-					server_directive.locations.push_back(_parseLocation(location_node));
-				}
-			}
-			else if (key == "error_pages")
-			{
-				for (const auto &error_page_node : value.getObject())
-				{
-					int error_code;
-					if (!Utils::parseNumber(error_page_node.first, error_code, std::numeric_limits<int>::max()))
-					{
-						throw ConfigExceptionInvalidErrorPageCode();
-					}
-
-					const std::string &page_path = error_page_node.second.getString();
-
-					server_directive.error_pages.emplace(static_cast<Status::Status>(error_code), page_path);
-				}
-			}
-			else
-			{
-				throw ConfigExceptionUnknownKey();
-			}
-		}
-
-		servers.push_back(server_directive);
-		server_index++;
-	}
-
-	_fillBindInfoToServerIndices();
+    if (connection_queue_length < 1)
+    {
+        throw ConfigExceptionConnectionQueueLengthIsLessThanOne();
+    }
 }
 
-void Config::_parseConnectionQueueLength(const std::unordered_map<std::string, Node> &root_object)
+void Config::_parseClientMaxBodySize(const std::map<std::string, Node> &root_object)
 {
-	if (!root_object.contains("connection_queue_length"))
-	{
-		throw ConfigExceptionExpectedConnectionQueueLength();
-	}
+    if (!root_object.contains("client_max_body_size"))
+    {
+        throw ConfigExceptionExpectedClientMaxBodySize();
+    }
 
-	size_t connection_queue_length_size_t = root_object.at("connection_queue_length").getInteger();
-	if (connection_queue_length_size_t > std::numeric_limits<int>::max())
-	{
-		throw ConfigExceptionConnectionQueueLengthIsTooHigh();
-	}
-	connection_queue_length = connection_queue_length_size_t;
-
-	if (connection_queue_length < 1)
-	{
-		throw ConfigExceptionConnectionQueueLengthIsSmallerThanOne();
-	}
+    client_max_body_size = root_object.at("client_max_body_size").getInteger();
 }
 
-void Config::_parseClientMaxBodySize(const std::unordered_map<std::string, Node> &root_object)
+void Config::_parsePollTimeoutMs(const std::map<std::string, Node> &root_object)
 {
-	if (!root_object.contains("client_max_body_size"))
-	{
-		throw ConfigExceptionExpectedClientMaxBodySize();
-	}
+    if (!root_object.contains("reap_frequency_ms"))
+    {
+        throw ConfigExceptionExpectedReapFrequencyMs();
+    }
 
-	client_max_body_size = root_object.at("client_max_body_size").getInteger();
+    reap_frequency_ms = root_object.at("reap_frequency_ms").getInteger();
 
-	if (client_max_body_size < 0)
-	{
-		throw ConfigExceptionClientMaxBodySizeIsSmallerThanZero();
-	}
+    if (reap_frequency_ms < 100)
+    {
+        throw ConfigExceptionReapFrequencyMsIsLessThan100();
+    }
+    if (reap_frequency_ms > 10000)
+    {
+        throw ConfigExceptionReapFrequencyMsIsGreaterThan10000();
+    }
 }
 
 Config::ListenEntry Config::_parseListen(const Node &listen_node)
 {
-	const std::string &listen = listen_node.getString();
+    const std::string &listen = listen_node.getString();
 
-	size_t colon_index = listen.find(":");
-	if (colon_index == listen.npos)
-	{
-		throw ConfigExceptionListenColonIsRequired();
-	}
+    size_t colon_index = listen.find(":");
+    if (colon_index == listen.npos)
+    {
+        throw ConfigExceptionListenColonIsRequired();
+    }
 
-	if (colon_index == 0) throw ConfigExceptionMissingAddressBeforePortColon();
+    if (colon_index == 0)
+        throw ConfigExceptionMissingAddressBeforePortColon();
 
-	std::string address = listen.substr(0, colon_index);
+    std::string address = listen.substr(0, colon_index);
 
-	if (colon_index == listen.size() - 1) throw ConfigExceptionNoPortAfterColon();
+    if (colon_index == listen.size() - 1)
+        throw ConfigExceptionNoPortAfterColon();
 
-	std::string port = listen.substr(colon_index + 1);
+    std::string port = listen.substr(colon_index + 1);
 
-	return {address, port};
+    return {address, port};
 }
 
 Config::LocationDirective Config::_parseLocation(const std::pair<std::string, Node> &location_node)
 {
-	const auto &location_object = location_node.second.getObject();
+    const auto &location_object = location_node.second.getObject();
 
-	bool contains_autoindex = location_object.contains("autoindex");
-	bool contains_index = location_object.contains("index");
-	bool contains_redirect = location_object.contains("redirect");
+    if (!location_object.contains("root") && !location_object.contains("redirect"))
+    {
+        throw ConfigExceptionNeedEitherRootOrRedirect();
+    }
+    if (location_object.contains("redirect") && location_object.size() > 1)
+    {
+        throw ConfigExceptionCantHaveOtherOtherPropertiesWithRedirect();
+    }
+    if (location_object.contains("index") && location_object.contains("autoindex"))
+    {
+        throw ConfigExceptionCantHaveBothIndexAndAutoindex();
+    }
 
-	if (contains_autoindex + contains_index + contains_redirect > 1)
-	{
-		throw ConfigExceptionExclusivePropertiesPresent();
-	}
+    LocationDirective location_directive{};
 
-	LocationDirective location_directive{};
+    location_directive.uri = location_node.first;
 
-	location_directive.uri = location_node.first;
+    if (location_directive.uri.front() != '/')
+    {
+        throw ConfigExceptionLocationNeedsToStartWithSlash();
+    }
 
-	for (const auto &location_property_it : location_object)
-	{
-		const std::string &location_property_key = location_property_it.first;
-		const Node &location_property_value = location_property_it.second;
+    for (const auto &[location_property_key, location_property_value] : location_object)
+    {
+        if (location_property_key == "cgi_execve_path")
+        {
+            location_directive.cgi_execve_path = location_property_value.getString();
+        }
+        else if (location_property_key == "get_allowed")
+        {
+            location_directive.get_allowed = location_property_value.getBoolean();
+        }
+        else if (location_property_key == "post_allowed")
+        {
+            location_directive.post_allowed = location_property_value.getBoolean();
+        }
+        else if (location_property_key == "delete_allowed")
+        {
+            location_directive.delete_allowed = location_property_value.getBoolean();
+        }
+        else if (location_property_key == "autoindex")
+        {
+            location_directive.autoindex = location_property_value.getBoolean();
+        }
+        else if (location_property_key == "index")
+        {
+            location_directive.index = location_property_value.getString();
+        }
+        else if (location_property_key == "redirect")
+        {
+            location_directive.redirect = location_property_value.getString();
+        }
+        else if (location_property_key == "root")
+        {
+            location_directive.root = location_property_value.getString();
+        }
+        else
+        {
+            throw ConfigExceptionUnknownKey();
+        }
+    }
 
-		if (location_property_key == "cgi_settings")
-		{
-			CGISettingsDirective &cgi_settings_directive = location_directive.cgi_settings;
-
-			location_directive.is_cgi_directory = true;
-
-			const auto &cgi_settings_object = location_property_value.getObject();
-
-			if (!cgi_settings_object.contains("cgi_execve_path"))
-			{
-				throw ConfigExceptionMissingCGISettingsProperty();
-			}
-
-			for (const auto &cgi_setting : cgi_settings_object)
-			{
-				const std::string &settings_property_key = cgi_setting.first;
-				const std::string &settings_property_value = cgi_setting.second.getString();
-
-				if (settings_property_key == "cgi_execve_path")
-				{
-					cgi_settings_directive.cgi_execve_path = settings_property_value;
-
-					if (!cgi_settings_object.contains("cgi_execve_argv0"))
-					{
-						cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
-					}
-				}
-				else if (settings_property_key == "cgi_execve_argv0")
-				{
-					cgi_settings_directive.cgi_execve_argv0 = settings_property_value;
-				}
-				else
-				{
-					throw ConfigExceptionUnknownKey();
-				}
-			}
-		}
-		else if (location_property_key == "get_allowed")
-		{
-			location_directive.get_allowed = location_property_value.getBoolean();
-		}
-		else if (location_property_key == "post_allowed")
-		{
-			location_directive.post_allowed = location_property_value.getBoolean();
-		}
-		else if (location_property_key == "delete_allowed")
-		{
-			location_directive.delete_allowed = location_property_value.getBoolean();
-		}
-		else if (location_property_key == "autoindex")
-		{
-			location_directive.autoindex = location_property_value.getBoolean();
-		}
-		else if (location_property_key == "index")
-		{
-			location_directive.index = location_property_value.getString();
-		}
-		else if (location_property_key == "redirect")
-		{
-			location_directive.redirect = location_property_value.getString();
-		}
-		else if (location_property_key == "root")
-		{
-			location_directive.root = location_property_value.getString();
-		}
-		else
-		{
-			throw ConfigExceptionUnknownKey();
-		}
-	}
-
-	return location_directive;
+    return location_directive;
 }
 
 void Config::_fillBindInfoToServerIndices()
 {
-	// Used to throw if we see the same server name twice
-	std::map<BindInfo, std::set<std::string>> names_of_bind_info;
+    // Used to throw if we see the same server name twice
+    std::map<BindInfo, std::set<std::string>> names_of_bind_info;
 
-	size_t server_index = 0;
-	for (const auto &server : servers)
-	{
-		std::set<BindInfo> bind_infos_in_server;
+    size_t server_index = 0;
+    for (const auto &server : servers)
+    {
+        std::set<BindInfo> bind_infos_in_server;
 
-		for (const auto &listen_entry : server.listen)
-		{
-			Logger::info(std::string("Listen entry: address ") + listen_entry.address + " with port " + listen_entry.port);
+        for (const auto &listen_entry : server.listen)
+        {
+            Logger::info(std::string("Listen entry: address ") + listen_entry.address + " with port " +
+                         listen_entry.port);
 
-			addrinfo hint{};
-			hint.ai_family = AF_INET;
-			hint.ai_socktype = SOCK_STREAM;
-			protoent *proto = getprotobyname("tcp");
-			if (proto == NULL) throw Utils::SystemException("getprotobyname");
-			hint.ai_protocol = proto->p_proto;
+            addrinfo hint{};
+            hint.ai_family = AF_INET;
+            hint.ai_socktype = SOCK_STREAM;
+            hint.ai_protocol = IPPROTO_TCP;
 
-			addrinfo *result;
-			int status = getaddrinfo(listen_entry.address.c_str(), listen_entry.port.c_str(), &hint, &result);
-			if (status != 0) throw Utils::SystemException("getaddrinfo", gai_strerror(status));
-			if (result == NULL) throw Utils::SystemException("getaddrinfo");
+            addrinfo *result;
+            int status = getaddrinfo(listen_entry.address.c_str(), listen_entry.port.c_str(), &hint, &result);
+            if (status != 0)
+                throw ConfigExceptionGetAddrInfo(gai_strerror(status));
+            if (result == NULL)
+                throw ConfigExceptionGetAddrInfo();
 
-			// TODO: Is it possible for there not to be a single result while status == 0?
-			BindInfo bind_info;
-			sockaddr_in *ai_addr = reinterpret_cast<sockaddr_in *>(result->ai_addr);
-			bind_info.s_addr = ai_addr->sin_addr.s_addr;
-			bind_info.sin_port = ai_addr->sin_port;
+            BindInfo bind_info;
+            sockaddr_in *ai_addr = reinterpret_cast<sockaddr_in *>(result->ai_addr);
+            bind_info.s_addr = ai_addr->sin_addr.s_addr;
+            bind_info.sin_port = ai_addr->sin_port;
 
-			freeaddrinfo(result);
+            freeaddrinfo(result);
 
-			if (bind_infos_in_server.contains(bind_info)) throw ConfigExceptionDuplicateLocationInServer();
-			bind_infos_in_server.insert(bind_info);
+            if (bind_infos_in_server.contains(bind_info))
+                throw ConfigExceptionDuplicateLocationInServer();
+            bind_infos_in_server.insert(bind_info);
 
-			// Deliberately creates the vector if it is missing
-			bind_info_to_server_indices[bind_info].push_back(server_index);
+            // Deliberately creating vector with [] operator if it doesn't exist
+            bind_info_to_server_indices[bind_info].push_back(server_index);
 
-			for (const std::string &server_name : server.server_names)
-			{
-				// Deliberately creates the vector if it is missing
-				if (names_of_bind_info[bind_info].contains(server_name)) throw ConfigExceptionConflictingServerNameOnListen();
+            for (const std::string &server_name : server.server_names)
+            {
+                // Deliberately creating vector with [] operator if it doesn't exist
+                if (names_of_bind_info[bind_info].contains(server_name))
+                    throw ConfigExceptionConflictingServerNameOnListen();
 
-				names_of_bind_info.at(bind_info).insert(server_name);
-			}
-		}
+                names_of_bind_info.at(bind_info).insert(server_name);
+            }
+        }
 
-		server_index++;
-	}
+        server_index++;
+    }
 }

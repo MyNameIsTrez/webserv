@@ -44,15 +44,22 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Running siege
 
+- Benchmark a URL indefinitely with `siege -b http://localhost:8080`
 - Siege a URL with `c` clients repeated `r` times with `siege -c2 -r3 http://localhost:8080`
+- Let 5 clients send a POST request sending `a` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/public/a.html'`
+- Let 5 clients send a POST request sending `1k_lines.txt` with `siege -c5 -r1 '127.0.0.1:8080/cgis/python/uppercase.py POST </home/sbos/Programming/webserv/tests/sent/1k_lines.txt'`
+- Let 10 clients send 10 GET requests to the CGI script `debug.py` with `siege -c10 -r10 http://localhost:8080/cgis/python/debug.py`
+
+## Memory usage
+
+- `valgrind --tool=massif ./webserv`
+- `ms_print massif.out.* > mem.log`
 
 ### Notes
 
 - Sometimes `siege http://localhost:8080` prints `[error] socket: unable to connect sock.c:282: Operation timed out`, which is expected [according to the author of siege](https://github.com/JoeDog/siege/issues/176#issuecomment-1274215687), as siege may overload the web server
 
 ## Running Codam's tester
-
-# TODO: Figure out wtf we're supposed to do with this tester
 
 - First run `export REQUEST_METHOD="GET" SERVER_PROTOCOL="HTTP/1.1" PATH_INFO="/foo/bar"`
 - Then run `./cgi_tester`, and press Enter once
@@ -65,9 +72,11 @@ This will print localhost's response: (by search-and-replacing example.com)
 - POST with newline trimming: `curl -d @tests/1_line.txt localhost:18000`
 - DELETE: `curl -X DELETE localhost:18000`
 - Nonexistent header type: `curl -X FOO localhost:18000`
+- Start CGI script `debug.py`: `curl http://localhost:8080/cgis/python/debug.py`
 - Check whether the CGI is still running: `ps -aux | grep print.py`
 - Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
-- Create a `foo.txt` file containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
+- Create `foo.txt` containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
+- Create `stack_overflow.json` containing repeated `{"":`: `yes '{"":' | dd of=stack_overflow.json count=420420 bs=5`
 - POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:18000`
 
 ## Using nc
@@ -83,6 +92,9 @@ This will print localhost's response: (by search-and-replacing example.com)
 3. Run `coverage.sh` to fuzz while generating coverage
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
 
+## Manual multipart request submission
+`clear && cat manual_multi_form_request.txt | REQUEST_METHOD=POST HTTP_CONTENT_TYPE='multipart/form-data; boundary=----WebKitFormBoundaryBRGOgydgtRaDx2Ju' python3 cgis/python/upload.py`
+
 ## Plan of attack
 
 Assuming `root /code/public;`, with this file tree:
@@ -96,46 +108,51 @@ public/
 ```
 
 ```py
-target = sanitize_request_target(target)
-
-# nginx just outright closes the connection
-if port_to_server_index.find(port) == port_to_server_index.end():
-	raise NOT_FOUND
-
-server_index = port_to_server_index.at(port)
-server = servers.at(server_index)
+server_index = get_server_index_from_client_server_name(client)
+server = servers[server_index]
 
 location = resolve_location(target, server)
+
+if not location.resolved:
+	raise NOT_FOUND
+
+if location.has_redirect:
+	client.redirect = location.path
+	raise MOVED_TEMPORARILY
 
 if not is_allowed_method(location, method):
 	raise METHOD_NOT_ALLOWED
 
-if target.ends_with("/"):
+if location.path[-1] == '/:
 	if method == "GET":
 		if location.has_index:
-			respond_with_file(location.path)
+			client.respond_with_file(location.index_path)
+			enable_writing_to_client(client)
 		elif location.autoindex:
-			respond_with_directory_listing(location.path)
+			client.respond_with_directory_listing(location.path)
+			enable_writing_to_client(client)
 		else
 			raise FORBIDDEN
 	else:
 		raise FORBIDDEN
 else:
-	struct stat status
-	if stat(location.path, &status) != -1 and status.type == DIRECTORY:
+	if is_directory(location.path):
 		if method == "DELETE":
 			raise METHOD_NOT_ALLOWED
 		else:
 			raise MOVED_PERMANENTLY
+
+	if location.is_cgi_directory:
+		start_cgi(client, location.cgi_settings, location.path, location.path_info, location.query_string)
 	elif method == "GET":
-		if target.starts_with("/cgi-bin/"):
-			start_cgi(target)
-		else:
-			respond_with_file(location.path)
+		respond_with_file(location.path)
+		enable_writing_to_client(client)
 	elif method == "POST":
 		create_file(location.path)
+		enable_writing_to_client(client)
 	else:
 		delete_file(location.path)
+		enable_writing_to_client(client)
 ```
 
 ```c++

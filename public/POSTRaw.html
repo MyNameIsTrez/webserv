@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+	<head>
+		<title>webserv</title>
+		<script>
+			function postData() {
+				const freeform = document.getElementById("freeform");
+				const location = document.getElementById("location");
+				const response = fetch(`/${location.value}`, {
+					method: "POST",
+					body: freeform.value,
+				}).then((response) => {
+                    if (response.ok) {
+                    	alert("Created the file.");
+                    } else {
+                        throw new Error("Failed to create the file.");
+                    }
+				}).catch((error) => {
+                    alert("Failed to create the file.");
+                });
+			}
+		</script>
+	</head>
+	<body style="background-color: gray;">
+		<label for="info">info:</label><br>
+		<textarea id="freeform" name="freeform" rows="4" cols="50"></textarea><br>
+		Location:<br><b>/ </b>
+		<input id="location" type="text" required/><button type="submit" onclick="postData()">POST</button>
+	</body>
+</html>

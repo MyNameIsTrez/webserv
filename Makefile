@@ -4,7 +4,7 @@ NAME := webserv
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -std=c++2b
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -fstandalone-debug -std=c++2b
 
 ################################################################################
 
@@ -17,6 +17,9 @@ CFLAGS += -Wfatal-errors
 endif
 ifdef SAN
 CFLAGS += -fsanitize=address,undefined
+endif
+ifdef SUPPRESS_LOGGING
+CFLAGS += -DSUPPRESS_LOGGING
 endif
 
 ################################################################################
@@ -59,11 +62,6 @@ fclean: clean
 
 .PHONY: re
 re: fclean all
-
-# TODO: Use coverage
-# .PHONY: coverage
-# coverage: re
-# 	./$(NAME); cd obj; /Users/sbos/Library/Python/3.9/bin/gcovr --html-nested coverage.html -r ..
 
 ################################################################################
 

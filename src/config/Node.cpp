@@ -4,85 +4,85 @@
 
 bool Node::getBoolean() const
 {
-	try
-	{
-		return std::get<bool>(_value);
-	}
-	catch (const std::bad_variant_access &a)
-	{
-		throw NodeExceptionGetBoolean();
-	}
+    try
+    {
+        return std::get<bool>(_value);
+    }
+    catch (const std::bad_variant_access &a)
+    {
+        throw NodeExceptionGetBoolean();
+    }
 }
 
 size_t Node::getInteger() const
 {
-	try
-	{
-		return std::get<size_t>(_value);
-	}
-	catch (const std::bad_variant_access &a)
-	{
-		throw NodeExceptionGetInteger();
-	}
+    try
+    {
+        return std::get<size_t>(_value);
+    }
+    catch (const std::bad_variant_access &a)
+    {
+        throw NodeExceptionGetInteger();
+    }
 }
 
 std::string Node::getString() const
 {
-	try
-	{
-		return std::get<std::string>(_value);
-	}
-	catch (const std::bad_variant_access &a)
-	{
-		throw NodeExceptionGetString();
-	}
+    try
+    {
+        return std::get<std::string>(_value);
+    }
+    catch (const std::bad_variant_access &a)
+    {
+        throw NodeExceptionGetString();
+    }
 }
 
 std::vector<Node> Node::getArray() const
 {
-	try
-	{
-		return std::get<std::vector<Node>>(_value);
-	}
-	catch (const std::bad_variant_access &a)
-	{
-		throw NodeExceptionGetArray();
-	}
+    try
+    {
+        return std::get<std::vector<Node>>(_value);
+    }
+    catch (const std::bad_variant_access &a)
+    {
+        throw NodeExceptionGetArray();
+    }
 }
 
-std::unordered_map<std::string, Node> Node::getObject() const
+std::map<std::string, Node> Node::getObject() const
 {
-	try
-	{
-		return std::get<std::unordered_map<std::string, Node>>(_value);
-	}
-	catch (const std::bad_variant_access &a)
-	{
-		throw NodeExceptionGetObject();
-	}
+    try
+    {
+        return std::get<std::map<std::string, Node>>(_value);
+    }
+    catch (const std::bad_variant_access &a)
+    {
+        throw NodeExceptionGetObject();
+    }
 }
 
 void Node::setBoolean(bool boolean)
 {
-	_value = boolean;
+    _value = boolean;
 }
 
 void Node::setInteger(size_t integer)
 {
-	_value = integer;
+    _value = integer;
 }
 
 void Node::setString(const std::string string)
 {
-	_value = string;
+    _value = string;
 }
 
 void Node::setArray(std::vector<Node> array)
 {
-	_value = array;
+    _value = array;
 }
 
-void Node::setObject(const std::unordered_map<std::string, Node> object)
+void Node::setObject(const std::map<std::string, Node> object)
 {
-	_value = object;
+    _value = object;
 }

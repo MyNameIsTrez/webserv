@@ -15,7 +15,7 @@
 
 !fuzzing/scripts/*.sh
 !fuzzing/src/*.cpp
-!fuzzing/tests/*.txt
+!fuzzing/tests/*.json
 !fuzzing/Dockerfile
 !fuzzing/Makefile
 
@@ -30,6 +30,8 @@
 
 !rfcs/*.pdf
 
+!root/favicon.ico
+
 !src/*.[cht]pp
 
 !src/config/*.[ch]pp
@@ -39,10 +41,12 @@
 
 !YoupiBanane/**
 
+!.clang-format
 !./.gitignore
 !./fn_descriptions.c
 !./Makefile
 !./README.md
+!requirements.txt
 !./subject.pdf
 !./TODO.md
 !./webserv.conf

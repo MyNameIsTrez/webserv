@@ -4,7 +4,8 @@ NAME := config_fuzzing
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wconversion
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -fstandalone-debug -std=c++2b
+CFLAGS += -DSUPPRESS_LOGGING
 
 OBJDIR := obj
 
@@ -16,6 +17,9 @@ endif
 # ifdef SAN
 # CFLAGS += -fsanitize=address,undefined
 # endif
+ifdef SUPPRESS_LOGGING
+CFLAGS += -DSUPPRESS_LOGGING
+endif
 ifdef AFL
 NAME := config_fuzzing_afl
 CC := afl-clang-lto++
@@ -37,7 +41,14 @@ endif
 
 ################################################################################
 
-CFILES := src/Config.cpp src/Token.cpp src/Logger.cpp fuzzing/src/main.cpp
+CFILES :=\
+	src/config/Config.cpp\
+	src/config/JSON.cpp\
+	src/config/Node.cpp\
+	src/config/Tokenizer.cpp\
+	src/Logger.cpp\
+	src/Utils.cpp\
+	fuzzing/src/main.cpp
 
 ################################################################################
 

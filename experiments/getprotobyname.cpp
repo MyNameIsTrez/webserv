@@ -51,5 +51,11 @@ int main(void)
 		}
 	}
 
+	for (int i = 0; i < 100000; i++)
+	{
+		protoent *servptr = getprotobyname("tcp");
+		if (servptr == NULL) EXIT_FAILURE;
+	}
+
 	return EXIT_SUCCESS;
 }

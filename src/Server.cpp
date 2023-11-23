@@ -1,1132 +1,1141 @@
 #include "Server.hpp"
 
-#include "config/Config.hpp"
 #include "Client.hpp"
-#include "defines.hpp"
 #include "Logger.hpp"
+#include "Throwing.hpp"
 #include "Utils.hpp"
+#include "config/Config.hpp"
+#include "defines.hpp"
 
 #include <cassert>
-#include <iostream>
+#include <fcntl.h>
 #include <filesystem>
+#include <iostream>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <poll.h>
-#include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
 #include <unordered_set>
 
-// TODO: Turn these into static ints inside of a class?
-const int POLLIN_ANY = POLLIN | POLLRDBAND | POLLRDNORM | POLLPRI;
-const int POLLOUT_ANY = POLLOUT | POLLWRBAND | POLLWRNORM;
+namespace L = Logger;
+namespace T = Throwing;
 
-bool shutting_down_gracefully = false;
-
-int Server::_sig_chld_pipe[2];
-
-/*	Constructors */
+bool Server::constructed_singleton = false;
+bool Server::shutting_down_gracefully = false;
 
 Server::Server(const Config &config)
-	: _config(config),
-	  _bind_fd_to_server_indices(),
-	  _bind_fd_to_port(),
-	  _cgi_pid_to_client_fd(),
-	  _fd_to_client_index(),
-	  _fd_to_pfd_index(),
-	  _fd_to_fd_type(),
-	  _clients(),
-	  _pfds()
+    : _config(config), _unreaped_cgi_count(), _bind_fd_to_server_indices(), _bind_fd_to_port(), _cgi_pid_to_client_fd(),
+      _fd_to_client_index(), _fd_to_pfd_index(), _fd_to_fd_type(), _clients(), _pfds()
 {
-	for (const auto &it : _config.bind_info_to_server_indices)
-	{
-		const auto &bind_info = it.first;
-		const auto &server_indices = it.second;
+    if (constructed_singleton)
+    {
+        throw ServerExceptionAlreadyConstructedThisSingleton();
+    }
 
-		protoent *proto = getprotobyname("tcp");
-		if (proto == NULL) throw Utils::SystemException("getprotobyname");
-		int bind_fd;
-		if ((bind_fd = socket(AF_INET, SOCK_STREAM, proto->p_proto)) == -1) throw Utils::SystemException("socket");
+    constructed_singleton = true;
 
-		_bind_fd_to_server_indices.emplace(bind_fd, server_indices);
+    for (const auto &[bind_info, server_indices] : _config.bind_info_to_server_indices)
+    {
+        int bind_fd = T::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
 
-		Logger::info(std::string("Adding address ") + std::to_string(bind_info.s_addr) + " with port " + std::to_string(ntohs(bind_info.sin_port)));
-		_bind_fd_to_port.emplace(bind_fd, std::to_string(ntohs(bind_info.sin_port)));
+        _bind_fd_to_server_indices.emplace(bind_fd, server_indices);
 
-		// Prevents "bind: Address already in use" error
-		int option = 1; // "the parameter should be non-zero to enable a boolean option"
-		if (setsockopt(bind_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) == -1) throw Utils::SystemException("setsockopt");
+        L::info(std::string("Adding address ") + std::to_string(bind_info.s_addr) + " with port " +
+                std::to_string(ntohs(bind_info.sin_port)));
+        _bind_fd_to_port.emplace(bind_fd, std::to_string(ntohs(bind_info.sin_port)));
 
-		sockaddr_in sockaddrin_entry{};
-		sockaddrin_entry.sin_family = AF_INET;
-		sockaddrin_entry.sin_addr.s_addr = bind_info.s_addr;
-		sockaddrin_entry.sin_port = bind_info.sin_port;
-		sockaddr *sockaddr_entry = reinterpret_cast<sockaddr *>(&sockaddrin_entry);
+        // Prevents "bind: Address already in use" error
+        int option = 1; // "the parameter should be non-zero to enable a boolean option"
+        T::setsockopt(bind_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option));
 
-		if (bind(bind_fd, sockaddr_entry, sizeof(sockaddrin_entry)) == -1) throw Utils::SystemException("bind");
+        sockaddr_in sockaddrin_entry{};
+        sockaddrin_entry.sin_family = AF_INET;
+        sockaddrin_entry.sin_addr.s_addr = bind_info.s_addr;
+        sockaddrin_entry.sin_port = bind_info.sin_port;
+        sockaddr *sockaddr_entry = reinterpret_cast<sockaddr *>(&sockaddrin_entry);
 
-		if (listen(bind_fd, _config.connection_queue_length) == -1) throw Utils::SystemException("listen");
+        T::bind(bind_fd, sockaddr_entry, sizeof(sockaddrin_entry));
 
-		_addFd(bind_fd, FdType::SERVER, POLLIN);
+        T::listen(bind_fd, _config.connection_queue_length);
 
-		Logger::info(std::string("Added bind fd ") + std::to_string(bind_fd));
-	}
+        _addFd(bind_fd, FdType::SERVER, POLLIN);
 
-	signal(SIGINT, _sigIntHandler);
-	signal(SIGPIPE, SIG_IGN);
+        L::info(std::string("Added bind fd ") + std::to_string(bind_fd));
+    }
 
-	// Demonstration purposes
-	// if (write(-1, "", 0)) throw Utils::SystemException("write");
-
-	if (pipe(_sig_chld_pipe) == -1) throw Utils::SystemException("pipe");
-	_addFd(_sig_chld_pipe[PIPE_READ_INDEX], FdType::SIG_CHLD, POLLIN);
-	Logger::info(std::string("Added _sig_chld_pipe[PIPE_READ_INDEX] fd ") + std::to_string(_sig_chld_pipe[PIPE_READ_INDEX]));
-	signal(SIGCHLD, _sigChldHandler);
-}
-
-/*	Public member functions */
-
-Server::~Server(void)
-{
-	// TODO: close() the two _sig_chld_pipe fds and such
-
-	// TODO: close() the server socket
-
-	// TODO: Do anything else?
+    T::signal(SIGINT, _sigIntHandler);
+    T::signal(SIGPIPE, SIG_IGN);
 }
 
 void Server::run(void)
 {
-	// TODO: Handle multiple servers
-	bool servers_active = true;
+    bool servers_active = true;
 
-	std::unordered_set<int> seen_fds;
+    std::unordered_set<int> seen_fds;
 
-	while (true)
-	{
-		if (shutting_down_gracefully && servers_active)
-		{
-			Logger::info("\nShutting down gracefully...");
+    while (true)
+    {
+        if (shutting_down_gracefully && servers_active)
+        {
+            L::info("\nShutting down gracefully...");
+            servers_active = false;
+            _shutDownServers();
+        }
 
-			servers_active = false;
+        if (_pfds.size() == 0)
+        {
+            L::info(std::string("Gootbye"));
+            return;
+        }
+        else if (shutting_down_gracefully)
+        {
+            for (pollfd pfd : _pfds)
+            {
+                L::info(std::string("  Waiting for poll fd ") + std::to_string(pfd.fd));
+            }
+        }
 
-			for (const auto &fd_to_fd_type_pair : _fd_to_fd_type)
-			{
-				if (fd_to_fd_type_pair.second == FdType::SERVER)
-				{
-					int fd = fd_to_fd_type_pair.first;
+        L::info(std::string("Waiting for an event..."));
 
-					size_t pfd_index = _fd_to_pfd_index.at(fd);
-					_fd_to_pfd_index[_pfds.back().fd] = pfd_index;
-					_swapRemove(_pfds, pfd_index);
+        assert(_unreaped_cgi_count >= 0);
+        int timeout = _unreaped_cgi_count > 0 ? _config.reap_frequency_ms : -1;
+        int event_count = poll(_pfds.data(), _pfds.size(), timeout);
+        if (event_count == -1)
+        {
+            if (errno == EINTR)
+            {
+                L::info(std::string("  poll() got interrupted by a signal handler"));
+                continue;
+            }
+            throw T::SystemException("poll");
+        }
+        else if (event_count == 0)
+        {
+            L::info("  poll() timed out");
+            _reapChildCGIScripts();
+        }
 
-					_fd_to_pfd_index.erase(fd);
-					// We're not erasing from _fd_to_fd_type, since we're looping through it
+        _printContainerSizes();
 
-					if (close(fd) == -1) throw Utils::SystemException("close");
-				}
-			}
-		}
+        seen_fds.clear();
 
-		// If the only fd left in _pfds is _sig_chld_pipe[PIPE_READ_INDEX], return
-		if (_pfds.size() == 1)
-		{
-			_removeFd(_sig_chld_pipe[PIPE_READ_INDEX]);
-			Logger::info(std::string("Gootbye"));
-			return;
-		}
-		else if (shutting_down_gracefully)
-		{
-			// TODO: Do we want to use : iteration in other spots too?
-			for (pollfd pfd : _pfds)
-			{
-				Logger::info(std::string("  Waiting for poll fd ") + std::to_string(pfd.fd));
-			}
-		}
-
-		Logger::info(std::string("Waiting for an event..."));
-		// TODO: Consider having a timeout of 5000 ms or something again
-		int event_count = poll(_pfds.data(), _pfds.size(), -1);
-		if (event_count == -1)
-		{
-			if (errno == EINTR)
-			{
-				Logger::info(std::string("  poll() got interrupted by a signal handler"));
-				continue;
-			}
-			throw Utils::SystemException("poll");
-		}
-		// else if (event_count == 0)
-		// {
-		// 	Logger::info(std::string("poll() timed out"));
-		// }
-
-		_printContainerSizes();
-
-		seen_fds.clear();
-
-		for (nfds_t pfd_index = _pfds.size(); pfd_index > 0;)
-		{
-			pfd_index--;
-
-			// If this pfd didn't have any event
-			if (_pfds[pfd_index].revents == 0)
-			{
-				continue;
-			}
-
-			int fd = _pfds[pfd_index].fd;
-
-			// If this pfd got removed
-			if (!_fd_to_pfd_index.contains(fd))
-			{
-				continue;
-			}
-
-			// If we've already iterated over this fd in this _pfds loop
-			if (seen_fds.contains(fd))
-			{
-				assert(false); // TODO: REMOVE! This is just here because I'm curious whether it happens
-				continue;
-			}
-			seen_fds.emplace(fd);
-
-			FdType fd_type = _fd_to_fd_type.at(fd);
-
-			_printEvents(_pfds[pfd_index], fd_type);
-
-			// TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
-			if (_pfds[pfd_index].revents & POLLNVAL)
-			{
-				_handlePollnval();
-			}
-
-			// If we are trying to write to a CGI script that closed its stdin,
-			// or we are trying to write to a disconnected client
-			if (_pfds[pfd_index].revents & POLLERR)
-			{
-				_handlePollerr(fd, fd_type);
-				continue;
-			}
-
-			// If the CGI script closed its stdout
-			if (_pfds[pfd_index].revents & POLLHUP)
-			{
-				assert(fd_type == FdType::CGI_TO_SERVER);
-
-				// If the server has not read everything from the CGI script
-				if (!(_pfds[pfd_index].revents & POLLIN))
-				{
-					_pollhupCGIToServer(fd);
-					continue;
-				}
-			}
-
-			// If we can read
-			if (_pfds[pfd_index].revents & POLLIN_ANY)
-			{
-				bool skip_client = false;
-				_handlePollin(fd, fd_type, skip_client);
-				if (skip_client)
-				{
-					continue;
-				}
-			}
-
-			// If we can write
-			if (_pfds[pfd_index].revents & POLLOUT_ANY)
-			{
-				_handlePollout(fd, fd_type, pfd_index);
-			}
-		}
-	}
+        for (nfds_t pfd_index = _pfds.size(); pfd_index > 0;)
+        {
+            pfd_index--;
+            _processPfd(pfd_index, seen_fds);
+        }
+    }
 }
 
-/*	Private member functions */
-
 // vector=[ A, B, C, D ] with index=1 results in [ A, D, C ]
-template <typename T>
-void Server::_swapRemove(T &vector, size_t index)
+template <typename T> void Server::_swapRemove(T &vector, size_t index)
 {
-	vector[index] = vector.back();
-	vector.pop_back();
+    vector[index] = vector.back();
+    vector.pop_back();
+}
+
+void Server::_shutDownServers(void)
+{
+    for (auto [fd, fd_type] : _fd_to_fd_type)
+    {
+        if (fd_type == FdType::SERVER)
+        {
+            size_t pfd_index = _fd_to_pfd_index.at(fd);
+            _fd_to_pfd_index[_pfds.back().fd] = pfd_index;
+            _swapRemove(_pfds, pfd_index);
+
+            _fd_to_pfd_index.erase(fd);
+            // We're not erasing from _fd_to_fd_type, since we're looping through it
+
+            T::close(fd);
+        }
+    }
 }
 
 void Server::_printContainerSizes(void)
 {
-	std::cerr
-		<< "MAPS: "
-		<< "_bind_fd_to_server_indices=" << _bind_fd_to_server_indices.size()
-		<< ", _bind_fd_to_port=" << _bind_fd_to_port.size()
-		<< ", _cgi_pid_to_client_fd=" << _cgi_pid_to_client_fd.size()
-		<< ", _fd_to_client_index=" << _fd_to_client_index.size()
-		<< ", _fd_to_pfd_index=" << _fd_to_pfd_index.size()
-		<< ", _fd_to_fd_type=" << _fd_to_fd_type.size()
-		<< " | VECTORS: "
-		<< "_clients=" << _clients.size()
-		<< ", _pfds=" << _pfds.size()
-		<< std::endl;
+    L::info(std::string("VARIABLES: _unreaped_cgi_count=") + std::to_string(_unreaped_cgi_count) +
+            " | MAPS: " + "_bind_fd_to_server_indices=" + std::to_string(_bind_fd_to_server_indices.size()) +
+            ", _bind_fd_to_port=" + std::to_string(_bind_fd_to_port.size()) +
+            ", _cgi_pid_to_client_fd=" + std::to_string(_cgi_pid_to_client_fd.size()) +
+            ", _fd_to_client_index=" + std::to_string(_fd_to_client_index.size()) + ", _fd_to_pfd_index=" +
+            std::to_string(_fd_to_pfd_index.size()) + ", _fd_to_fd_type=" + std::to_string(_fd_to_fd_type.size()) +
+            " | VECTORS: " + "_clients=" + std::to_string(_clients.size()) + ", _pfds=" + std::to_string(_pfds.size()));
+}
+
+void Server::_processPfd(size_t pfd_index, std::unordered_set<int> &seen_fds)
+{
+    // If this pfd didn't have any event
+    if (_pfds[pfd_index].revents == 0)
+    {
+        return;
+    }
+
+    int fd = _pfds[pfd_index].fd;
+
+    // If this pfd got removed
+    if (!_fd_to_pfd_index.contains(fd))
+    {
+        return;
+    }
+
+    // If we've already iterated over this fd in this _pfds loop
+    // This never happened in practice, but it doesn't hurt ¯\_(ツ)_/¯
+    if (seen_fds.contains(fd))
+    {
+        return;
+    }
+    seen_fds.emplace(fd);
+
+    FdType fd_type = _fd_to_fd_type.at(fd);
+
+    _printEvents(_pfds[pfd_index], fd_type);
+
+    if (_pfds[pfd_index].revents & POLLNVAL)
+    {
+        assert(false);
+    }
+
+    // If we are trying to write to a CGI script that closed its stdin,
+    // or we are trying to write to a disconnected client
+    if (_pfds[pfd_index].revents & POLLERR)
+    {
+        _handlePollerr(fd, fd_type);
+        return;
+    }
+
+    // If the CGI script closed its stdout
+    if (_pfds[pfd_index].revents & POLLHUP)
+    {
+        assert(fd_type == FdType::CGI_TO_SERVER);
+
+        // If the server has read everything from the CGI script
+        if (!(_pfds[pfd_index].revents & POLLIN))
+        {
+            _pollhupCGIToServer(fd);
+            return;
+        }
+    }
+
+    // If we can read
+    if (_pfds[pfd_index].revents & POLLIN)
+    {
+        bool skip_client = false;
+        _handlePollin(fd, fd_type, skip_client);
+        if (skip_client)
+            return;
+    }
+
+    // If we can write
+    if (_pfds[pfd_index].revents & POLLOUT)
+    {
+        _handlePollout(fd, fd_type);
+    }
 }
 
 void Server::_printEvents(const pollfd &pfd, FdType fd_type)
 {
-	std::cerr
-		<< "  fd: " << pfd.fd
-		<< ", fd_type: " << static_cast<int>(fd_type)
-		<< ", client_index: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _fd_to_client_index.at(pfd.fd))
-		<< ", client_fd: " << ((fd_type == FdType::SERVER || fd_type == FdType::SIG_CHLD) ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd)
-		<< ", revents:"
-		<< ((pfd.revents & POLLIN) ? " POLLIN" : "")
-		<< ((pfd.revents & POLLOUT) ? " POLLOUT" : "")
-		<< ((pfd.revents & POLLHUP) ? " POLLHUP" : "")
-		<< ((pfd.revents & POLLNVAL) ? " POLLNVAL" : "")
-		<< ((pfd.revents & POLLPRI) ? " POLLPRI" : "")
-		<< ((pfd.revents & POLLRDBAND) ? " POLLRDBAND" : "")
-		<< ((pfd.revents & POLLRDNORM) ? " POLLRDNORM" : "")
-		<< ((pfd.revents & POLLWRBAND) ? " POLLWRBAND" : "")
-		<< ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "")
-		<< ((pfd.revents & POLLERR) ? " POLLERR" : "")
-		<< std::endl;
+    L::info(std::string("  fd: " + std::to_string(pfd.fd)) + ", fd_type: " + std::to_string(int(fd_type)) +
+            ", client_index: " + std::to_string(fd_type == FdType::SERVER ? -1 : _fd_to_client_index.at(pfd.fd)) +
+            ", client_fd: " +
+            std::to_string(fd_type == FdType::SERVER ? -1 : _clients.at(_fd_to_client_index.at(pfd.fd)).client_fd) +
+            ", revents:" + ((pfd.revents & POLLIN) ? " POLLIN" : "") + ((pfd.revents & POLLOUT) ? " POLLOUT" : "") +
+            ((pfd.revents & POLLHUP) ? " POLLHUP" : "") + ((pfd.revents & POLLNVAL) ? " POLLNVAL" : "") +
+            ((pfd.revents & POLLPRI) ? " POLLPRI" : "") + ((pfd.revents & POLLRDBAND) ? " POLLRDBAND" : "") +
+            ((pfd.revents & POLLRDNORM) ? " POLLRDNORM" : "") + ((pfd.revents & POLLWRBAND) ? " POLLWRBAND" : "") +
+            ((pfd.revents & POLLWRNORM) ? " POLLWRNORM" : "") + ((pfd.revents & POLLERR) ? " POLLERR" : ""));
 }
 
-// TODO: Don't let _fd_to_client_index nor _clients be passed in, by just getting it from the member variable;
-// TODO: Do the same for other methods that are getting useless args!
-// This is called in many spots
-// due to the fact that client pointer can dangle
-// whenever the _clients vector resizes
+// This is called in many spots due to the fact
+// that a client pointer can dangle whenever the _clients vector resizes
 Client &Server::_getClient(int fd)
 {
-	size_t client_index = _fd_to_client_index.at(fd);
-	return _clients[client_index];
+    size_t client_index = _fd_to_client_index.at(fd);
+    return _clients[client_index];
 }
 
 void Server::_removeClientFd(int &fd)
 {
-	assert(fd != -1);
+    assert(fd != -1);
 
-	_fd_to_client_index.erase(fd);
+    _fd_to_client_index.erase(fd);
 
-	_removeFd(fd);
+    _removeFd(fd);
 }
 
 void Server::_removeFd(int &fd)
 {
-	assert(fd != -1);
+    assert(fd != -1);
 
-	Logger::info(std::string("    Removing fd ") + std::to_string(fd));
+    L::info(std::string("    Removing fd ") + std::to_string(fd));
 
-	size_t pfd_index = _fd_to_pfd_index.at(fd);
-	_fd_to_pfd_index[_pfds.back().fd] = pfd_index;
-	_swapRemove(_pfds, pfd_index);
+    size_t pfd_index = _fd_to_pfd_index.at(fd);
+    _fd_to_pfd_index[_pfds.back().fd] = pfd_index;
+    _swapRemove(_pfds, pfd_index);
 
-	_fd_to_pfd_index.erase(fd);
-	_fd_to_fd_type.erase(fd);
+    _fd_to_pfd_index.erase(fd);
+    _fd_to_fd_type.erase(fd);
 
-	if (close(fd) == -1) throw Utils::SystemException("close");
+    T::close(fd);
 
-	fd = -1;
+    fd = -1;
+}
+
+void Server::_removeServerToCGIFd(int fd)
+{
+    assert(fd != -1);
+
+    Client &client = _getClient(fd);
+
+    if (client.server_to_cgi_fd == -1)
+    {
+        return;
+    }
+
+    L::info(std::string("  Removing server_to_cgi_fd ") + std::to_string(client.server_to_cgi_fd));
+
+    _removeClientFd(client.server_to_cgi_fd);
+
+    client.server_to_cgi_state = Client::ServerToCGIState::DONE;
+}
+
+void Server::_removeCGIToServerFd(int fd)
+{
+    assert(fd != -1);
+
+    Client &client = _getClient(fd);
+
+    if (client.cgi_to_server_fd == -1)
+    {
+        return;
+    }
+
+    L::info(std::string("  Removing cgi_to_server_fd ") + std::to_string(client.cgi_to_server_fd));
+
+    _removeClientFd(client.cgi_to_server_fd);
+
+    client.cgi_to_server_state = Client::CGIToServerState::DONE;
 }
 
 void Server::_enableEvent(size_t pfd_index, short int event)
 {
-	Logger::info(std::string("    Enabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
-	_pfds[pfd_index].events |= event;
+    L::info(std::string("    Enabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
+    _pfds[pfd_index].events |= event;
 }
 
 void Server::_disableEvent(size_t pfd_index, short int event)
 {
-	Logger::info(std::string("    Disabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
-	_pfds[pfd_index].events &= ~event;
-	_pfds[pfd_index].revents &= ~event;
+    L::info(std::string("    Disabling event ") + std::to_string(event) + " on pfd_index " + std::to_string(pfd_index));
+    _pfds[pfd_index].events &= ~event;
+    _pfds[pfd_index].revents &= ~event;
 }
 
 void Server::_enableWritingToClient(Client &client)
 {
-	// TODO: Assert that response isn't empty?
+    L::info(std::string("    In _enableWritingToClient()"));
+    size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
+    _enableEvent(client_pfd_index, POLLOUT);
 
-	Logger::info(std::string("    In _enableWritingToClient()"));
-	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
-	_enableEvent(client_pfd_index, POLLOUT);
-
-	client.client_write_state = Client::ServerToClientState::WRITING;
+    client.server_to_client_state = Client::ServerToClientState::WRITING;
 }
 
 void Server::_enableWritingToCGI(Client &client)
 {
-	// TODO: Assert that response isn't empty?
+    assert(client.server_to_cgi_state != Client::ServerToCGIState::DONE);
+    assert(client.server_to_cgi_fd != -1);
 
-	assert(client.cgi_write_state != Client::ServerToCGIState::DONE);
-	assert(client.server_to_cgi_fd != -1);
+    L::info(std::string("    In _enableWritingToCGI()"));
+    size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
+    _enableEvent(server_to_cgi_pfd_index, POLLOUT);
 
-	Logger::info(std::string("    In _enableWritingToCGI()"));
-	size_t server_to_cgi_pfd_index = _fd_to_pfd_index.at(client.server_to_cgi_fd);
-	_enableEvent(server_to_cgi_pfd_index, POLLOUT);
-
-	client.cgi_write_state = Client::ServerToCGIState::WRITING;
+    client.server_to_cgi_state = Client::ServerToCGIState::WRITING;
 }
 
 void Server::_disableReadingFromClient(Client &client)
 {
-	Logger::info(std::string("    In _disableReadingFromClient()"));
-	size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
-	_disableEvent(client_pfd_index, POLLIN);
+    L::info(std::string("    In _disableReadingFromClient()"));
+    size_t client_pfd_index = _fd_to_pfd_index.at(client.client_fd);
+    _disableEvent(client_pfd_index, POLLIN);
 
-	client.client_read_state = Client::ClientToServerState::DONE;
+    client.client_to_server_state = Client::ClientToServerState::DONE;
 }
 
 void Server::_addClientFd(int fd, size_t client_index, FdType fd_type, short int events)
 {
-	assert(fd != -1);
+    assert(fd != -1);
 
-	_fd_to_client_index.emplace(fd, client_index);
+    _fd_to_client_index.emplace(fd, client_index);
 
-	_addFd(fd, fd_type, events);
+    _addFd(fd, fd_type, events);
 }
 
 void Server::_addFd(int fd, FdType fd_type, short int events)
 {
-	assert(fd != -1);
+    assert(fd != -1);
 
-	Logger::info(std::string("    Adding fd ") + std::to_string(fd));
+    L::info(std::string("    Adding fd ") + std::to_string(fd));
 
-	_fd_to_fd_type.emplace(fd, fd_type);
-	_fd_to_pfd_index.emplace(fd, _pfds.size());
+    _fd_to_fd_type.emplace(fd, fd_type);
+    _fd_to_pfd_index.emplace(fd, _pfds.size());
 
-	pollfd pfd;
-	pfd.fd = fd;
-	pfd.events = events;
-	_pfds.push_back(pfd);
-}
-
-void Server::_sigIntHandler(int signum)
-{
-	(void)signum;
-	shutting_down_gracefully = true;
-}
-
-void Server::_sigChldHandler(int signum)
-{
-	(void)signum;
-	Logger::info(std::string("In _sigChldHandler()"));
-
-	char dummy = '!';
-	if (write(_sig_chld_pipe[PIPE_WRITE_INDEX], &dummy, sizeof(dummy)) == -1) throw Utils::SystemException("write");
-}
-
-void Server::_handlePollnval(void)
-{
-	// TODO: Remove the client?
-	// TODO: Try to reach this by commenting out a line that removes a closed fd from _pfds
-	assert(false);
+    pollfd pfd{};
+    pfd.fd = fd;
+    pfd.events = events;
+    _pfds.push_back(pfd);
 }
 
 void Server::_handlePollerr(int fd, FdType fd_type)
 {
-	if (fd_type == FdType::SERVER_TO_CGI)
-	{
-		Client &client = _getClient(fd);
-		client.cgi_write_state = Client::ServerToCGIState::DONE;
-		_removeClientFd(client.server_to_cgi_fd);
-	}
-	else if (fd_type == FdType::CLIENT)
-	{
-		_removeClient(fd);
-	}
-	else
-	{
-		// TODO: Should be unreachable
-		assert(false);
-	}
+    if (fd_type == FdType::SERVER_TO_CGI)
+    {
+        _removeServerToCGIFd(fd);
+    }
+    else if (fd_type == FdType::CLIENT)
+    {
+        _removeClient(fd);
+    }
+    else
+    {
+        assert(false);
+    }
 }
 
 void Server::_pollhupCGIToServer(int fd)
 {
-	Logger::info(std::string("  In _pollhupCGIToServer()"));
+    L::info(std::string("  In _pollhupCGIToServer()"));
 
-	Client &client = _getClient(fd);
+    Client &client = _getClient(fd);
 
-	// TODO: .erase(client.cgi_pid), and possibly also kill()/signal() it here?
+    client.client_to_server_state = Client::ClientToServerState::DONE;
 
-	client.client_read_state = Client::ClientToServerState::DONE;
+    _removeServerToCGIFd(fd);
+    _removeCGIToServerFd(fd);
 
-	if (client.server_to_cgi_fd != -1)
-	{
-		client.cgi_write_state = Client::ServerToCGIState::DONE;
-		_removeClientFd(client.server_to_cgi_fd);
-	}
+    if (client.cgi_pid == -1)
+    {
+        _cgiEnd(client);
+    }
+}
 
-	// Close and remove cgi_to_server
-	assert(client.cgi_to_server_fd != -1);
-	_removeClientFd(client.cgi_to_server_fd);
-	client.cgi_read_state = Client::CGIToServerState::DONE;
-
-	if (client.cgi_exit_status != -1)
-	{
-		_enableWritingToClient(client);
-		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
-	}
+void Server::_cgiEnd(Client &client)
+{
+    L::debug("  In _cgiEnd(), where client.cgi_exit_status: " + std::to_string(client.cgi_exit_status));
+    if (client.cgi_exit_status != 0)
+    {
+        _respondClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
+    }
+    else
+    {
+        client.extractCGIDocumentResponseHeaders();
+        client.prependResponseHeader();
+        _enableWritingToClient(client);
+    }
 }
 
 void Server::_handlePollin(int fd, FdType fd_type, bool &skip_client)
 {
-	if (fd_type == FdType::SERVER)
-	{
-		_acceptClient(fd);
-	}
-	else
-	{
-		if (fd_type == FdType::SIG_CHLD)
-		{
-			_reapChild();
+    if (fd_type == FdType::SERVER)
+    {
+        _acceptClient(fd);
+    }
+    else
+    {
+        assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
 
-			// TODO: Do we need to manually call methods here that remove server_to_cgi and cgi_to_server?
+        Client &client = _getClient(fd);
 
-			skip_client = true;
-		}
-		else
-		{
-			assert(fd_type == FdType::CLIENT || fd_type == FdType::CGI_TO_SERVER);
+        try
+        {
+            _readFd(client, fd, fd_type, skip_client);
+        }
+        catch (const Client::ClientException &e)
+        {
+            _respondClientException(e, client);
 
-			Client &client = _getClient(fd);
-
-			try
-			{
-				_readFd(client, fd, fd_type, skip_client);
-			}
-			catch (const Client::ClientException &e)
-			{
-				_handleClientException(e, client);
-
-				skip_client = true;
-			}
-		}
-	}
+            skip_client = true;
+        }
+    }
 }
 
 void Server::_acceptClient(int server_fd)
 {
-	int client_fd = accept(server_fd, NULL, NULL);
-	Logger::info(std::string("    Accepted client fd ") + std::to_string(client_fd));
+    int client_fd = T::accept(server_fd, NULL, NULL);
+    L::info(std::string("    Accepted client fd ") + std::to_string(client_fd));
 
-	// TODO: Handle accept() failing. Specifically handle too many open fds gracefully
+    // Make client_fd non-blocking
+    T::fcntl(client_fd, F_SETFL, O_NONBLOCK);
 
-	_addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
+    _addClientFd(client_fd, _clients.size(), FdType::CLIENT, POLLIN);
 
-	const std::string &server_port = _bind_fd_to_port.at(server_fd);
+    const std::string &server_port = _bind_fd_to_port.at(server_fd);
 
-	_clients.push_back(Client(client_fd, server_fd, server_port, _config.client_max_body_size));
+    _clients.push_back(Client(client_fd, server_fd, server_port, _config.client_max_body_size));
+
+    std::cout << "Added a client; " << _clients.size() << " clients now connected" << std::endl;
 }
 
-void Server::_reapChild(void)
+void Server::_reapChildCGIScripts(void)
 {
-	Logger::info(std::string("    In _reapChild()"));
+    L::info(std::string("    In _reapChildCGIScripts()"));
 
-	char dummy;
-	if (read(_sig_chld_pipe[PIPE_READ_INDEX], &dummy, 1) == -1) throw Utils::SystemException("read");
+    while (true)
+    {
+        // Reaps all children that have exited
+        // WNOHANG guarantees that this call doesn't block
+        int child_exit_status;
+        pid_t child_pid = waitpid(-1, &child_exit_status, WNOHANG);
 
-	// Reaps all children that have exited
-	// waitpid() returns 0 if no more children can be reaped right now
-	// WNOHANG guarantees that this call doesn't block
-	// This is done in a loop, since signals aren't queued: https://stackoverflow.com/a/45809843/13279557
-	// TODO: Are there other options we should use?
-	int child_exit_status;
-	pid_t child_pid = waitpid(-1, &child_exit_status, WNOHANG);
+        // If there are no children at this moment
+        if (errno == ECHILD)
+        {
+            return;
+        }
+        // If the children aren't ready to be reaped yet
+        if (child_pid == 0)
+        {
+            return;
+        }
 
-	// TODO: Decide what to do when errno is EINTR
-	// TODO: errno is set to ECHILD when there are no children left to wait for: if (child_pid == -1 && errno != ECHILD)
-	if (child_pid == -1) throw Utils::SystemException("waitpid");
+        _unreaped_cgi_count--;
 
-	// TODO: Can this be 0 if the child was interrupted/resumes after being interrupted?
-	assert(child_pid > 0);
+        // Reached when the client disconnects before the CGI has finished
+        if (!_cgi_pid_to_client_fd.contains(child_pid))
+        {
+            continue;
+        }
 
-	// Reached when the client disconnects before the CGI has finished
-	if (!_cgi_pid_to_client_fd.contains(child_pid))
-	{
-		return;
-	}
+        L::info(std::string("    Reaping child_pid ") + std::to_string(child_pid));
 
-	int client_fd = _cgi_pid_to_client_fd.at(child_pid);
-	size_t client_index = _fd_to_client_index.at(client_fd);
-	Client &client = _clients.at(client_index);
+        int client_fd = _cgi_pid_to_client_fd.at(child_pid);
+        size_t client_index = _fd_to_client_index.at(client_fd);
+        Client &client = _clients.at(client_index);
 
-	_cgi_pid_to_client_fd.erase(client.cgi_pid);
-	client.cgi_pid = -1;
+        _cgi_pid_to_client_fd.erase(client.cgi_pid);
+        client.cgi_pid = -1;
 
-	assert(client.client_read_state == Client::ClientToServerState::DONE);
-	assert(client.cgi_write_state == Client::ServerToCGIState::DONE);
-	assert(client.cgi_read_state != Client::CGIToServerState::NOT_READING);
-	assert(client.client_write_state == Client::ServerToClientState::NOT_WRITING);
+        assert(client.client_to_server_state == Client::ClientToServerState::DONE);
+        assert(client.server_to_cgi_state == Client::ServerToCGIState::DONE);
+        assert(client.cgi_to_server_state != Client::CGIToServerState::NOT_READING);
+        assert(client.server_to_client_state == Client::ServerToClientState::NOT_WRITING);
 
-	if (WIFEXITED(child_exit_status))
-	{
-		client.cgi_exit_status = WEXITSTATUS(child_exit_status);
-	}
+        if (WIFEXITED(child_exit_status))
+        {
+            client.cgi_exit_status = WEXITSTATUS(child_exit_status);
+        }
 
-	if (client.cgi_read_state == Client::CGIToServerState::DONE)
-	{
-		_enableWritingToClient(client);
-		client.prependResponseHeader(); // TODO: Do we need to wrap this in a ClientException try-catch?
-	}
-
-	bool cgi_exit_ok = WIFEXITED(child_exit_status) && WEXITSTATUS(child_exit_status) == 0;
-	if (!cgi_exit_ok)
-	{
-		_handleClientException(Client::ClientException(Status::INTERNAL_SERVER_ERROR), client);
-	}
+        if (client.being_removed)
+        {
+            _removeClient(client_fd);
+        }
+        else if (client.cgi_to_server_state == Client::CGIToServerState::DONE)
+        {
+            _cgiEnd(client);
+        }
+    }
 }
 
 void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 {
-	char received[MAX_RECEIVED_LEN] = {};
+    char received[MAX_READ_LEN] = {};
 
-	Logger::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " + std::to_string(MAX_RECEIVED_LEN) + ") on fd_type " + std::to_string(static_cast<int>(fd_type)));
+    L::info(std::string("    About to call read(") + std::to_string(fd) + ", received, " +
+            std::to_string(MAX_READ_LEN) + ") on fd_type " + std::to_string(int(fd_type)));
 
-	// TODO: We should never read past the content_length of the BODY
-	ssize_t bytes_read = read(fd, received, MAX_RECEIVED_LEN);
-	if (bytes_read == -1) throw Utils::SystemException("read");
-	if (bytes_read == 0)
-	{
-		Logger::info(std::string("    Read 0 bytes"));
+    ssize_t bytes_read = T::read(fd, received, MAX_READ_LEN);
 
-		// TODO: Assert that we reached content_length
-		// TODO: Probably need to send the client a response like "expected more body bytes" if it's less than content_length
+    // If the client disconnected
+    if (bytes_read == 0)
+    {
+        L::info(std::string("    Read 0 bytes"));
 
-		// Always true, since cgi_to_server is the only other read() caller,
-		// and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
-		assert(fd_type == FdType::CLIENT);
+        // Always true, since cgi_to_server is the only other read() caller,
+        // and it raises POLLHUP rather than POLLIN on EOF, unlike client sockets
+        assert(fd_type == FdType::CLIENT);
 
-		_removeClient(client.client_fd);
-		skip_client = true;
+        // It's fine that this also kills the CGI
+        _removeClient(client.client_fd);
+        skip_client = true;
 
-		return;
-	}
+        return;
+    }
 
-	// assert(client.cgi_read_state != Client::CGIToServerState::DONE);
-	assert(client.client_write_state != Client::ServerToClientState::DONE);
+    // assert(client.cgi_to_server_state != Client::CGIToServerState::DONE);
+    assert(client.server_to_client_state != Client::ServerToClientState::DONE);
 
-	Logger::info(std::string("    Read ") + std::to_string(bytes_read) + " bytes:\n----------\n" + std::string(received, bytes_read) + "\n----------\n");
+    L::info(std::string("    Read ") + std::to_string(bytes_read) + " bytes:\n----------\n" +
+            std::string(received, bytes_read) + "\n----------\n");
 
-	if (fd_type == FdType::CLIENT)
-	{
-		client.appendReadString(received, bytes_read);
+    if (fd_type == FdType::CLIENT)
+    {
+        client.appendReadString(received, bytes_read);
 
-		if (client.client_read_state == Client::ClientToServerState::DONE)
-		{
-			const std::string &target = client.request_target;
-			const std::string &method = client.request_method;
+        if (client.client_to_server_state == Client::ClientToServerState::DONE)
+        {
+            Client::RequestMethod method = client.request_method;
 
-			size_t server_index = _getServerIndexFromClientServerName(client);
-			const Config::ServerDirective &server = _config.servers.at(server_index);
+            size_t server_index = _getServerIndexFromClientServerName(client);
+            const Config::ServerDirective &server = _config.servers.at(server_index);
 
-			const ResolvedLocation location = _resolveToLocation(target, server);
+            const ResolvedLocation location = _resolveToLocation(client.request_target, server.locations);
 
-			Logger::info(std::string("    location.path: '") + location.path + "'");
+            L::info(std::string("    location.path: '") + location.path + "'");
 
-			if (!location.resolved)
-			{
-				throw Client::ClientException(Status::NOT_FOUND);
-			}
-			if (location.has_redirect)
-			{
-				client.redirect = location.path;
-				throw Client::ClientException(Status::MOVED_TEMPORARILY);
-			}
-			if (!_isAllowedMethod(location, method))
-			{
-				throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
-			}
+            if (!location.resolved)
+            {
+                throw Client::ClientException(Status::NOT_FOUND);
+            }
+            if (location.has_redirect)
+            {
+                client.redirect = location.path;
+                throw Client::ClientException(Status::MOVED_TEMPORARILY);
+            }
+            if (!_isAllowedMethod(location, method))
+            {
+                throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+            }
 
-			if (location.path.back() == '/')
-			{
-				if (method == "GET")
-				{
-					if (location.has_index)
-					{
-						client.respondWithFile(location.index_path);
-						_enableWritingToClient(client);
-					}
-					else if (location.autoindex)
-					{
-						client.respondWithDirectoryListing(location.path);
-						_enableWritingToClient(client);
-					}
-					else
-					{
-						throw Client::ClientException(Status::FORBIDDEN);
-					}
-				}
-				else
-				{
-					throw Client::ClientException(Status::FORBIDDEN);
-				}
-			}
-			else
-			{
-				if (std::filesystem::is_directory(location.path))
-				{
-					if (method == "DELETE")
-					{
-						throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
-					}
-					else
-					{
-						throw Client::ClientException(Status::MOVED_PERMANENTLY);
-					}
-				}
+            if (location.path.back() == '/')
+            {
+                if (method == Client::RequestMethod::GET)
+                {
+                    if (location.has_index)
+                    {
+                        L::info(std::string("    location.index_path: '") + location.index_path + "'");
 
-				if (location.is_cgi_directory)
-				{
-					_startCGI(client, location.cgi_settings, location.script_name, location.path_info, location.query_string);
-				}
-				else if (method == "GET")
-				{
-					client.respondWithFile(location.path);
-					_enableWritingToClient(client);
-				}
-				else if (method == "POST")
-				{
-					client.respondWithCreateFile(location.path);
-					_enableWritingToClient(client);
-				}
-				else
-				{
-					client.respondWithDeleteFile(location.path);
-					_enableWritingToClient(client);
-				}
-			}
-		}
-	}
-	else if (fd_type == FdType::CGI_TO_SERVER)
-	{
-		assert(client.cgi_read_state == Client::CGIToServerState::READING);
-		Logger::info(std::string("    Adding this substr to the response:\n----------\n") + std::string(received, bytes_read) + "\n----------\n");
-		client.response += std::string(received, bytes_read);
-	}
-	else
-	{
-		// TODO: Should be unreachable
-		assert(false);
-	}
+                        if (!std::filesystem::is_regular_file(location.index_path))
+                        {
+                            std::ifstream file(location.index_path);
+
+                            // file.is_open() returns true when file refers to an existing directory
+                            if (file.is_open() && !location.index_directive.empty() &&
+                                (location.index_directive.back() != '/' ||
+                                 (location.index_directive.front() == '/' && location.index_directive.back() == '/')))
+                            {
+                                // This is done to respond with a correct Location header
+                                // This should maybe be done earlier on, so it affects more places?
+                                if (location.index_directive.back() == '/')
+                                {
+                                    throw Client::ClientException(Status::INTERNAL_SERVER_ERROR);
+                                }
+
+                                if (location.index_directive.front() == '/')
+                                {
+                                    client.request_target = location.index_directive;
+                                }
+                                else
+                                {
+                                    client.request_target = "/" + location.index_directive;
+                                }
+
+                                throw Client::ClientException(Status::MOVED_PERMANENTLY);
+                            }
+                            else
+                            {
+                                throw Client::ClientException(Status::FORBIDDEN);
+                            }
+                        }
+
+                        client.respondWithFile(location.index_path);
+                        _enableWritingToClient(client);
+                    }
+                    else if (location.autoindex)
+                    {
+                        client.respondWithDirectoryListing(location.path);
+                        _enableWritingToClient(client);
+                    }
+                    else
+                    {
+                        throw Client::ClientException(Status::FORBIDDEN);
+                    }
+                }
+                else
+                {
+                    throw Client::ClientException(Status::FORBIDDEN);
+                }
+            }
+            else
+            {
+                if (std::filesystem::is_directory(location.path))
+                {
+                    if (method == Client::RequestMethod::DELETE)
+                    {
+                        throw Client::ClientException(Status::METHOD_NOT_ALLOWED);
+                    }
+                    else
+                    {
+                        throw Client::ClientException(Status::MOVED_PERMANENTLY);
+                    }
+                }
+
+                if (location.is_cgi_directory)
+                {
+                    _startCGI(client, location.cgi_execve_path, location.path, location.path_info,
+                              location.query_string);
+                }
+                else if (method == Client::RequestMethod::GET)
+                {
+                    client.respondWithFile(location.path);
+                    _enableWritingToClient(client);
+                }
+                else if (method == Client::RequestMethod::POST)
+                {
+                    client.respondWithCreateFile(location.path);
+                    _enableWritingToClient(client);
+                }
+                else
+                {
+                    client.respondWithDeleteFile(location.path);
+                    _enableWritingToClient(client);
+                }
+            }
+        }
+    }
+    else if (fd_type == FdType::CGI_TO_SERVER)
+    {
+        assert(client.cgi_to_server_state == Client::CGIToServerState::READING);
+        L::info(std::string("    Adding this substr to the response:\n----------\n") +
+                std::string(received, bytes_read) + "\n----------\n");
+        client.response += std::string(received, bytes_read);
+    }
+    else
+    {
+        assert(false);
+    }
 }
 
 void Server::_removeClient(int fd)
 {
-	assert(fd != -1);
-	Logger::info(std::string("  Removing client with fd ") + std::to_string(fd));
+    L::info(std::string("  In _removeClient() with fd ") + std::to_string(fd));
 
-	_removeClientAttachments(fd);
+    assert(fd != -1);
 
-	Client &client = _getClient(fd);
+    Client &client = _getClient(fd);
 
-	// TODO: Is it possible for client.client_fd to have already been closed and erased; check if it's -1?
-	size_t client_index = _fd_to_client_index.at(client.client_fd);
+    client.being_removed = true;
 
-	_fd_to_client_index[_clients.back().client_fd] = client_index;
-	_fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
-	_fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
+    _disableReadingFromClient(client);
 
-	_removeClientFd(client.client_fd);
-	_swapRemove(_clients, client_index);
+    // This if-statement is here because _reapChildCGIScripts() *needs* client to still exist
+    // It assumes that this function gets called again after the CGI is reaped
+    if (!client.cgi_killed && client.cgi_pid != -1)
+    {
+        _killCGI(fd);
+    }
+    else
+    {
+        L::info(std::string("  Removing client with fd ") + std::to_string(fd));
+
+        _removeCGIToServerFd(fd);
+
+        size_t client_index = _fd_to_client_index.at(client.client_fd);
+
+        _fd_to_client_index[_clients.back().client_fd] = client_index;
+        _fd_to_client_index[_clients.back().server_to_cgi_fd] = client_index;
+        _fd_to_client_index[_clients.back().cgi_to_server_fd] = client_index;
+
+        _removeClientFd(client.client_fd);
+        _swapRemove(_clients, client_index);
+    }
 }
 
-void Server::_removeClientAttachments(int fd)
+void Server::_killCGI(int fd)
 {
-	Logger::info(std::string("  Removing client attachments with fd ") + std::to_string(fd));
+    Client &client = _getClient(fd);
 
-	Client &client = _getClient(fd);
+    if (!client.cgi_killed && client.cgi_pid != -1)
+    {
+        L::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") +
+                std::to_string(client.cgi_pid));
 
-	if (client.server_to_cgi_fd != -1)
-	{
-		_removeClientFd(client.server_to_cgi_fd);
-		client.cgi_write_state = Client::ServerToCGIState::DONE;
-	}
+        T::kill(client.cgi_pid, SIGTERM);
 
-	if (client.cgi_to_server_fd != -1)
-	{
-		_removeClientFd(client.cgi_to_server_fd);
-		client.cgi_read_state = Client::CGIToServerState::DONE;
-	}
+        client.cgi_killed = true;
 
-	if (client.cgi_pid != -1)
-	{
-		Logger::info(std::string("    Sending SIGTERM to this client's CGI script with PID ") + std::to_string(client.cgi_pid));
-		// TODO: Isn't there a race condition here, as the cgi process may have ended and we'll still try to kill it?
-		if (kill(client.cgi_pid, SIGTERM) == -1) throw Utils::SystemException("kill");
-
-		_cgi_pid_to_client_fd.erase(client.cgi_pid);
-		client.cgi_pid = -1;
-	}
+        _removeCGIToServerFd(fd);
+    }
 }
 
-void Server::_startCGI(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string)
+void Server::_startCGI(Client &client, const std::string &cgi_execve_path, const std::string &script_name,
+                       const std::string &path_info, const std::string &query_string)
 {
-	Logger::info(std::string("  Starting CGI..."));
+    L::info(std::string("  Starting CGI..."));
 
-	int server_to_cgi_pipe[2];
-	int cgi_to_server_pipe[2];
+    int server_to_cgi_pipe[2];
+    int cgi_to_server_pipe[2];
 
-	if (pipe(server_to_cgi_pipe) == -1) throw Utils::SystemException("pipe");
-	if (pipe(cgi_to_server_pipe) == -1) throw Utils::SystemException("pipe");
+    T::pipe(server_to_cgi_pipe);
+    T::pipe(cgi_to_server_pipe);
 
-	pid_t forked_pid = fork();
-	if (forked_pid == -1) throw Utils::SystemException("fork");
-	else if (forked_pid == CHILD)
-	{
-		if (signal(SIGINT, SIG_IGN) == SIG_ERR) throw Utils::SystemException("signal");
+    pid_t forked_pid = T::fork();
+    if (forked_pid == CHILD)
+    {
+        // Prevents having the child process receive any Ctrl+C
+        T::signal(SIGINT, SIG_IGN);
 
-		if (close(server_to_cgi_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
-		if (close(cgi_to_server_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
+        T::close(server_to_cgi_pipe[PIPE_WRITE_INDEX]);
+        T::close(cgi_to_server_pipe[PIPE_READ_INDEX]);
 
-		if (dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO) == -1) throw Utils::SystemException("dup2");
-		if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
+        T::dup2(server_to_cgi_pipe[PIPE_READ_INDEX], STDIN_FILENO);
+        T::close(server_to_cgi_pipe[PIPE_READ_INDEX]);
 
-		if (dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO) == -1) throw Utils::SystemException("dup2");
-		if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
+        T::dup2(cgi_to_server_pipe[PIPE_WRITE_INDEX], STDOUT_FILENO);
+        T::close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
 
-		_execveChild(client, cgi_settings, script_name, path_info, query_string);
-	}
+        _execveChild(client, cgi_execve_path, script_name, path_info, query_string);
+    }
 
-	if (close(server_to_cgi_pipe[PIPE_READ_INDEX]) == -1) throw Utils::SystemException("close");
-	if (close(cgi_to_server_pipe[PIPE_WRITE_INDEX]) == -1) throw Utils::SystemException("close");
+    T::close(server_to_cgi_pipe[PIPE_READ_INDEX]);
+    T::close(cgi_to_server_pipe[PIPE_WRITE_INDEX]);
 
-	client.cgi_pid = forked_pid;
+    client.cgi_pid = forked_pid;
 
-	_cgi_pid_to_client_fd.emplace(forked_pid, client.client_fd);
+    _cgi_pid_to_client_fd.emplace(forked_pid, client.client_fd);
 
-	int server_to_cgi_fd = server_to_cgi_pipe[PIPE_WRITE_INDEX];
+    int server_to_cgi_fd = server_to_cgi_pipe[PIPE_WRITE_INDEX];
 
-	size_t client_index = _fd_to_client_index.at(client.client_fd);
+    size_t client_index = _fd_to_client_index.at(client.client_fd);
 
-	if (client.cgi_write_state == Client::ServerToCGIState::DONE)
-	{
-		Logger::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
-		if (close(server_to_cgi_fd) == -1) throw Utils::SystemException("close");
-	}
-	else
-	{
-		_addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
-		client.server_to_cgi_fd = server_to_cgi_fd;
-		client.cgi_write_state = Client::ServerToCGIState::WRITING;
-		_enableWritingToCGI(client);
-		Logger::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
-	}
+    if (client.server_to_cgi_state == Client::ServerToCGIState::DONE)
+    {
+        L::info(std::string("    Closing server_to_cgi fd immediately, since there is no body"));
+        T::close(server_to_cgi_fd);
+    }
+    else
+    {
+        _addClientFd(server_to_cgi_fd, client_index, FdType::SERVER_TO_CGI, client.body.empty() ? 0 : POLLOUT);
+        client.server_to_cgi_fd = server_to_cgi_fd;
+        client.server_to_cgi_state = Client::ServerToCGIState::WRITING;
+        _enableWritingToCGI(client);
+        L::info(std::string("    Added server_to_cgi fd ") + std::to_string(server_to_cgi_fd));
+    }
 
-	int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];
-	_addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
-	client.cgi_to_server_fd = cgi_to_server_fd;
-	client.cgi_read_state = Client::CGIToServerState::READING;
-	Logger::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
+    int cgi_to_server_fd = cgi_to_server_pipe[PIPE_READ_INDEX];
+    _addClientFd(cgi_to_server_fd, client_index, FdType::CGI_TO_SERVER, POLLIN);
+    client.cgi_to_server_fd = cgi_to_server_fd;
+    client.cgi_to_server_state = Client::CGIToServerState::READING;
+    L::info(std::string("    Added cgi_to_server fd ") + std::to_string(cgi_to_server_fd));
+
+    _unreaped_cgi_count++;
 }
 
-void Server::_execveChild(Client &client, const Config::CGISettingsDirective &cgi_settings, const std::string &script_name, const std::string &path_info, const std::string &query_string)
+void Server::_execveChild(Client &client, const std::string &cgi_execve_path, const std::string &script_name,
+                          const std::string &path_info, const std::string &query_string)
 {
-	char *argv0 = const_cast<char *>(cgi_settings.cgi_execve_argv0.c_str());
-	char *argv1 = const_cast<char *>(script_name.c_str());
-	char *argv2 = const_cast<char *>(path_info.c_str());
+    char *argv0 = const_cast<char *>(cgi_execve_path.c_str());
+    char *argv1 = const_cast<char *>(script_name.c_str());
+    char *argv2 = const_cast<char *>(path_info.c_str());
 
-	char *const argv[] = {argv0, argv1, argv2, NULL};
+    char *const argv[] = {argv0, argv1, argv2, NULL};
 
-	auto cgi_headers = _getCGIHeaders(client.headers);
+    std::vector<std::string> cgi_headers;
 
-	cgi_headers.push_back("SCRIPT_NAME=" + script_name);
-	cgi_headers.push_back("PATH_INFO=" + path_info);
-	cgi_headers.push_back("QUERY_STRING=" + query_string);
+    for (const auto &[key, value] : client.headers)
+    {
+        cgi_headers.push_back("HTTP_" + key + "=" + value);
+    }
 
-	const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
-	char **cgi_env = const_cast<char **>(cgi_env_vec.data());
+    cgi_headers.push_back("REQUEST_METHOD=" + client.getRequestMethodString());
+    cgi_headers.push_back("SCRIPT_NAME=" + script_name);
+    cgi_headers.push_back("PATH_INFO=" + path_info);
+    cgi_headers.push_back("QUERY_STRING=" + query_string);
+    cgi_headers.push_back("CONTENT_LENGTH=" + std::to_string(client.content_length));
+    cgi_headers.push_back("CONTENT_TYPE=" + client.content_type);
+    cgi_headers.push_back("SERVER_NAME=" + client.unuppercased_server_name);
+    cgi_headers.push_back("SERVER_PORT=" + client.server_port);
+    cgi_headers.push_back("GATEWAY_INTERFACE=CGI/1.1");
+    cgi_headers.push_back("PATH_TRANSLATED=" + std::string(std::filesystem::current_path()) + path_info);
+    cgi_headers.push_back("SERVER_PROTOCOL=HTTP/1.1");
 
-	execve(cgi_settings.cgi_execve_path.c_str(), argv, cgi_env);
+    cgi_headers.push_back("AUTH_TYPE=");
+    cgi_headers.push_back("REMOTE_ADDR=");
+    cgi_headers.push_back("REMOTE_HOST=");
+    cgi_headers.push_back("REMOTE_IDENT=");
+    cgi_headers.push_back("REMOTE_USER=");
+    cgi_headers.push_back("SERVER_SOFTWARE=");
 
-	// This gets turned into a ClientException by the parent process
-	throw Utils::SystemException("execve");
-}
+    const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
+    char **cgi_env = const_cast<char **>(cgi_env_vec.data());
 
-std::vector<std::string> Server::_getCGIHeaders(const std::unordered_map<std::string, std::string> &headers)
-{
-	std::vector<std::string> cgi_headers;
-
-	for (const auto &it : headers)
-	{
-		cgi_headers.push_back("HTTP_" + it.first + "=" + it.second);
-	}
-
-	_addMetaVariables(cgi_headers);
-
-	return cgi_headers;
-}
-
-void Server::_addMetaVariables(std::vector<std::string> &cgi_headers)
-{
-	// TODO: Give some of these values
-	cgi_headers.push_back("AUTH_TYPE=");
-	cgi_headers.push_back("CONTENT_LENGTH=");
-	cgi_headers.push_back("CONTENT_TYPE=");
-	cgi_headers.push_back("GATEWAY_INTERFACE=");
-	cgi_headers.push_back("PATH_TRANSLATED=");
-	cgi_headers.push_back("REMOTE_ADDR=");
-	cgi_headers.push_back("REMOTE_HOST=");
-	cgi_headers.push_back("REMOTE_IDENT=");
-	cgi_headers.push_back("REMOTE_USER=");
-	cgi_headers.push_back("REQUEST_METHOD=");
-	cgi_headers.push_back("SERVER_NAME=");
-	cgi_headers.push_back("SERVER_PORT=");
-	cgi_headers.push_back("SERVER_PROTOCOL=");
-	cgi_headers.push_back("SERVER_SOFTWARE=");
+    T::execve(cgi_execve_path.c_str(), argv, cgi_env);
 }
 
 std::vector<const char *> Server::_getCGIEnv(const std::vector<std::string> &cgi_headers)
 {
-	std::vector<const char *> cgi_env;
+    std::vector<const char *> cgi_env;
 
-	for (const std::string &cgi_header : cgi_headers)
-	{
-		cgi_env.push_back(cgi_header.c_str());
-	}
+    for (const std::string &cgi_header : cgi_headers)
+    {
+        cgi_env.push_back(cgi_header.c_str());
+    }
 
-	cgi_env.push_back(NULL);
+    cgi_env.push_back(NULL);
 
-	return cgi_env;
+    return cgi_env;
 }
 
-Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_target, const Config::ServerDirective &server)
+Server::ResolvedLocation Server::_resolveToLocation(const std::string &request_target,
+                                                    const std::vector<Config::LocationDirective> &locations)
 {
-	ResolvedLocation resolved{};
+    ResolvedLocation resolved{};
 
-	size_t longest_uri_length = 0;
+    size_t longest_uri_length = 0;
 
-	for (const Config::LocationDirective &location : server.locations)
-	{
-		if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
-		{
-			resolved.resolved = true;
+    for (const Config::LocationDirective &location : locations)
+    {
+        if (Utils::startsWith(request_target, location.uri) && location.uri.length() > longest_uri_length)
+        {
+            longest_uri_length = location.uri.length();
 
-			longest_uri_length = location.uri.length();
+            resolved.resolved = true;
 
-			resolved.is_cgi_directory = location.is_cgi_directory;
-			resolved.cgi_settings = location.cgi_settings;
+            resolved.is_cgi_directory = !location.cgi_execve_path.empty();
+            resolved.cgi_execve_path = location.cgi_execve_path;
 
-			resolved.script_name = "";
-			resolved.path_info = "";
-			resolved.query_string = "";
+            resolved.path_info = "";
+            resolved.query_string = "";
 
-			resolved.has_index = !location.index.empty();
-			resolved.autoindex = location.autoindex;
-			resolved.has_redirect = !location.redirect.empty();
+            resolved.has_index = !location.index.empty();
+            resolved.autoindex = location.autoindex;
+            resolved.has_redirect = !location.redirect.empty();
 
-			resolved.path = location.root + request_target;
-			resolved.index_path = "";
+            resolved.path = location.root + std::filesystem::weakly_canonical(request_target).string();
 
-			resolved.get_allowed = location.get_allowed;
-			resolved.post_allowed = location.post_allowed;
-			resolved.delete_allowed = location.delete_allowed;
+            resolved.index_path = "";
+            resolved.index_directive = "";
 
-			if (resolved.has_redirect)
-			{
-				resolved.has_redirect = true;
-				resolved.path = location.redirect;
-				continue;
-			}
+            resolved.get_allowed = location.get_allowed;
+            resolved.post_allowed = location.post_allowed;
+            resolved.delete_allowed = location.delete_allowed;
 
-			if (resolved.is_cgi_directory)
-			{
-				std::string unsplit_path = resolved.path;
-				resolved.script_name = "";
+            if (resolved.has_redirect)
+            {
+                resolved.path = location.redirect;
+            }
+            else if (resolved.is_cgi_directory)
+            {
+                std::string unsplit_path = location.root + request_target;
+                resolved.path = "";
 
-				size_t path_end_index = 0;
-				while (path_end_index < unsplit_path.length())
-				{
-					while (path_end_index < unsplit_path.length()
-						&& unsplit_path.at(path_end_index) != '/'
-						&& unsplit_path.at(path_end_index) != '?')
-					{
-						path_end_index++;
-					}
-					resolved.script_name = unsplit_path.substr(0, path_end_index);
+                bool target_is_directory = true;
 
-					// TODO: Remove
-					// Logger::debug("path_end_index: " + std::to_string(path_end_index));
-					// Logger::debug("resolved.script_name: " + resolved.script_name);
+                size_t path_end_index = 0;
+                while (path_end_index < unsplit_path.length())
+                {
+                    while (path_end_index < unsplit_path.length() && unsplit_path.at(path_end_index) != '/' &&
+                           unsplit_path.at(path_end_index) != '?')
+                    {
+                        path_end_index++;
+                    }
 
-					if (!std::filesystem::is_directory(resolved.script_name)
-						|| path_end_index >= unsplit_path.length()
-						|| unsplit_path.at(path_end_index) == '?')
-					{
-						break;
-					}
+                    resolved.path = unsplit_path.substr(0, path_end_index);
 
-					path_end_index++;
-				}
+                    target_is_directory = std::filesystem::is_directory(resolved.path);
 
-				size_t path_len = resolved.script_name.length();
-				size_t questionmark_index = unsplit_path.find("?", path_len);
-				resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
+                    if (!target_is_directory || path_end_index >= unsplit_path.length() ||
+                        unsplit_path.at(path_end_index) == '?')
+                    {
+                        break;
+                    }
 
-				resolved.query_string = unsplit_path.substr(resolved.script_name.length() + resolved.path_info.length());
+                    path_end_index++;
+                }
 
-				// TODO: Remove
-				// Logger::debug("unsplit_path: " + unsplit_path);
-				// Logger::debug("resolved.script_name: " + resolved.script_name);
-				// Logger::debug("resolved.path_info: " + resolved.path_info);
-				// Logger::debug("resolved.query_string: " + resolved.query_string);
-			}
+                if (target_is_directory)
+                {
+                    // We want to be able to send a 301 with "/cgis/python", and a directory listing with
+                    // "/cgis/python/"
+                    if (resolved.path.back() != '/' && unsplit_path.back() == '/')
+                    {
+                        resolved.path += '/';
+                    }
+                }
+                else
+                {
+                    size_t path_len = resolved.path.length();
+                    size_t questionmark_index = unsplit_path.find("?", path_len);
 
-			if (resolved.has_index)
-			{
-				resolved.index_path = resolved.path + location.index;
-			}
-		}
-	}
+                    // According to CGI RFC 3875 section 4.1.6. PATH_TRANSLATED
+                    // we should translate "%2e" to ".", so do we want to do that?
+                    resolved.path_info = unsplit_path.substr(path_len, questionmark_index - path_len);
 
-	return resolved;
+                    resolved.query_string = unsplit_path.substr(resolved.path.length() + resolved.path_info.length());
+
+                    L::debug("    resolved.path before resolve: " + resolved.path);
+
+                    // Resolves "/.." to "/" to prevent escaping directories
+                    resolved.path = std::filesystem::weakly_canonical(resolved.path);
+                    // Resolving path_info may not be correct, I'm not sure, but it makes scripting easier
+                    resolved.path_info = std::filesystem::weakly_canonical(resolved.path_info);
+
+                    L::debug("    unsplit_path: " + unsplit_path);
+                    L::debug("    resolved.path: " + resolved.path);
+                    L::debug("    resolved.path_info: " + resolved.path_info);
+                    L::debug("    resolved.query_string: " + resolved.query_string);
+                }
+            }
+            else if (resolved.has_index)
+            {
+                std::string index;
+
+                // Prevent "public//foo"
+                if (!location.index.empty() && location.index.front() == '/')
+                {
+                    index = location.index.substr(1);
+                }
+                else
+                {
+                    index = location.index;
+                }
+
+                resolved.index_path = resolved.path + index;
+                resolved.index_directive = location.index;
+            }
+        }
+    }
+
+    return resolved;
 }
 
-bool Server::_isAllowedMethod(const ResolvedLocation &location, const std::string &method)
+bool Server::_isAllowedMethod(const ResolvedLocation &location, Client::RequestMethod method)
 {
-	if (method == "GET" && !location.get_allowed)
-	{
-		return false;
-	}
-	else if (method == "POST" && !location.post_allowed)
-	{
-		return false;
-	}
-	else if (method == "DELETE" && !location.delete_allowed)
-	{
-		return false;
-	}
-
-	return true;
+    return (method == Client::RequestMethod::GET && location.get_allowed) ||
+           (method == Client::RequestMethod::POST && location.post_allowed) ||
+           (method == Client::RequestMethod::DELETE && location.delete_allowed);
 }
 
-void Server::_handleClientException(const Client::ClientException &e, Client &client)
+void Server::_respondClientException(const Client::ClientException &e, Client &client)
 {
-	Logger::info(std::string("  ") + e.what());
+    L::info(std::string("  In _respondClientException() with error: ") + e.what());
 
-	client.status = e.status;
+    client.status = e.status;
 
-	_removeClientAttachments(client.client_fd);
+    _killCGI(client.client_fd);
 
-	_disableReadingFromClient(client);
+    _disableReadingFromClient(client);
 
-	size_t server_index = _getServerIndexFromClientServerName(client);
-	const Config::ServerDirective &server = _config.servers.at(server_index);
+    size_t server_index = _getServerIndexFromClientServerName(client);
+    const Config::ServerDirective &server = _config.servers.at(server_index);
 
-	client.respondWithError(server.error_pages);
+    client.respondWithError(server.error_pages);
 
-	_enableWritingToClient(client);
+    _enableWritingToClient(client);
 }
 
 size_t Server::_getServerIndexFromClientServerName(const Client &client)
 {
-	const std::vector<size_t> &server_indices = _bind_fd_to_server_indices.at(client.server_fd);
+    const std::vector<size_t> &server_indices = _bind_fd_to_server_indices.at(client.server_fd);
 
-	for (size_t inspected_server_index : server_indices)
-	{
-		for (const std::string &inspected_server_name : _config.servers.at(inspected_server_index).server_names)
-		{
-			if (inspected_server_name == client.server_name)
-			{
-				return inspected_server_index;
-			}
-		}
-	}
+    for (size_t inspected_server_index : server_indices)
+    {
+        for (const std::string &inspected_server_name : _config.servers.at(inspected_server_index).server_names)
+        {
+            if (inspected_server_name == client.server_name)
+            {
+                return inspected_server_index;
+            }
+        }
+    }
 
-	return server_indices.at(0);
+    return server_indices.at(0);
 }
 
-void Server::_handlePollout(int fd, FdType fd_type, nfds_t pfd_index)
+void Server::_handlePollout(int fd, FdType fd_type)
 {
-	Client &client = _getClient(fd);
+    Client &client = _getClient(fd);
 
-	if (fd_type == FdType::SERVER_TO_CGI)
-	{
-		_writeToCGI(client, pfd_index);
-	}
-	else if (fd_type == FdType::CLIENT)
-	{
-		_writeToClient(client, fd);
-	}
-	else
-	{
-		// TODO: Should be unreachable
-		assert(false);
-	}
+    if (fd_type == FdType::SERVER_TO_CGI)
+    {
+        _writeToCGI(client);
+    }
+    else if (fd_type == FdType::CLIENT)
+    {
+        _writeToClient(client);
+    }
+    else
+    {
+        assert(false);
+    }
 }
 
-void Server::_writeToCGI(Client &client, nfds_t pfd_index)
+void Server::_writeToCGI(Client &client)
 {
-	Logger::info(std::string("  Writing from the server to the CGI..."));
+    L::info(std::string("  Writing from the server to the CGI..."));
 
-	assert(client.cgi_write_state == Client::ServerToCGIState::WRITING);
+    assert(client.server_to_cgi_state == Client::ServerToCGIState::WRITING);
 
-	size_t max_cgi_write_len = MAX_CGI_WRITE_LEN; // TODO: Read from config
-	size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
+    size_t max_cgi_write_len = MAX_CGI_WRITE_LEN;
+    size_t body_substr_len = std::min(client.body.length() - client.body_index, max_cgi_write_len);
 
-	assert(body_substr_len > 0);
+    assert(body_substr_len > 0);
 
-	// TODO: substr() can fail
-	std::string body_substr = client.body.substr(client.body_index, body_substr_len);
+    std::string body_substr = client.body.substr(client.body_index, body_substr_len);
 
-	client.body_index += body_substr_len;
+    client.body_index += body_substr_len;
 
-	Logger::info(std::string("    Sending this body substr to the CGI that has a length of ") + std::to_string(body_substr.length()) + " bytes:\n----------\n" + body_substr + "\n----------\n");
+    L::info(std::string("    Sending this body substr to the CGI that has a length of ") +
+            std::to_string(body_substr.length()) + " bytes:\n----------\n" + body_substr + "\n----------\n");
 
-	if (write(client.server_to_cgi_fd, body_substr.c_str(), body_substr.length()) == -1)
-	{
-		// Happens when the CGI script closed its stdin
-		Logger::info(std::string("    write() detected 'Broken pipe'"));
+    ssize_t read_bytes = _writeString(client.server_to_cgi_fd, body_substr);
+    if (read_bytes == -1)
+    {
+        // Happens when the CGI script closed its stdin
+        L::info(std::string("    write() detected 'Broken pipe'"));
 
-		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
-		_disableEvent(pfd_index, POLLOUT);
+        _removeServerToCGIFd(client.server_to_cgi_fd);
 
-		client.cgi_write_state = Client::ServerToCGIState::DONE;
-		_removeClientFd(client.server_to_cgi_fd);
+        return;
+    }
+    assert(read_bytes != 0);
 
-		return;
-	}
-
-	// If we don't have anything left to write
-	if (client.body_index == client.body.length())
-	{
-		Logger::info(std::string("    Disabling server_to_cgi POLLOUT"));
-		_disableEvent(pfd_index, POLLOUT);
-
-		client.cgi_write_state = Client::ServerToCGIState::DONE;
-		_removeClientFd(client.server_to_cgi_fd);
-	}
+    // If we don't have anything left to write
+    if (client.body_index == client.body.length())
+    {
+        _removeServerToCGIFd(client.server_to_cgi_fd);
+    }
 }
 
-void Server::_writeToClient(Client &client, int fd)
+ssize_t Server::_writeString(int fd, const std::string &msg)
 {
-	Logger::info(std::string("  Writing to the client..."));
+    return write(fd, msg.c_str(), msg.length());
+}
 
-	assert(client.client_fd == fd);
-	assert(client.client_write_state == Client::ServerToClientState::WRITING);
+void Server::_writeToClient(Client &client)
+{
+    L::info(std::string("  Writing to the client..."));
 
-	size_t max_client_write_len = MAX_CLIENT_WRITE_LEN; // TODO: Read from config; HAS to be >= 1
-	size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
+    assert(client.server_to_client_state == Client::ServerToClientState::WRITING);
 
-	assert(response_substr_len > 0);
+    size_t max_client_write_len = MAX_CLIENT_WRITE_LEN;
+    size_t response_substr_len = std::min(client.response.length() - client.response_index, max_client_write_len);
 
-	std::string response_substr = client.response.substr(client.response_index, response_substr_len);
+    assert(response_substr_len > 0);
 
-	client.response_index += response_substr_len;
+    std::string response_substr = client.response.substr(client.response_index, response_substr_len);
 
-	Logger::info(std::string("    Sending this response substr to the client that has a length of ") + std::to_string(response_substr.length()) + " bytes:\n----------\n" + response_substr + "\n----------\n");
+    client.response_index += response_substr_len;
 
-	// sleep(5); // TODO: REMOVE
+    L::info(std::string("    Sending this response substr to the client that has a length of ") +
+            std::to_string(response_substr.length()) + " bytes:\n----------\n" + response_substr + "\n----------\n");
 
-	if (write(fd, response_substr.c_str(), response_substr.length()) == -1)
-	{
-		// Reached when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
-		_removeClient(client.client_fd);
-		return;
-	}
+    ssize_t read_bytes = _writeString(client.client_fd, response_substr);
+    if (read_bytes == -1)
+    {
+        // Reached when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
+        _removeClient(client.client_fd);
+        return;
+    }
+    assert(read_bytes != 0);
 
-	// sleep(5); // TODO: REMOVE
+    // This is safe, since we read the entire CGI response before reaching this
+    if (client.response_index == client.response.length())
+    {
+        _removeClient(client.client_fd);
+    }
+}
 
-	if (client.response_index == client.response.length())
-	{
-		_removeClient(client.client_fd);
-	}
+void Server::_sigIntHandler(int signum)
+{
+    (void)signum;
+    Server::shutting_down_gracefully = true;
 }

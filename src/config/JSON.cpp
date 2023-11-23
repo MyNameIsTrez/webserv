@@ -1,198 +1,203 @@
 #include "JSON.hpp"
 
-#include "Config.hpp"
 #include "../Utils.hpp"
+#include "Config.hpp"
 
-JSON::JSON(std::istream &file) : _tokenizer(file)
+JSON::JSON(std::istream &file, int max_depth) : _tokenizer(file), _max_depth(max_depth), _depth()
 {
-	const Token token = _tokenizer.getToken();
-	if (token.type != Token::OBJECT_OPEN)
-		throw JSONExceptionExpectedObject();
-	root = _parseObject();
+    const Token token = _tokenizer.getToken();
+    if (token.type != Token::OBJECT_OPEN)
+        throw JSONExceptionExpectedObject();
+    root = _parseObject();
 }
 
 Node JSON::_parseBoolean()
 {
-	Node node;
+    Node node;
 
-	Token token = _tokenizer.getToken();
-	node.setBoolean(token.type == Token::BOOLEAN_TRUE);
+    Token token = _tokenizer.getToken();
+    node.setBoolean(token.type == Token::BOOLEAN_TRUE);
 
-	return node;
+    return node;
 }
 
 Node JSON::_parseInteger()
 {
-	Node node;
+    Node node;
 
-	Token token = _tokenizer.getToken();
-	size_t integer;
-	if (!Utils::parseNumber(token.string, integer, std::numeric_limits<size_t>::max()))
-		throw JSONExceptionInvalidInteger();
-	node.setInteger(integer);
+    Token token = _tokenizer.getToken();
+    size_t integer;
+    if (!Utils::parseNumber(token.string, integer, std::numeric_limits<size_t>::max()))
+        throw JSONExceptionInvalidInteger();
+    node.setInteger(integer);
 
-	return node;
+    return node;
 }
 
 Node JSON::_parseString()
 {
-	Node node;
+    Node node;
 
-	Token token = _tokenizer.getToken();
-	node.setString(token.string);
+    Token token = _tokenizer.getToken();
+    node.setString(token.string);
 
-	return node;
+    return node;
 }
 
 Node JSON::_parseArray()
 {
-	Node node;
+    Node node;
 
-	std::vector<Node> array;
+    std::vector<Node> array;
 
-	Token token = _tokenizer.getToken();
-	if (token.type != Token::ARRAY_CLOSE)
-	{
-		while (true)
-		{
-			switch (token.type)
-			{
-				case Token::INTEGER:
-				{
-					_tokenizer.rollBackToken();
-					array.push_back(_parseInteger());
-					break;
-				}
-				case Token::STRING:
-				{
-					_tokenizer.rollBackToken();
-					array.push_back(_parseString());
-					break;
-				}
-				case Token::ARRAY_OPEN:
-				{
-					array.push_back(_parseArray());
-					break;
-				}
-				case Token::OBJECT_OPEN:
-				{
-					array.push_back(_parseObject());
-					break;
-				}
-				default:
-				{
-					throw JSONExceptionUnexpectedToken();
-				}
-			}
+    _depth++;
+    if (_depth > _max_depth)
+    {
+        throw JSONExceptionNestedTooDeep();
+    }
 
-			token = _tokenizer.getToken();
-			if (token.type == Token::ARRAY_CLOSE)
-			{
-				break;
-			}
+    Token token = _tokenizer.getToken();
+    if (token.type != Token::ARRAY_CLOSE)
+    {
+        while (true)
+        {
+            switch (token.type)
+            {
+            case Token::INTEGER: {
+                _tokenizer.rollBackToken();
+                array.push_back(_parseInteger());
+                break;
+            }
+            case Token::STRING: {
+                _tokenizer.rollBackToken();
+                array.push_back(_parseString());
+                break;
+            }
+            case Token::ARRAY_OPEN: {
+                array.push_back(_parseArray());
+                break;
+            }
+            case Token::OBJECT_OPEN: {
+                array.push_back(_parseObject());
+                break;
+            }
+            default: {
+                throw JSONExceptionUnexpectedToken();
+            }
+            }
 
-			if (token.type == Token::COMMA)
-			{
-				token = _tokenizer.getToken();
-			}
-			else
-			{
-				throw JSONExceptionExpectedComma();
-			}
-		}
-	}
+            token = _tokenizer.getToken();
+            if (token.type == Token::ARRAY_CLOSE)
+            {
+                break;
+            }
 
-	node.setArray(array);
+            if (token.type == Token::COMMA)
+            {
+                token = _tokenizer.getToken();
+            }
+            else
+            {
+                throw JSONExceptionExpectedComma();
+            }
+        }
+    }
 
-	return node;
+    _depth--;
+
+    node.setArray(array);
+
+    return node;
 }
 
 Node JSON::_parseObject()
 {
-	Node node;
+    Node node;
 
-	std::unordered_map<std::string, Node> object;
+    std::map<std::string, Node> object;
 
-	Token keyToken = _tokenizer.getToken();
-	if (keyToken.type != Token::OBJECT_CLOSE)
-	{
-		while (true)
-		{
-			if (keyToken.type != Token::STRING)
-			{
-				throw JSONExceptionExpectedStringKey();
-			}
+    _depth++;
+    if (_depth > _max_depth)
+    {
+        throw JSONExceptionNestedTooDeep();
+    }
 
-			const std::string &key = keyToken.string;
+    Token keyToken = _tokenizer.getToken();
+    if (keyToken.type != Token::OBJECT_CLOSE)
+    {
+        while (true)
+        {
+            if (keyToken.type != Token::STRING)
+            {
+                throw JSONExceptionExpectedStringKey();
+            }
 
-			if (object.contains(key))
-			{
-				throw JSONExceptionDuplicateKey();
-			}
+            const std::string &key = keyToken.string;
 
-			if (_tokenizer.getToken().type != Token::COLON)
-			{
-				throw JSONExceptionExpectedColon();
-			}
+            if (object.contains(key))
+            {
+                throw JSONExceptionDuplicateKey();
+            }
 
-			Token valueToken = _tokenizer.getToken();
+            if (_tokenizer.getToken().type != Token::COLON)
+            {
+                throw JSONExceptionExpectedColon();
+            }
 
-			switch (valueToken.type)
-			{
-				case Token::BOOLEAN_TRUE:
-				case Token::BOOLEAN_FALSE:
-				{
-					_tokenizer.rollBackToken();
-					std::string str;
-					object.emplace(key, _parseBoolean());
-					break;
-				}
-				case Token::INTEGER:
-				{
-					_tokenizer.rollBackToken();
-					object.emplace(key, _parseInteger());
-					break;
-				}
-				case Token::STRING:
-				{
-					_tokenizer.rollBackToken();
-					object.emplace(key, _parseString());
-					break;
-				}
-				case Token::ARRAY_OPEN:
-				{
-					object.emplace(key, _parseArray());
-					break;
-				}
-				case Token::OBJECT_OPEN:
-				{
-					object.emplace(key, _parseObject());
-					break;
-				}
-				default:
-				{
-					throw JSONExceptionUnexpectedToken();
-				}
-			}
+            Token valueToken = _tokenizer.getToken();
 
-			keyToken = _tokenizer.getToken();
-			if (keyToken.type == Token::OBJECT_CLOSE)
-			{
-				break;
-			}
+            switch (valueToken.type)
+            {
+            case Token::BOOLEAN_TRUE:
+            case Token::BOOLEAN_FALSE: {
+                _tokenizer.rollBackToken();
+                std::string str;
+                object.emplace(key, _parseBoolean());
+                break;
+            }
+            case Token::INTEGER: {
+                _tokenizer.rollBackToken();
+                object.emplace(key, _parseInteger());
+                break;
+            }
+            case Token::STRING: {
+                _tokenizer.rollBackToken();
+                object.emplace(key, _parseString());
+                break;
+            }
+            case Token::ARRAY_OPEN: {
+                object.emplace(key, _parseArray());
+                break;
+            }
+            case Token::OBJECT_OPEN: {
+                object.emplace(key, _parseObject());
+                break;
+            }
+            default: {
+                throw JSONExceptionUnexpectedToken();
+            }
+            }
 
-			if (keyToken.type == Token::COMMA)
-			{
-				keyToken = _tokenizer.getToken();
-			}
-			else
-			{
-				throw JSONExceptionExpectedComma();
-			}
-		}
-	}
+            keyToken = _tokenizer.getToken();
+            if (keyToken.type == Token::OBJECT_CLOSE)
+            {
+                break;
+            }
 
-	node.setObject(object);
+            if (keyToken.type == Token::COMMA)
+            {
+                keyToken = _tokenizer.getToken();
+            }
+            else
+            {
+                throw JSONExceptionExpectedComma();
+            }
+        }
+    }
 
-	return node;
+    _depth--;
+
+    node.setObject(object);
+
+    return node;
 }
