@@ -82,7 +82,9 @@ def get():
                     if (!response.ok) {
                         throw new Error("Failed to delete the file.");
                     }
-                    location.reload();
+                    // We can't use this, since it would do a POST to the directory after pressing submit
+                    // location.reload();
+                    window.location.href = window.location.href;
 				}).catch((error) => {
                     alert("Failed to delete the file.");
                 });
