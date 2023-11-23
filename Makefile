@@ -4,7 +4,7 @@ NAME := webserv
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -fstandalone-debug -std=c++2b
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b
 
 ################################################################################
 
@@ -12,7 +12,7 @@ ifdef O3
 CFLAGS += -Ofast
 endif
 ifdef DEBUG
-CFLAGS += -g3
+CFLAGS += -g3 -fstandalone-debug
 CFLAGS += -Wfatal-errors
 endif
 ifdef SAN

@@ -4,7 +4,7 @@ NAME := config_fuzzing
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -fstandalone-debug -std=c++2b
+CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b
 CFLAGS += -DSUPPRESS_LOGGING
 
 OBJDIR := obj
@@ -12,7 +12,7 @@ OBJDIR := obj
 ################################################################################
 
 ifdef DEBUG
-CFLAGS += -g3
+CFLAGS += -g3 -fstandalone-debug
 endif
 # ifdef SAN
 # CFLAGS += -fsanitize=address,undefined
