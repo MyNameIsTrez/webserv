@@ -1076,7 +1076,8 @@ void Server::_writeToCGI(Client &client)
     L::info(std::string("    Sending this body substr to the CGI that has a length of ") +
             std::to_string(body_substr.length()) + " bytes:\n----------\n" + body_substr + "\n----------\n");
 
-    if (_writeString(client.server_to_cgi_fd, body_substr) == -1)
+    ssize_t read_bytes = _writeString(client.server_to_cgi_fd, body_substr);
+    if (read_bytes == -1)
     {
         // Happens when the CGI script closed its stdin
         L::info(std::string("    write() detected 'Broken pipe'"));
@@ -1085,6 +1086,7 @@ void Server::_writeToCGI(Client &client)
 
         return;
     }
+    assert(read_bytes != 0);
 
     // If we don't have anything left to write
     if (client.body_index == client.body.length())
@@ -1116,12 +1118,14 @@ void Server::_writeToClient(Client &client)
     L::info(std::string("    Sending this response substr to the client that has a length of ") +
             std::to_string(response_substr.length()) + " bytes:\n----------\n" + response_substr + "\n----------\n");
 
-    if (_writeString(client.client_fd, response_substr) == -1)
+    ssize_t read_bytes = _writeString(client.client_fd, response_substr);
+    if (read_bytes == -1)
     {
         // Reached when `curl -v localhost:8080/tests/sent/1m_lines.txt` is cancelled halfway through
         _removeClient(client.client_fd);
         return;
     }
+    assert(read_bytes != 0);
 
     // This is safe, since we read the entire CGI response before reaching this
     if (client.response_index == client.response.length())
