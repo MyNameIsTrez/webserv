@@ -601,7 +601,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
                 {
                     if (location.has_index)
                     {
-                        client.respondWithFile(location.index_path);
+                        client.respondWithFile(location.index_path, true);
                         _enableWritingToClient(client);
                     }
                     else if (location.autoindex)
@@ -640,7 +640,7 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
                 }
                 else if (method == Client::RequestMethod::GET)
                 {
-                    client.respondWithFile(location.path);
+                    client.respondWithFile(location.path, false);
                     _enableWritingToClient(client);
                 }
                 else if (method == Client::RequestMethod::POST)
