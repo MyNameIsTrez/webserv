@@ -612,13 +612,13 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
                                 (location.index_directive.back() != '/' ||
                                  (location.index_directive.front() == '/' && location.index_directive.back() == '/')))
                             {
-                                // This is done to respond with a correct Location header
-                                // This should maybe be done earlier on, so it affects more places?
                                 if (location.index_directive.back() == '/')
                                 {
                                     throw Client::ClientException(Status::INTERNAL_SERVER_ERROR);
                                 }
 
+                                // This is done to respond with a correct Location header
+                                // This should maybe be done earlier on, so it affects more places?
                                 if (location.index_directive.front() == '/')
                                 {
                                     client.request_target = location.index_directive;
