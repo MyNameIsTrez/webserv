@@ -9,13 +9,15 @@
 #include <set>
 
 Config::Config(const JSON &json)
-    : connection_queue_length(), client_max_body_size(), reap_frequency_ms(), servers(), bind_info_to_server_indices()
+    : connection_queue_length(), client_max_body_size(), poll_timeout_ms(), client_timeout_ms(), servers(),
+      bind_info_to_server_indices()
 {
     const auto &root_object = json.root.getObject();
 
     _parseConnectionQueueLength(root_object);
     _parseClientMaxBodySize(root_object);
     _parsePollTimeoutMs(root_object);
+    _parseClientTimeoutMs(root_object);
 
     if (!root_object.contains("servers"))
     {
@@ -135,20 +137,39 @@ void Config::_parseClientMaxBodySize(const std::map<std::string, Node> &root_obj
 
 void Config::_parsePollTimeoutMs(const std::map<std::string, Node> &root_object)
 {
-    if (!root_object.contains("reap_frequency_ms"))
+    if (!root_object.contains("poll_timeout_ms"))
     {
-        throw ConfigExceptionExpectedReapFrequencyMs();
+        throw ConfigExceptionExpectedPollTimeoutMs();
     }
 
-    reap_frequency_ms = root_object.at("reap_frequency_ms").getInteger();
+    poll_timeout_ms = root_object.at("poll_timeout_ms").getInteger();
 
-    if (reap_frequency_ms < 100)
+    if (poll_timeout_ms < 1)
     {
-        throw ConfigExceptionReapFrequencyMsIsLessThan100();
+        throw ConfigExceptionPollTimeoutMsIsLessThan1();
     }
-    if (reap_frequency_ms > 10000)
+    if (poll_timeout_ms > 10000)
     {
-        throw ConfigExceptionReapFrequencyMsIsGreaterThan10000();
+        throw ConfigExceptionPollTimeoutMsIsGreaterThan10000();
+    }
+}
+
+void Config::_parseClientTimeoutMs(const std::map<std::string, Node> &root_object)
+{
+    if (!root_object.contains("client_timeout_ms"))
+    {
+        throw ConfigExceptionExpectedClientTimeoutMs();
+    }
+
+    client_timeout_ms = root_object.at("client_timeout_ms").getInteger();
+
+    if (client_timeout_ms < 1)
+    {
+        throw ConfigExceptionClientTimeoutMsIsLessThan1();
+    }
+    if (client_timeout_ms > 10000)
+    {
+        throw ConfigExceptionClientTimeoutMsIsGreaterThan10000();
     }
 }
 

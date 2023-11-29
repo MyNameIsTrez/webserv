@@ -27,7 +27,7 @@ This will print example.com's response:
 `curl http://example.com/`
 
 This will print localhost's response: (by search-and-replacing example.com)
-`curl --resolve example.com:18000:127.0.0.1 http://example.com:18000/`
+`curl --resolve example.com:8080:127.0.0.1 http://example.com:8080/`
 
 - Go to default (first) `server` in NGINX with `curl --resolve example.com:8080:127.0.0.1 http://example.com:8080/`
 - Go to `server_name` "f1r4s8" in NGINX with `curl http://f1r4s8:8080`
@@ -66,18 +66,18 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 ## Using curl
 
-- GET: `curl localhost:18000`
-- POST: `curl --data-binary @tests/1_line.txt localhost:18000`
-- POST chunked: `curl -H "Transfer-Encoding: chunked" --data-binary @tests/1_line.txt localhost:18000`
-- POST with newline trimming: `curl -d @tests/1_line.txt localhost:18000`
-- DELETE: `curl -X DELETE localhost:18000`
-- Nonexistent header type: `curl -X FOO localhost:18000`
+- GET: `curl localhost:8080`
+- POST: `curl --data-binary @tests/1_line.txt localhost:8080`
+- POST chunked: `curl -H "Transfer-Encoding: chunked" --data-binary @tests/1_line.txt localhost:8080`
+- POST with newline trimming: `curl -d @tests/1_line.txt localhost:8080`
+- DELETE: `curl -X DELETE localhost:8080`
+- Nonexistent header type: `curl -X FOO localhost:8080`
 - Start CGI script `debug.py`: `curl http://localhost:8080/cgis/python/debug.py`
 - Check whether the CGI is still running: `ps -aux | grep print.py`
-- Check who is causing "Address already in use": `netstat -tulpn | grep 18000`
+- Check who is causing "Address already in use": `netstat -tulpn | grep 8080`
 - Create `foo.txt` containing two "foo"s: `yes foo | dd of=foo.txt count=2 bs=4`
 - Create `stack_overflow.json` containing repeated `{"":`: `yes '{"":' | dd of=stack_overflow.json count=420420 bs=5`
-- POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:18000`
+- POST a file containing 10k lines: `curl --data-binary @tests/10k_lines.txt localhost:8080`
 
 ## Using nc
 
@@ -89,8 +89,16 @@ This will print localhost's response: (by search-and-replacing example.com)
 
 1. Run `docker build -t aflplusplus-webserv fuzzing && docker run --rm -it -v .:/src aflplusplus-webserv` to build and run docker
 2. Run `setup.sh` to compile for afl-cmin + afl-tmin, generate tests, and compile for AFL
+2. Run `FUZZ_CLIENT=1 setup.sh` to do the same but fuzzing the client instead of the config.
 3. Run `coverage.sh` to fuzz while generating coverage
+2. Run `FUZZ_CLIENT=1 coverage.sh` to do the same but fuzzing the client instead of the config.
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
+
+### Debugging main_fuzzing_client.cpp after running setup.sh
+`clear && AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/config_fuzzing_ctmin`
+
+### Compiling main_fuzzing_client.cpp manually in the fuzzing Docker container
+`g++ -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b -DSUPPRESS_LOGGING src/config/Config.cpp src/config/JSON.cpp src/config/Node.cpp src/config/Tokenizer.cpp src/Client.cpp src/Logger.cpp src/Server.cpp src/Throwing.cpp src/Utils.cpp fuzzing/src/main_fuzzing_client.cpp; echo foo | ./a.out`
 
 ## Manual multipart request submission
 `clear && cat manual_multi_form_request.txt | REQUEST_METHOD=POST HTTP_CONTENT_TYPE='multipart/form-data; boundary=----WebKitFormBoundaryBRGOgydgtRaDx2Ju' python3 cgis/python/upload.py`

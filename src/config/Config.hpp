@@ -67,7 +67,8 @@ class Config
 
     int connection_queue_length;
     size_t client_max_body_size;
-    size_t reap_frequency_ms;
+    size_t poll_timeout_ms;
+    size_t client_timeout_ms;
     std::vector<ServerDirective> servers;
     std::map<BindInfo, std::vector<size_t>> bind_info_to_server_indices;
 
@@ -82,6 +83,7 @@ class Config
     void _parseConnectionQueueLength(const std::map<std::string, Node> &root_object);
     void _parseClientMaxBodySize(const std::map<std::string, Node> &root_object);
     void _parsePollTimeoutMs(const std::map<std::string, Node> &root_object);
+    void _parseClientTimeoutMs(const std::map<std::string, Node> &root_object);
 
     ListenEntry _parseListen(const Node &listen_node);
     LocationDirective _parseLocation(const std::pair<std::string, Node> &location_node);
@@ -117,23 +119,43 @@ class Config
         }
     };
 
-    struct ConfigExceptionExpectedReapFrequencyMs : public ConfigException
+    struct ConfigExceptionExpectedPollTimeoutMs : public ConfigException
     {
-        ConfigExceptionExpectedReapFrequencyMs() : ConfigException("Config exception: Expected reap_frequency_ms")
+        ConfigExceptionExpectedPollTimeoutMs() : ConfigException("Config exception: Expected poll_timeout_ms")
         {
         }
     };
-    struct ConfigExceptionReapFrequencyMsIsLessThan100 : public ConfigException
+    struct ConfigExceptionPollTimeoutMsIsLessThan1 : public ConfigException
     {
-        ConfigExceptionReapFrequencyMsIsLessThan100()
-            : ConfigException("Config exception: reap_frequency_ms is less than 100")
+        ConfigExceptionPollTimeoutMsIsLessThan1() : ConfigException("Config exception: poll_timeout_ms is less than 1")
         {
         }
     };
-    struct ConfigExceptionReapFrequencyMsIsGreaterThan10000 : public ConfigException
+    struct ConfigExceptionPollTimeoutMsIsGreaterThan10000 : public ConfigException
     {
-        ConfigExceptionReapFrequencyMsIsGreaterThan10000()
-            : ConfigException("Config exception: reap_frequency_ms is greater than 10000")
+        ConfigExceptionPollTimeoutMsIsGreaterThan10000()
+            : ConfigException("Config exception: poll_timeout_ms is greater than 10000")
+        {
+        }
+    };
+
+    struct ConfigExceptionExpectedClientTimeoutMs : public ConfigException
+    {
+        ConfigExceptionExpectedClientTimeoutMs() : ConfigException("Config exception: Expected client_timeout_ms")
+        {
+        }
+    };
+    struct ConfigExceptionClientTimeoutMsIsLessThan1 : public ConfigException
+    {
+        ConfigExceptionClientTimeoutMsIsLessThan1()
+            : ConfigException("Config exception: client_timeout_ms is less than 1")
+        {
+        }
+    };
+    struct ConfigExceptionClientTimeoutMsIsGreaterThan10000 : public ConfigException
+    {
+        ConfigExceptionClientTimeoutMsIsGreaterThan10000()
+            : ConfigException("Config exception: client_timeout_ms is greater than 10000")
         {
         }
     };

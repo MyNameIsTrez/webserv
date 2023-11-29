@@ -2,6 +2,7 @@
 
 #include "Status.hpp"
 
+#include <chrono>
 #include <cstddef>
 #include <poll.h>
 #include <stdexcept>
@@ -59,15 +60,16 @@ class Client
 
     std::string getRequestMethodString(void) const;
 
+    static const char *get_reason_phrase(Status::Status status);
+
     int server_fd;
 
     Status::Status status;
-    static const char *reason_phrase_table[];
 
     struct ClientException : public std::runtime_error
     {
         ClientException(Status::Status status_)
-            : runtime_error("Client exception: " + std::to_string(status_) + " " + reason_phrase_table[status_]),
+            : runtime_error("Client exception: " + std::to_string(status_) + " " + Client::get_reason_phrase(status_)),
               status(status_)
         {
         }
@@ -110,6 +112,7 @@ class Client
     std::string server_port;
     std::string content_type;
     size_t content_length;
+    std::chrono::steady_clock::time_point time_of_last_read;
 
   private:
     Client(void);

@@ -7,7 +7,8 @@
 	"required": [
 		"connection_queue_length",
 		"client_max_body_size",
-		"reap_frequency_ms",
+		"poll_timeout_ms",
+		"client_timeout_ms",
 		"servers"
 	],
 	"properties": {
@@ -23,11 +24,18 @@
 			"type": "integer",
 			"minimum": 0
 		},
-		"reap_frequency_ms": {
-			"description": "Used to periodically reap CGI scripts.",
+		"poll_timeout_ms": {
+			"description": "Used to periodically reap CGI scripts and check if clients need to be timed out.",
 			"default": 1000,
 			"type": "integer",
-			"minimum": 100,
+			"minimum": 1,
+			"maximum": 10000
+		},
+		"client_timeout_ms": {
+			"description": "Used to time out clients.",
+			"default": 1000,
+			"type": "integer",
+			"minimum": 1,
 			"maximum": 10000
 		},
 		"servers": {

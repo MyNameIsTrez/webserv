@@ -9,6 +9,7 @@ class Server
 {
   public:
     Server(const Config &config);
+    ~Server(void);
 
     void run(void);
 

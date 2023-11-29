@@ -18,28 +18,16 @@
 
 namespace L = Logger;
 
-const char *Client::reason_phrase_table[] = {
-    [Status::OK] = "OK",
-    [Status::MOVED_PERMANENTLY] = "Moved Permanently",
-    [Status::MOVED_TEMPORARILY] = "Moved Temporarily",
-    [Status::BAD_REQUEST] = "Bad Request",
-    [Status::FORBIDDEN] = "Forbidden",
-    [Status::NOT_FOUND] = "Not Found",
-    [Status::METHOD_NOT_ALLOWED] = "Method Not Allowed",
-    [Status::REQUEST_ENTITY_TOO_LARGE] = "Request Entity Too Large",
-    [Status::INTERNAL_SERVER_ERROR] = "Internal Server Error",
-};
-
 class Config;
 
-Client::Client(int client_fd, int server_fd, const std::string &server_port, const size_t &client_max_body_size)
-    : server_fd(server_fd), status(Status::OK), client_to_server_state(ClientToServerState::HEADER),
+Client::Client(int client_fd_, int server_fd_, const std::string &server_port_, const size_t &client_max_body_size_)
+    : server_fd(server_fd_), status(Status::OK), client_to_server_state(ClientToServerState::HEADER),
       server_to_cgi_state(ServerToCGIState::NOT_WRITING), cgi_to_server_state(CGIToServerState::NOT_READING),
       server_to_client_state(ServerToClientState::NOT_WRITING), request_method(RequestMethod::NONE), request_target(),
-      protocol("HTTP/1.1"), headers(), body(), body_index(), client_max_body_size(client_max_body_size), response(),
-      response_index(), client_fd(client_fd), server_to_cgi_fd(-1), cgi_to_server_fd(-1), cgi_pid(-1),
+      protocol("HTTP/1.1"), headers(), body(), body_index(), client_max_body_size(client_max_body_size_), response(),
+      response_index(), client_fd(client_fd_), server_to_cgi_fd(-1), cgi_to_server_fd(-1), cgi_pid(-1),
       cgi_exit_status(-1), cgi_killed(), being_removed(), redirect(), server_name(), unuppercased_server_name(),
-      server_port(server_port), content_type(), content_length(), _custom_reason_phrase(),
+      server_port(server_port_), content_type(), content_length(), time_of_last_read(), _custom_reason_phrase(),
       _response_content_type("application/octet-stream"), _header(), _is_chunked(), _chunked_remaining_content_length(),
       _chunked_body_buffer(), _chunked_read_state(ChunkedReadState::READING_CONTENT_LEN)
 {
@@ -56,8 +44,8 @@ Client::Client(Client const &src)
       cgi_killed(src.cgi_killed), being_removed(src.being_removed), redirect(src.redirect),
       server_name(src.server_name), unuppercased_server_name(src.unuppercased_server_name),
       server_port(src.server_port), content_type(src.content_type), content_length(src.content_length),
-      _custom_reason_phrase(src._custom_reason_phrase), _response_content_type(src._response_content_type),
-      _header(src._header), _is_chunked(src._is_chunked),
+      time_of_last_read(src.time_of_last_read), _custom_reason_phrase(src._custom_reason_phrase),
+      _response_content_type(src._response_content_type), _header(src._header), _is_chunked(src._is_chunked),
       _chunked_remaining_content_length(src._chunked_remaining_content_length),
       _chunked_body_buffer(src._chunked_body_buffer), _chunked_read_state(src._chunked_read_state)
 {
@@ -99,6 +87,7 @@ Client &Client::operator=(Client const &src)
     this->server_port = src.server_port;
     this->content_type = src.content_type;
     this->content_length = src.content_length;
+    this->time_of_last_read = src.time_of_last_read;
     this->_custom_reason_phrase = src._custom_reason_phrase;
     this->_response_content_type = src._response_content_type;
     this->_header = src._header;
@@ -181,7 +170,7 @@ void Client::respondWithError(const std::unordered_map<Status::Status, std::stri
 
     if (!opened_file)
     {
-        std::string title = std::to_string(this->status) + " " + reason_phrase_table[this->status];
+        std::string title = std::to_string(this->status) + " " + Client::get_reason_phrase(this->status);
 
         this->response = "<html>\n"
                          "<head><title>" +
@@ -355,7 +344,7 @@ void Client::prependResponseHeader(void)
     this->response = "";
 
     std::string reason_phrase =
-        this->_custom_reason_phrase.empty() ? reason_phrase_table[this->status] : this->_custom_reason_phrase;
+        this->_custom_reason_phrase.empty() ? Client::get_reason_phrase(this->status) : this->_custom_reason_phrase;
 
     this->response += this->protocol + " " + std::to_string(this->status) + " " + reason_phrase + "\r\n";
 
@@ -484,6 +473,33 @@ std::string Client::getRequestMethodString(void) const
     case RequestMethod::DELETE:
         return "DELETE";
     }
+    assert(false);
+}
+
+const char *Client::get_reason_phrase(Status::Status status)
+{
+    switch (status)
+    {
+    case Status::OK:
+        return "OK";
+    case Status::MOVED_PERMANENTLY:
+        return "Moved Permanently";
+    case Status::MOVED_TEMPORARILY:
+        return "Moved Temporarily";
+    case Status::BAD_REQUEST:
+        return "Bad Request";
+    case Status::FORBIDDEN:
+        return "Forbidden";
+    case Status::NOT_FOUND:
+        return "Not Found";
+    case Status::METHOD_NOT_ALLOWED:
+        return "Method Not Allowed";
+    case Status::REQUEST_ENTITY_TOO_LARGE:
+        return "Request Entity Too Large";
+    case Status::INTERNAL_SERVER_ERROR:
+        return "Internal Server Error";
+    }
+    assert(false);
 }
 
 std::vector<std::string> Client::_getHeaderLines(void)

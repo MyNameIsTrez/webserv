@@ -68,6 +68,12 @@ Server::Server(const Config &config)
     T::signal(SIGPIPE, SIG_IGN);
 }
 
+Server::~Server(void)
+{
+    _shutDownServers();
+    L::info(std::string("Gootbye"));
+}
+
 void Server::run(void)
 {
     bool servers_active = true;
@@ -85,7 +91,6 @@ void Server::run(void)
 
         if (_pfds.size() == 0)
         {
-            L::info(std::string("Gootbye"));
             return;
         }
         else if (shutting_down_gracefully)
@@ -98,8 +103,9 @@ void Server::run(void)
 
         L::info(std::string("Waiting for an event..."));
 
-        assert(_unreaped_cgi_count >= 0);
-        int timeout = _unreaped_cgi_count > 0 ? _config.reap_frequency_ms : -1;
+        // TODO: Time out clients that haven't sent enough bytes according to us. The fuzzer hangs otherwise!
+
+        int timeout = _clients.size() > 0 ? _config.poll_timeout_ms : -1;
         int event_count = poll(_pfds.data(), _pfds.size(), timeout);
         if (event_count == -1)
         {
@@ -113,7 +119,28 @@ void Server::run(void)
         else if (event_count == 0)
         {
             L::info("  poll() timed out");
-            _reapChildCGIScripts();
+
+            assert(_unreaped_cgi_count >= 0);
+            if (_unreaped_cgi_count > 0)
+            {
+                _reapChildCGIScripts();
+            }
+
+            for (const Client &client : _clients)
+            {
+                auto now = std::chrono::steady_clock::now();
+                auto elapsed = now - client.time_of_last_read;
+                size_t ms_since_last_read = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
+
+                // TODO: This doesn't account for the fact a CGI may naturally take a long time!
+
+                if (ms_since_last_read > _config.client_timeout_ms)
+                {
+                    _removeClient(client.client_fd);
+                }
+            }
+
+            continue;
         }
 
         _printContainerSizes();
@@ -139,7 +166,8 @@ void Server::_shutDownServers(void)
 {
     for (auto [fd, fd_type] : _fd_to_fd_type)
     {
-        if (fd_type == FdType::SERVER)
+        // Closing a socket twice is prevented with the `_fd_to_pfd_index.contains(fd)`
+        if (fd_type == FdType::SERVER && _fd_to_pfd_index.contains(fd))
         {
             size_t pfd_index = _fd_to_pfd_index.at(fd);
             _fd_to_pfd_index[_pfds.back().fd] = pfd_index;
@@ -544,6 +572,8 @@ void Server::_readFd(Client &client, int fd, FdType fd_type, bool &skip_client)
 
     ssize_t bytes_read = T::read(fd, received, MAX_READ_LEN);
 
+    client.time_of_last_read = std::chrono::steady_clock::now();
+
     // If the client disconnected
     if (bytes_read == 0)
     {
@@ -857,6 +887,8 @@ void Server::_execveChild(Client &client, const std::string &cgi_execve_path, co
     const auto &cgi_env_vec = _getCGIEnv(cgi_headers);
     char **cgi_env = const_cast<char **>(cgi_env_vec.data());
 
+    // NOTE: This is correct but very jank, because if it (or any other place in this child throws), it'll call the parent's atexit() handlers.
+    // Ideally the child would call _exit(), but ¯\_(ツ)_/¯
     T::execve(cgi_execve_path.c_str(), argv, cgi_env);
 }
 

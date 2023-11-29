@@ -1,9 +1,7 @@
-#include "Logger.hpp"
 #include "Server.hpp"
 #include "config/Config.hpp"
 #include "config/JSON.hpp"
 
-#include <cstdlib>
 #include <filesystem>
 
 struct CouldntOpenConfigFile : public std::runtime_error
