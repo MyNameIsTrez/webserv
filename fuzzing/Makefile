@@ -4,7 +4,7 @@ NAME := config_fuzzing
 
 CC := c++
 
-CFLAGS := -Wall -Wextra -Werror -Wpedantic -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b
+CFLAGS := -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b #-Wpedantic
 CFLAGS += -DSUPPRESS_LOGGING
 
 OBJDIR := obj
@@ -12,7 +12,7 @@ OBJDIR := obj
 ################################################################################
 
 ifdef DEBUG
-CFLAGS += -g3 -fstandalone-debug
+CFLAGS += -g3 #-fstandalone-debug
 endif
 # ifdef SAN
 # CFLAGS += -fsanitize=address,undefined
@@ -41,6 +41,19 @@ endif
 
 ################################################################################
 
+ifdef FUZZ_CLIENT
+CFILES :=\
+	src/config/Config.cpp\
+	src/config/JSON.cpp\
+	src/config/Node.cpp\
+	src/config/Tokenizer.cpp\
+	src/Client.cpp\
+	src/Logger.cpp\
+	src/Server.cpp\
+	src/Throwing.cpp\
+	src/Utils.cpp\
+	fuzzing/src/main_fuzzing_client.cpp
+else
 CFILES :=\
 	src/config/Config.cpp\
 	src/config/JSON.cpp\
@@ -48,7 +61,8 @@ CFILES :=\
 	src/config/Tokenizer.cpp\
 	src/Logger.cpp\
 	src/Utils.cpp\
-	fuzzing/src/main.cpp
+	fuzzing/src/main_fuzzing_logger.cpp
+endif
 
 ################################################################################
 

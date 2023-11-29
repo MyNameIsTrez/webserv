@@ -1,6 +1,6 @@
 FROM aflplusplus/aflplusplus:v4.08c
 
-RUN apt update && apt install -y screen tmux
+RUN apt update && apt install -y screen tmux net-tools
 
 # Allow using the mouse in tmux
 RUN { \

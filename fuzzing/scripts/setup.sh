@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Leave this commented out!
+# export AFL_DEBUG=1
+
 make fclean
 make -C fuzzing clean
 
@@ -22,7 +25,12 @@ mkdir -p /src/fuzzing/afl
 
 mkdir -p /src/fuzzing/afl/minimized-tests
 rm -rf /src/fuzzing/afl/minimized-tests/*
-afl-cmin -i /src/fuzzing/tests -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/config_fuzzing_ctmin
+if [ -z "$FUZZ_CLIENT" ] # If FUZZ_CLIENT is not defined
+then
+afl-cmin -i /src/fuzzing/tests_fuzzing_logger -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/config_fuzzing_ctmin
+else
+afl-cmin -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/config_fuzzing_ctmin
+fi
 
 mkdir -p /src/fuzzing/afl/trimmed-tests
 rm -rf /src/fuzzing/afl/trimmed-tests/*

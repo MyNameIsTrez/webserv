@@ -1,6 +1,7 @@
 "connection_queue_length"
 "client_max_body_size"
-"reap_frequency_ms"
+"poll_timeout_ms"
+"client_timeout_ms"
 "servers"
 "listen"
 "server_names"
