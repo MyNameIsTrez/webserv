@@ -139,6 +139,7 @@ int main(int argc, char *argv[])
     assert(argc == 2);
     std::string file_name(argv[1]);
 
+    std::cout << "Opening config file '" << file_name << "'" << std::endl;
     std::ifstream config_file(file_name);
 
     assert(config_file.is_open());
@@ -154,6 +155,8 @@ int main(int argc, char *argv[])
     std::cout << "Running server..." << std::endl;
     server.run();
 
+    // TODO: It might be faster if we didn't have to wait,
+    // TODO: by doing something that tells the child to be reaped instantly?
     int wstatus;
     assert(waitpid(pid, &wstatus, 0) != -1);
 

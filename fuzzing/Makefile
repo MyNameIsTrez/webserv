@@ -100,6 +100,11 @@ clean:
 	rm -f fuzzing_ctmin
 	rm -f fuzzing_gcov
 
+	rm -f master.log
+	rm -f slave_1.log
+	rm -f slave_2.log
+	rm -f slave_3.log
+
 .PHONY: fclean
 fclean: clean
 

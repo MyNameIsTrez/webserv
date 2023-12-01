@@ -5,9 +5,9 @@
 
 # For debugging crashes, from here:
 # https://github.com/AFLplusplus/AFLplusplus/issues/696#issuecomment-764572672
-export AFL_DEBUG=1
-ulimit -c unlimited
-export ASAN_OPTIONS="disable_coredump=0:unmap_shadow_on_exit=1:abort_on_error=1:detect_leaks=0:symbolize=1"
+# export AFL_DEBUG=1
+# ulimit -c unlimited
+# export ASAN_OPTIONS="disable_coredump=0:unmap_shadow_on_exit=1:abort_on_error=1:detect_leaks=0:symbolize=1"
 
 if [ -z "$FUZZ_CLIENT" ] # If FUZZ_CLIENT is not defined
 then
@@ -35,6 +35,6 @@ for i in $(seq 1 "${slave_count:-0}")
 do
 echo "Fuzzing core $i"
 
-screen -dmS "slave_$i" sh -c "afl-fuzz -D -i /src/fuzzing/afl/trimmed-tests -x $dict_path -o /src/fuzzing/afl/afl-output -S "slave_$i" -- /src/fuzzing/fuzzing_afl /src/fuzzing/fuzzing_client_slave_$1\_webserv.json 2> /src/fuzzing/slave_$i.log; exec bash"
+screen -dmS "slave_$i" sh -c "afl-fuzz -D -i /src/fuzzing/afl/trimmed-tests -x $dict_path -o /src/fuzzing/afl/afl-output -S "slave_$i" -- /src/fuzzing/fuzzing_afl /src/fuzzing/fuzzing_client_slave_$i\_webserv.json 2> /src/fuzzing/slave_$i.log; exec bash"
 sleep 1
 done

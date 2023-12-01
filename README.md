@@ -96,7 +96,7 @@ This will print localhost's response: (by search-and-replacing example.com)
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
 
 ### Debugging main_fuzzing_client.cpp after running setup.sh
-`clear && AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/fuzzing_ctmin`
+`clear && AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/fuzzing_ctmin /src/fuzzing/fuzzing_client_master_webserv.json`
 
 ### Compiling main_fuzzing_client.cpp manually in the fuzzing Docker container
 `g++ -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b -DSUPPRESS_LOGGING src/config/Config.cpp src/config/JSON.cpp src/config/Node.cpp src/config/Tokenizer.cpp src/Client.cpp src/Logger.cpp src/Server.cpp src/Throwing.cpp src/Utils.cpp fuzzing/src/main_fuzzing_client.cpp; echo foo | ./a.out`

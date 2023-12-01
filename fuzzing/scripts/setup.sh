@@ -27,15 +27,15 @@ mkdir -p /src/fuzzing/afl/minimized-tests
 rm -rf /src/fuzzing/afl/minimized-tests/*
 if [ -z "$FUZZ_CLIENT" ] # If FUZZ_CLIENT is not defined
 then
-afl-cmin -i /src/fuzzing/tests_fuzzing_logger -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/fuzzing_ctmin
+afl-cmin -i /src/fuzzing/tests_fuzzing_logger -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/fuzzing_ctmin /src/fuzzing/fuzzing_client_master_webserv.json
 else
-afl-cmin -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/fuzzing_ctmin
+afl-cmin -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/minimized-tests -- /src/fuzzing/fuzzing_ctmin /src/fuzzing/fuzzing_client_master_webserv.json
 fi
 
 mkdir -p /src/fuzzing/afl/trimmed-tests
 rm -rf /src/fuzzing/afl/trimmed-tests/*
 for file in /src/fuzzing/afl/minimized-tests/**; do
-afl-tmin -i "$file" -o /src/fuzzing/afl/trimmed-tests/$(basename $file) -- /src/fuzzing/fuzzing_ctmin
+afl-tmin -i "$file" -o /src/fuzzing/afl/trimmed-tests/$(basename $file) -- /src/fuzzing/fuzzing_ctmin /src/fuzzing/fuzzing_client_master_webserv.json
 done
 
 # TODO: Not sure if the DEBUG=1 is necessary for afl

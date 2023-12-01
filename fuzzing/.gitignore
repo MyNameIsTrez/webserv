@@ -1,3 +1,11 @@
+afl
 obj_afl
 obj_ctmin
+obj_gcov
+fuzzing_afl
 fuzzing_ctmin
+fuzzing_gcov
+master.log
+slave_1.log
+slave_2.log
+slave_3.log

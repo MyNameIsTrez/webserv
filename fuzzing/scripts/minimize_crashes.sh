@@ -4,7 +4,7 @@ mkdir -p /src/fuzzing/afl/minimized-crashes
 rm -rf /src/fuzzing/afl/minimized-crashes/*
 i=0
 for file in /src/fuzzing/afl/afl-output/master/crashes/id*; do
-afl-tmin -i "$file" -o /src/fuzzing/afl/minimized-crashes/$i -- /src/fuzzing/fuzzing_ctmin
+afl-tmin -i "$file" -o /src/fuzzing/afl/minimized-crashes/$i -- /src/fuzzing/fuzzing_ctmin /src/fuzzing/fuzzing_client_master_webserv.json
 i=$(($i + 1))
 done
 
