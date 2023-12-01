@@ -3,6 +3,7 @@
 #include "Client.hpp"
 #include "config/Config.hpp"
 
+#include <signal.h>
 #include <unordered_set>
 
 class Server
@@ -13,13 +14,8 @@ class Server
 
     void run(void);
 
-    struct ServerExceptionAlreadyConstructedThisSingleton : std::runtime_error
-    {
-        ServerExceptionAlreadyConstructedThisSingleton()
-            : std::runtime_error("Server exception: Already constructed this singleton")
-        {
-        }
-    };
+    static volatile sig_atomic_t running;
+    static bool shutting_down_gracefully;
 
   private:
     Server(void);
@@ -118,9 +114,6 @@ class Server
 
     // SIGNAL HANDLERS
     static void _sigIntHandler(int signum);
-
-    static bool constructed_singleton;
-    static bool shutting_down_gracefully;
 
     const Config &_config;
 

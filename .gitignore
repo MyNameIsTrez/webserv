@@ -16,6 +16,7 @@
 !fuzzing/scripts/*.sh
 !fuzzing/src/*.cpp
 !fuzzing/tests/*.json
+!fuzzing/*.dict
 !fuzzing/Dockerfile
 !fuzzing/Makefile
 

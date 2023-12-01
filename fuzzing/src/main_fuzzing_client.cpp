@@ -24,6 +24,12 @@
 __AFL_FUZZ_INIT()
 #endif
 
+static void stop_running_server_handler(int num)
+{
+    (void)num;
+    Server::running = false;
+}
+
 // Source: https://stackoverflow.com/q/41904221/13279557
 static ssize_t write_fully(int fd, const char *buf, size_t len)
 {
@@ -42,21 +48,6 @@ static ssize_t write_fully(int fd, const char *buf, size_t len)
     return 0;
 }
 
-// This function is necessary because assert(), abort() and exit()
-// will cause "bind: Address already in use" the next time this program is run
-static void check(bool live)
-{
-    if (!live)
-    {
-        // kill(0, ...) will also send the signal to the parent, so ignore it
-        signal(SIGQUIT, SIG_IGN);
-
-        assert(kill(0, SIGQUIT) != -1);
-
-        exit(EXIT_FAILURE);
-    }
-}
-
 static void run(char *buf, int len)
 {
     // write() its behavior could be weird with a len of 0
@@ -70,11 +61,11 @@ static void run(char *buf, int len)
     printf("len is %d\n", len);
 
     int socket_fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
-    check(socket_fd != -1);
+    assert(socket_fd != -1);
 
     // Prevents "bind: Address already in use" error
     int option = 1; // "the parameter should be non-zero to enable a boolean option"
-    check(setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) != -1);
+    assert(setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, &option, sizeof(option)) != -1);
 
     // Set up socket struct
     sockaddr_in socket{};
@@ -82,36 +73,41 @@ static void run(char *buf, int len)
     // Convert host (our) byte order to the network byte order as short (uint16_t)
     socket.sin_port = htons(SERVER_PORT);
 
-    check(inet_pton(AF_INET, SERVER_ADDRESS, &socket.sin_addr) > 0);
+    assert(inet_pton(AF_INET, SERVER_ADDRESS, &socket.sin_addr) > 0);
 
-    if (connect(socket_fd, (sockaddr *)&socket, sizeof(socket)) == -1)
+    while (connect(socket_fd, (sockaddr *)&socket, sizeof(socket)) == -1)
     {
-        perror("connect");
-        exit(EXIT_FAILURE);
+        // Retry as the server (presumably) hasn't called listen() yet
+        usleep(100); // 0.1 ms
     }
-    // check(connect(socket_fd, (sockaddr *)&socket, sizeof(socket)) != -1);
 
     // Send the request, making sure that every byte was sent
-    check(write_fully(socket_fd, buf, len) >= 0);
+    std::cout << "Will now call write() in a loop..." << std::endl;
+    if (write_fully(socket_fd, buf, len) < 0)
+    {
+        std::cout << "write() returned -1" << std::endl;
+        assert(close(socket_fd) != -1);
+        return;
+    }
 
     // NULL-terminate received string
     char received[MAX_RECEIVED_LEN + 1]{};
-
-    std::cout << "foo" << std::endl;
 
     // Keep attempting to read, until there is no more data to receive (0),
     // or an error is returned (-1)
     // read() will block the program, waiting for more stuff to read
     ssize_t bytes_read;
+    std::cout << "Will now call read() in a loop..." << std::endl;
     while ((bytes_read = read(socket_fd, received, MAX_RECEIVED_LEN)) > 0)
     {
+        std::cout << "bytes_read is " << bytes_read << std::endl;
         printf("Read these bytes: '%s'\n", received);
         bzero(received, MAX_RECEIVED_LEN + 1);
     }
-    std::cout << "bar" << std::endl;
-    check(bytes_read >= 0);
+    // It often returns -1 "Connection reset by peer", but we don't care and continue
+    std::cout << "bytes_read is " << bytes_read << std::endl;
 
-    check(close(socket_fd) != -1);
+    assert(close(socket_fd) != -1);
 }
 
 int main(int argc, char *argv[])
@@ -125,10 +121,51 @@ int main(int argc, char *argv[])
 
     std::cout << "Started program" << std::endl;
 
-    pid_t pid = fork();
-    assert(pid != -1);
-    if (pid == 0)
+    unsigned char *buf = (unsigned char *)"";
+#ifdef AFL
+    buf = __AFL_FUZZ_TESTCASE_BUF;
+#else
+    std::string str_buf(std::istreambuf_iterator<char>(std::cin), {});
+    buf = (unsigned char *)str_buf.data();
+#endif
+
+#if defined AFL || defined GCOV
+    // TODO: I'm not sure __AFL_LOOP() works, since we call exit() in it!
+    // __extension__ is necessary when using -Wpedantic
+    while (__extension__ __AFL_LOOP(10000))
+#endif
     {
+#ifdef AFL
+        int len = __AFL_FUZZ_TESTCASE_LEN;
+#else
+        int len = str_buf.length();
+#endif
+        assert(signal(SIGUSR1, stop_running_server_handler) != SIG_ERR);
+
+        pid_t server_pid = getpid();
+
+        Server::running = true;
+        Server::shutting_down_gracefully = false;
+
+        std::cout << "Going to fork" << std::endl;
+
+        // Unfortunately the server has to be inside of this __AFL_LOOP
+        // in order for coverage of it to be gathered :(
+        pid_t pid = fork();
+        assert(pid != -1);
+        if (pid == 0)
+        {
+            assert(signal(SIGUSR1, SIG_IGN) != SIG_ERR);
+
+            run((char *)buf, len);
+
+            std::cout << "Telling the server to stop running..." << std::endl;
+            // We don't care whether kill() returned -1
+            kill(server_pid, SIGUSR1);
+
+            return EXIT_SUCCESS;
+        }
+
         std::string file_name("fuzzing/fuzzing_client_webserv.json");
 
         std::ifstream config_file(file_name);
@@ -143,44 +180,12 @@ int main(int argc, char *argv[])
 
         Server server(config);
 
+        std::cout << "Running server..." << std::endl;
         server.run();
 
-        return EXIT_SUCCESS;
+        int wstatus;
+        assert(wait(&wstatus) != -1);
     }
-
-    std::cout << "Running server" << std::endl;
-
-    // Sleep so connect() won't fail if the parent hasn't called listen() yet
-    // TODO: Make this way lower to speed up fuzzing, somehow!
-    usleep(10000); // 10 ms
-
-    unsigned char *buf = (unsigned char *)"";
-#ifdef AFL
-    buf = __AFL_FUZZ_TESTCASE_BUF;
-#else
-    std::string str_buf(std::istreambuf_iterator<char>(std::cin), {});
-    buf = (unsigned char *)str_buf.data();
-#endif
-
-#if defined AFL || defined GCOV
-    // __extension__ is necessary when using -Wpedantic
-    while (__extension__ __AFL_LOOP(10000))
-#endif
-    {
-#ifdef AFL
-        int len = __AFL_FUZZ_TESTCASE_LEN;
-#else
-        int len = str_buf.length();
-#endif
-
-        run((char *)buf, len);
-    }
-
-    std::cout << "Killing server" << std::endl;
-
-    check(kill(pid, SIGTERM) != -1);
-    int wstatus;
-    check(wait(&wstatus) != -1);
 
     return EXIT_SUCCESS;
 }

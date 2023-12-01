@@ -13,7 +13,7 @@ export AFL_USE_UBSAN=1
 make -C /src/fuzzing DEBUG=1 GCOV=1 #SAN=1
 
 # In case you want to view the web result, use this instead of the line below it
-afl-cov -d /src/fuzzing/afl/afl-output/master/ --coverage-cmd "cat AFL_FILE | /src/fuzzing/config_fuzzing_gcov" --code-dir /src/fuzzing/obj_gcov --live --overwrite --enable-branch-coverage --lcov-web-all --sleep 1 &> /dev/null &
+afl-cov -d /src/fuzzing/afl/afl-output/master/ --coverage-cmd "cat AFL_FILE | /src/fuzzing/fuzzing_gcov" --code-dir /src/fuzzing/obj_gcov --live --overwrite --enable-branch-coverage --lcov-web-all --sleep 1 &> /dev/null &
 
 replace_lcov_docker_work_directory () {
 	while true

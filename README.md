@@ -91,11 +91,12 @@ This will print localhost's response: (by search-and-replacing example.com)
 2. Run `setup.sh` to compile for afl-cmin + afl-tmin, generate tests, and compile for AFL
 2. Run `FUZZ_CLIENT=1 setup.sh` to do the same but fuzzing the client instead of the config.
 3. Run `coverage.sh` to fuzz while generating coverage
-2. Run `FUZZ_CLIENT=1 coverage.sh` to do the same but fuzzing the client instead of the config.
+3. Run `FUZZ_CLIENT=1 coverage.sh` to do the same but fuzzing the client instead of the config.
+3. Run `AFL_DEBUG=1 FUZZ_CLIENT=1 fuzz.sh` to get debug information in case it crashes.
 4. Run `minimize_crashes.sh` to minimize the crashes, which are then put in `/src/fuzzing/afl/minimized-crashes/`
 
 ### Debugging main_fuzzing_client.cpp after running setup.sh
-`clear && AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/config_fuzzing_ctmin`
+`clear && AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/fuzzing_ctmin`
 
 ### Compiling main_fuzzing_client.cpp manually in the fuzzing Docker container
 `g++ -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b -DSUPPRESS_LOGGING src/config/Config.cpp src/config/JSON.cpp src/config/Node.cpp src/config/Tokenizer.cpp src/Client.cpp src/Logger.cpp src/Server.cpp src/Throwing.cpp src/Utils.cpp fuzzing/src/main_fuzzing_client.cpp; echo foo | ./a.out`

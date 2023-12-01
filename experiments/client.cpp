@@ -94,7 +94,8 @@ int main(int argc, char *argv[])
 
     // We're connected; prepare sent message
     // Message asks to get / (root) homepage
-    const char *sent = "GET / HTTP/1.1\r\n\r\n";
+    // const char *sent = "GET / HTTP/1.1\r\n\r\n";
+    const char *sent = ".";
     size_t sent_len = strlen(sent);
 
     // write() its behavior could be weird with a sent_len of 0

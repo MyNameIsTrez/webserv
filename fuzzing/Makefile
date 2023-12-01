@@ -1,6 +1,6 @@
 ################################################################################
 
-NAME := config_fuzzing
+NAME := webserv_fuzzing
 
 CC := c++
 
@@ -21,19 +21,19 @@ ifdef SUPPRESS_LOGGING
 CFLAGS += -DSUPPRESS_LOGGING
 endif
 ifdef AFL
-NAME := config_fuzzing_afl
+NAME := fuzzing_afl
 CC := afl-clang-lto++
 CFLAGS += -Wno-gnu-statement-expression -DAFL=1
 OBJDIR := obj_afl
 endif
 ifdef CTMIN
-NAME := config_fuzzing_ctmin
+NAME := fuzzing_ctmin
 CC := afl-clang-lto++
 CFLAGS += -DCTMIN=1
 OBJDIR := obj_ctmin
 endif
 ifdef GCOV
-NAME := config_fuzzing_gcov
+NAME := fuzzing_gcov
 CC := afl-g++-fast
 CFLAGS += -Wno-gnu-statement-expression -fprofile-arcs -ftest-coverage -DGCOV=1
 OBJDIR := obj_gcov
@@ -95,10 +95,10 @@ clean:
 	rm -rf obj_ctmin/
 	rm -rf obj_gcov/
 
-	rm -f config_fuzzing
-	rm -f config_fuzzing_afl
-	rm -f config_fuzzing_ctmin
-	rm -f config_fuzzing_gcov
+	rm -f webserv_fuzzing
+	rm -f fuzzing_afl
+	rm -f fuzzing_ctmin
+	rm -f fuzzing_gcov
 
 .PHONY: fclean
 fclean: clean

@@ -21,20 +21,13 @@
 namespace L = Logger;
 namespace T = Throwing;
 
-bool Server::constructed_singleton = false;
+volatile sig_atomic_t Server::running = true;
 bool Server::shutting_down_gracefully = false;
 
 Server::Server(const Config &config)
     : _config(config), _unreaped_cgi_count(), _bind_fd_to_server_indices(), _bind_fd_to_port(), _cgi_pid_to_client_fd(),
       _fd_to_client_index(), _fd_to_pfd_index(), _fd_to_fd_type(), _clients(), _pfds()
 {
-    if (constructed_singleton)
-    {
-        throw ServerExceptionAlreadyConstructedThisSingleton();
-    }
-
-    constructed_singleton = true;
-
     for (const auto &[bind_info, server_indices] : _config.bind_info_to_server_indices)
     {
         int bind_fd = T::socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, IPPROTO_TCP);
@@ -80,7 +73,8 @@ void Server::run(void)
 
     std::unordered_set<int> seen_fds;
 
-    while (true)
+    // Equivalent to while (true) when not fuzzing
+    while (Server::running)
     {
         if (shutting_down_gracefully && servers_active)
         {

@@ -71,6 +71,9 @@ int main(void)
             exit(EXIT_FAILURE);
         }
 
+        // This doesn't cause "Address already in use", so is fine
+        // abort();
+
         while (true)
         {
         }
