@@ -12,7 +12,7 @@ export AFL_USE_UBSAN=1
 
 make -C /src/fuzzing DEBUG=1 GCOV=1 #SAN=1
 
-afl-cov -d /src/fuzzing/afl/afl-output/master/ --coverage-cmd "cat AFL_FILE | /src/fuzzing/fuzzing_gcov" --code-dir /src/fuzzing/obj_gcov --live --overwrite --enable-branch-coverage --lcov-web-all --sleep 1 &> /dev/null &
+afl-cov -d /src/fuzzing/afl/afl-output/master/ --coverage-cmd "cat AFL_FILE | /src/fuzzing/fuzzing_gcov /src/fuzzing/fuzzing_client_master_webserv.json" --code-dir /src/fuzzing/obj_gcov --live --overwrite --enable-branch-coverage --lcov-web-all --sleep 1 &> /dev/null &
 
 # Create daemon that fixes paths and writes it to the new file lcov.info
 # Explanation of this command:

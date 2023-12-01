@@ -20,6 +20,8 @@ RUN ln -s /src/fuzzing/scripts/fuzz.sh /usr/bin/
 RUN ln -s /src/fuzzing/scripts/minimize_crashes.sh /usr/bin/
 RUN ln -s /src/fuzzing/scripts/setup.sh /usr/bin/
 
+RUN ln -s /src/fuzzing/experiments/forking.sh /usr/bin/
+
 WORKDIR /src
 
 # CMD [ "setup.sh" ]

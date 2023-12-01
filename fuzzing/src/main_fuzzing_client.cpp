@@ -108,9 +108,6 @@ static void run(const char *buf, int len)
 
 int main(int argc, char *argv[])
 {
-    (void)argc;
-    (void)argv;
-
     std::cout << "Started program" << std::endl;
 
     assert(signal(SIGUSR1, stop_running_server_handler) != SIG_ERR);
@@ -136,7 +133,11 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
+    std::cout << "Inside of parent" << std::endl;
+
+    std::cout << "argc is " << argc << std::endl;
     assert(argc == 2);
+
     std::string file_name(argv[1]);
 
     std::cout << "Opening config file '" << file_name << "'" << std::endl;

@@ -5,6 +5,7 @@
 
 # For debugging crashes, from here:
 # https://github.com/AFLplusplus/AFLplusplus/issues/696#issuecomment-764572672
+# TODO: Comment this out again, as it's real damn slow!
 # export AFL_DEBUG=1
 # ulimit -c unlimited
 # export ASAN_OPTIONS="disable_coredump=0:unmap_shadow_on_exit=1:abort_on_error=1:detect_leaks=0:symbolize=1"
