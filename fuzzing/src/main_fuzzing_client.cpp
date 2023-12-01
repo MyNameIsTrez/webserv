@@ -20,10 +20,6 @@
 #define SERVER_PORT 8080
 #define MAX_RECEIVED_LEN 4096
 
-#if defined AFL || defined GCOV
-__AFL_FUZZ_INIT()
-#endif
-
 static void stop_running_server_handler(int num)
 {
     (void)num;
@@ -48,7 +44,7 @@ static ssize_t write_fully(int fd, const char *buf, size_t len)
     return 0;
 }
 
-static void run(char *buf, int len)
+static void run(const char *buf, int len)
 {
     // write() its behavior could be weird with a len of 0
     // Source: https://stackoverflow.com/a/41970485/13279557
@@ -115,77 +111,50 @@ int main(int argc, char *argv[])
     (void)argc;
     (void)argv;
 
-#ifdef __AFL_HAVE_MANUAL_CONTROL
-    __AFL_INIT();
-#endif
-
     std::cout << "Started program" << std::endl;
 
-    unsigned char *buf = (unsigned char *)"";
-#ifdef AFL
-    buf = __AFL_FUZZ_TESTCASE_BUF;
-#else
-    std::string str_buf(std::istreambuf_iterator<char>(std::cin), {});
-    buf = (unsigned char *)str_buf.data();
-#endif
+    assert(signal(SIGUSR1, stop_running_server_handler) != SIG_ERR);
 
-#if defined AFL || defined GCOV
-    // TODO: I'm not sure __AFL_LOOP() works, since we call exit() in it!
-    // __extension__ is necessary when using -Wpedantic
-    while (__extension__ __AFL_LOOP(10000))
-#endif
+    pid_t server_pid = getpid();
+
+    std::cout << "Going to fork" << std::endl;
+
+    pid_t pid = fork();
+    assert(pid != -1);
+    if (pid == 0)
     {
-#ifdef AFL
-        int len = __AFL_FUZZ_TESTCASE_LEN;
-#else
-        int len = str_buf.length();
-#endif
-        assert(signal(SIGUSR1, stop_running_server_handler) != SIG_ERR);
+        assert(signal(SIGUSR1, SIG_IGN) != SIG_ERR);
 
-        pid_t server_pid = getpid();
+        std::string buf(std::istreambuf_iterator<char>(std::cin), {});
 
-        Server::running = true;
-        Server::shutting_down_gracefully = false;
+        run(buf.data(), buf.length());
 
-        std::cout << "Going to fork" << std::endl;
+        std::cout << "Telling the server to stop running..." << std::endl;
+        // We don't care whether kill() returned -1
+        kill(server_pid, SIGUSR1);
 
-        // Unfortunately the server has to be inside of this __AFL_LOOP
-        // in order for coverage of it to be gathered :(
-        pid_t pid = fork();
-        assert(pid != -1);
-        if (pid == 0)
-        {
-            assert(signal(SIGUSR1, SIG_IGN) != SIG_ERR);
-
-            run((char *)buf, len);
-
-            std::cout << "Telling the server to stop running..." << std::endl;
-            // We don't care whether kill() returned -1
-            kill(server_pid, SIGUSR1);
-
-            return EXIT_SUCCESS;
-        }
-
-        std::string file_name("fuzzing/fuzzing_client_webserv.json");
-
-        std::ifstream config_file(file_name);
-
-        assert(config_file.is_open());
-
-        assert(std::filesystem::file_size(file_name) <= 420420);
-
-        JSON json(config_file, 5);
-
-        Config config(json);
-
-        Server server(config);
-
-        std::cout << "Running server..." << std::endl;
-        server.run();
-
-        int wstatus;
-        assert(wait(&wstatus) != -1);
+        return EXIT_SUCCESS;
     }
+
+    std::string file_name("fuzzing/fuzzing_client_webserv.json");
+
+    std::ifstream config_file(file_name);
+
+    assert(config_file.is_open());
+
+    assert(std::filesystem::file_size(file_name) <= 420420);
+
+    JSON json(config_file, 5);
+
+    Config config(json);
+
+    Server server(config);
+
+    std::cout << "Running server..." << std::endl;
+    server.run();
+
+    int wstatus;
+    assert(waitpid(pid, &wstatus, 0) != -1);
 
     return EXIT_SUCCESS;
 }

@@ -14,6 +14,8 @@ RUN { \
 	} > ~/.screenrc
 
 RUN ln -s /src/fuzzing/scripts/coverage.sh /usr/bin/
+RUN ln -s /src/fuzzing/scripts/fuzz_client.sh /usr/bin/
+RUN ln -s /src/fuzzing/scripts/fuzz_logger.sh /usr/bin/
 RUN ln -s /src/fuzzing/scripts/fuzz.sh /usr/bin/
 RUN ln -s /src/fuzzing/scripts/minimize_crashes.sh /usr/bin/
 RUN ln -s /src/fuzzing/scripts/setup.sh /usr/bin/
