@@ -1,0 +1,93 @@
+{
+	"connection_queue_length": 420,
+	"client_max_body_size": 420420420,
+	"poll_timeout_ms": 1000,
+	"client_timeout_ms": 1000,
+	"servers": [
+		{
+			"listen": [
+				"localhost:8080"
+			],
+			"server_names": [
+				"foo"
+			],
+			"locations": {
+				"/": {
+					"root": "root",
+					"get_allowed": true,
+					"delete_allowed": true,
+					"autoindex": true
+				},
+				"/public": {
+					"root": ".",
+					"get_allowed": true,
+					"post_allowed": true,
+					"delete_allowed": true,
+					"autoindex": true
+				},
+				"/cgis/bin": {
+					"root": ".",
+					"cgi_execve_path": "/home/sbos/Programming/webserv/cgis/bin/execve",
+					"get_allowed": true,
+					"post_allowed": true,
+					"delete_allowed": true,
+					"autoindex": true
+				},
+				"/cgis/python": {
+					"root": ".",
+					"cgi_execve_path": "/usr/bin/python3",
+					"get_allowed": true,
+					"post_allowed": true,
+					"delete_allowed": true,
+					"autoindex": true
+				},
+				"/rfcs": {
+					"root": ".",
+					"get_allowed": true,
+					"delete_allowed": true
+				},
+				"/tests": {
+					"root": ".",
+					"get_allowed": true,
+					"delete_allowed": true,
+					"autoindex": true
+				},
+				"/redirected/d": {
+					"redirect": "../public/foo/d.html"
+				},
+				"/redirected/google": {
+					"redirect": "http://google.com"
+				},
+				"/loop1": {
+					"redirect": "loop2"
+				},
+				"/loop2": {
+					"redirect": "loop1"
+				}
+			},
+			"error_pages": {
+				"400": "error_pages/400.html",
+				"404": "error_pages/404.html"
+			}
+		},
+		{
+			"listen": [
+				"localhost:8080"
+			],
+			"server_names": [
+				"bar"
+			],
+			"locations": {
+				"/public/": {
+					"root": ".",
+					"get_allowed": false,
+					"delete_allowed": true,
+					"index": "b.html"
+				}
+			},
+			"error_pages": {
+				"405": "error_pages/405.html"
+			}
+		}
+	]
+}

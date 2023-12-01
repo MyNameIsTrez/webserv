@@ -136,7 +136,8 @@ int main(int argc, char *argv[])
         return EXIT_SUCCESS;
     }
 
-    std::string file_name("fuzzing/fuzzing_client_webserv.json");
+    assert(argc == 2);
+    std::string file_name(argv[1]);
 
     std::ifstream config_file(file_name);
 

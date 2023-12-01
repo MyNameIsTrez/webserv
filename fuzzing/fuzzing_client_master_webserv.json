@@ -1,0 +1,21 @@
+{
+	"client_max_body_size": 420420420,
+	"connection_queue_length": 420,
+	"poll_timeout_ms": 1,
+	"client_timeout_ms": 10,
+	"servers": [
+		{
+			"error_pages": {},
+			"listen": [
+				"127.0.0.1:8080"
+			],
+			"locations": {
+				"/": {
+					"root": ".",
+					"get_allowed": true
+				}
+			},
+			"server_names": []
+		}
+	]
+}
