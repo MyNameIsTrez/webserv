@@ -12,17 +12,11 @@ export AFL_USE_UBSAN=1
 
 make -C /src/fuzzing DEBUG=1 GCOV=1 #SAN=1
 
-# In case you want to view the web result, use this instead of the line below it
 afl-cov -d /src/fuzzing/afl/afl-output/master/ --coverage-cmd "cat AFL_FILE | /src/fuzzing/fuzzing_gcov" --code-dir /src/fuzzing/obj_gcov --live --overwrite --enable-branch-coverage --lcov-web-all --sleep 1 &> /dev/null &
 
-replace_lcov_docker_work_directory () {
-	while true
-	do
-		sleep 1
-		< /src/fuzzing/afl/afl-output/master/cov/lcov/trace.lcov_info_final sed 's#:/src/#:./#g' > /src/fuzzing/afl/afl-output/master/cov/lcov/lcov.info
-	done
-}
-
-replace_lcov_docker_work_directory &
+# Create daemon that fixes paths and writes it to the new file lcov.info
+# Explanation of this command:
+# https://unix.stackexchange.com/a/47279/544554
+screen -dmS sed_lcov sh -c "while true; do sleep 1; < /src/fuzzing/afl/afl-output/master/cov/lcov/trace.lcov_info_final sed 's#:/src/#:./#g' > /src/fuzzing/afl/afl-output/master/cov/lcov/lcov.info; done; exec bash"
 
 fuzz.sh

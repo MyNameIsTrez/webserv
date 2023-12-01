@@ -101,6 +101,11 @@ This will print localhost's response: (by search-and-replacing example.com)
 ### Compiling main_fuzzing_client.cpp manually in the fuzzing Docker container
 `g++ -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b -DSUPPRESS_LOGGING src/config/Config.cpp src/config/JSON.cpp src/config/Node.cpp src/config/Tokenizer.cpp src/Client.cpp src/Logger.cpp src/Server.cpp src/Throwing.cpp src/Utils.cpp fuzzing/src/main_fuzzing_client.cpp; echo foo | ./a.out`
 
+### Fuzzing with multiple cores
+`FUZZ_CLIENT=1 fuzz.sh`
+`ps aux > foo.log`
+`clear && afl-whatsup /src/fuzzing/afl/afl-output/`
+
 ## Manual multipart request submission
 `clear && cat manual_multi_form_request.txt | REQUEST_METHOD=POST HTTP_CONTENT_TYPE='multipart/form-data; boundary=----WebKitFormBoundaryBRGOgydgtRaDx2Ju' python3 cgis/python/upload.py`
 
