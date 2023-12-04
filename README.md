@@ -99,7 +99,9 @@ This will print localhost's response: (by search-and-replacing example.com)
 `clear && AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/tests_fuzzing_client -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/fuzzing_ctmin /src/fuzzing/fuzzing_client_master_webserv.json`
 
 ### Compiling main_fuzzing_client.cpp manually in the fuzzing Docker container
-`g++ -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b -DSUPPRESS_LOGGING src/config/Config.cpp src/config/JSON.cpp src/config/Node.cpp src/config/Tokenizer.cpp src/Client.cpp src/Logger.cpp src/Server.cpp src/Throwing.cpp src/Utils.cpp fuzzing/src/main_fuzzing_client.cpp; echo foo | ./a.out`
+`clear && g++ -Wall -Wextra -Werror -Wfatal-errors -Wshadow -Wswitch -Wimplicit-fallthrough -Wno-c99-designator -Werror=type-limits -std=c++2b -DSUPPRESS_LOGGING src/config/Config.cpp src/config/JSON.cpp src/config/Node.cpp src/config/Tokenizer.cpp src/Client.cpp src/Logger.cpp src/Server.cpp src/Throwing.cpp src/Utils.cpp fuzzing/src/main_fuzzing_client.cpp; echo foo | ./a.out /src/fuzzing/fuzzing_client_master_webserv.json`
+
+`clear && dict_path=/src/fuzzing/conf_fuzzing_client.dict; AFL_DEBUG=1 afl-fuzz -D -i /src/fuzzing/afl/trimmed-tests -x $dict_path -o /src/fuzzing/afl/afl-output -M master -- /src/fuzzing/fuzzing_afl /src/fuzzing/fuzzing_client_master_webserv.json 2> /src/fuzzing/master.log`
 
 ### Fuzzing with multiple cores
 `FUZZ_CLIENT=1 fuzz.sh`
