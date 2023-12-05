@@ -20,10 +20,6 @@
 #define SERVER_PORT 8080
 #define MAX_RECEIVED_LEN 4096
 
-#if defined AFL || defined GCOV
-__AFL_FUZZ_INIT()
-#endif
-
 static void stop_running_server_handler(int num)
 {
     (void)num;
@@ -114,18 +110,6 @@ int main(int argc, char *argv[])
 {
     std::cout << "Started program" << std::endl;
 
-#ifdef __AFL_HAVE_MANUAL_CONTROL
-    __AFL_INIT();
-#endif
-
-    unsigned char *buf = (unsigned char *)"";
-#ifdef AFL
-    buf = __AFL_FUZZ_TESTCASE_BUF;
-#else
-    std::string str_buf(std::istreambuf_iterator<char>(std::cin), {});
-    buf = (unsigned char *)str_buf.data();
-#endif
-
     assert(signal(SIGUSR1, stop_running_server_handler) != SIG_ERR);
 
     pid_t server_pid = getpid();
@@ -138,22 +122,9 @@ int main(int argc, char *argv[])
     {
         assert(signal(SIGUSR1, SIG_IGN) != SIG_ERR);
 
-#if defined AFL || defined GCOV
-        // __extension__ is necessary when using -Wpedantic
-        while (__extension__ __AFL_LOOP(2))
-#endif
-        {
-#ifdef AFL
-            int len = __AFL_FUZZ_TESTCASE_LEN;
-#else
-            int len = str_buf.length();
-#endif
+        std::string buf(std::istreambuf_iterator<char>(std::cin), {});
 
-            run((const char *)buf, len);
-
-            // TODO: The reason it hangs here is maybe because the server isn't told to stop running?
-            std::cout << "At the end of the __AFL_LOOP" << std::endl;
-        }
+        run(buf.c_str(), buf.length());
 
         std::cout << "Telling the server to stop running..." << std::endl;
         // We don't care whether kill() returned -1
