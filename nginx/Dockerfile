@@ -18,7 +18,4 @@ RUN ln -s /code/nginx/nginx.conf /etc/nginx/conf.d/default.conf
 # Instead you can also comment this out and use `nginx -g 'daemon off;'
 RUN echo 'daemon off;' >> /etc/nginx/nginx.conf
 
-EXPOSE 80
-EXPOSE 81
-
 WORKDIR /code
