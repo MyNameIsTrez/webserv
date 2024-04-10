@@ -42,6 +42,27 @@ This will print localhost's response: (by search-and-replacing example.com)
 - View the website with `http://localhost:8080/`
 - View the nginx log with `cat /var/log/nginx/access.log`
 
+### nginx tests
+
+```
+# Assuming root /code;
+# index public/a.html => a
+# index public/nonexistent => 403
+# index public/ => 403
+# index public => 301 with "Location: http://localhost:8080/public/"
+# direct nonexistent => 404
+
+# Assuming root /code/public;
+# index foo/../foo/a.html => a
+# index /foo/../foo/a.html => a
+# index /foo/../foo/ => 500
+# index /foo/../foo => 301 with "Location: http://localhost:8080/foo/../foo/"
+
+# Assuming root /code/public/../public;
+# index foo/../foo/a.html => a
+# index foo/../foo => 301 with "Location: http://localhost:8080/foo/../foo/"
+```
+
 ## Running siege
 
 - Benchmark a URL indefinitely with `siege -b http://localhost:8080`
